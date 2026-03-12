@@ -1,0 +1,136 @@
+{
+	"id": "storeflow-environment",
+	"name": "DukaNest Environment",
+	"values": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "test_domain",
+			"value": "test.example.com",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "tenant_id",
+			"value": "",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "tenant_subdomain",
+			"value": "teststore",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "auth_token",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "mobile_access_token",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "mobile_temp_access_token",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "mobile_refresh_token",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "mobile_temp_refresh_token",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "mobile_requires_mfa",
+			"value": "false",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "mobile_email",
+			"value": "",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "mobile_user_id",
+			"value": "",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "mobile_user_email",
+			"value": "",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "mobile_mfa_code",
+			"value": "",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "mobile_password",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "plan_id",
+			"value": "",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "cron_secret_token",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "product_id",
+			"value": "",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "variant_id",
+			"value": "",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "category_id",
+			"value": "",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "product_image_url",
+			"value": "",
+			"type": "default",
+			"enabled": true
+		}
+	],
+	"_postman_variable_scope": "environment",
+	"_postman_exported_at": "2024-01-01T00:00:00.000Z",
+	"_postman_exported_using": "Postman/10.0.0"
+}
+

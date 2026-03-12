@@ -1,0 +1,27 @@
+﻿Analyzing flutter...                                            
+
+  error - Target of URI doesn't exist: '../../core/auth/auth_service.dart' - lib\features\onboarding\providers\auth_provider.dart:2:8 - uri_does_not_exist
+  error - Target of URI doesn't exist: '../../core/auth/auth_state.dart' - lib\features\onboarding\providers\auth_provider.dart:3:8 - uri_does_not_exist
+  error - Target of URI doesn't exist: '../../core/auth/token_storage.dart' - lib\features\onboarding\providers\auth_provider.dart:4:8 - uri_does_not_exist
+  error - Target of URI doesn't exist: '../../core/api/api_client.dart' - lib\features\onboarding\providers\auth_provider.dart:5:8 - uri_does_not_exist
+  error - The name 'AuthState' isn't a type, so it can't be used as a type argument - lib\features\onboarding\providers\auth_provider.dart:7:58 - non_type_as_type_argument
+  error - Undefined name 'authServiceProvider' - lib\features\onboarding\providers\auth_provider.dart:9:15 - undefined_identifier
+  error - Undefined name 'tokenStorageProvider' - lib\features\onboarding\providers\auth_provider.dart:10:15 - undefined_identifier
+  error - The name 'AuthState' isn't a type, so it can't be used as a type argument - lib\features\onboarding\providers\auth_provider.dart:14:42 - non_type_as_type_argument
+  error - Undefined class 'AuthService' - lib\features\onboarding\providers\auth_provider.dart:15:9 - undefined_class
+  error - Undefined class 'TokenStorage' - lib\features\onboarding\providers\auth_provider.dart:16:9 - undefined_class
+  error - The method 'AuthState' isn't defined for the type 'AuthNotifier' - lib\features\onboarding\providers\auth_provider.dart:18:63 - undefined_method
+  error - Undefined name 'AuthStatus' - lib\features\onboarding\providers\auth_provider.dart:28:38 - undefined_identifier
+  error - Undefined name 'AuthStatus' - lib\features\onboarding\providers\auth_provider.dart:30:38 - undefined_identifier
+  error - Undefined name 'AuthUser' - lib\features\onboarding\providers\auth_provider.dart:45:20 - undefined_identifier
+  error - Undefined name 'AuthStatus' - lib\features\onboarding\providers\auth_provider.dart:48:40 - undefined_identifier
+  error - Undefined name 'AuthStatus' - lib\features\onboarding\providers\auth_provider.dart:50:40 - undefined_identifier
+  error - Undefined name 'AuthStatus' - lib\features\onboarding\providers\auth_provider.dart:69:38 - undefined_identifier
+  error - Undefined name 'AuthUser' - lib\features\onboarding\providers\auth_provider.dart:86:20 - undefined_identifier
+  error - Undefined name 'AuthStatus' - lib\features\onboarding\providers\auth_provider.dart:88:41 - undefined_identifier
+  error - Undefined name 'AuthStatus' - lib\features\onboarding\providers\auth_provider.dart:90:41 - undefined_identifier
+  error - Undefined name 'AuthStatus' - lib\features\onboarding\providers\auth_provider.dart:100:36 - undefined_identifier
+  error - Target of URI doesn't exist: '../../core/auth/auth_state.dart' - lib\features\onboarding\screens\login_screen.dart:3:8 - uri_does_not_exist
+  error - Target of URI doesn't exist: '../../core/auth/auth_state.dart' - lib\features\onboarding\screens\mfa_screen.dart:3:8 - uri_does_not_exist
+warning - Unused import: 'package:firebase_core/firebase_core.dart' - lib\main.dart:3:8 - unused_import
+

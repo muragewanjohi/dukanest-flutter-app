@@ -1,0 +1,4582 @@
+{
+	"info": {
+		"_postman_id": "storeflow-api-collection",
+		"name": "DukaNest API Collection",
+		"description": "Complete API collection for DukaNest multi-tenant ecommerce platform. Updated after each development day.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "storeflow"
+	},
+	"item": [
+		{
+			"name": "Tenant Management",
+			"item": [
+				{
+					"name": "Get Current Tenant",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has tenant data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('tenant');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/tenant/current",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"tenant",
+								"current"
+							]
+						},
+						"description": "Get the current tenant based on hostname/headers set by middleware.\n\n**Day 10:** Tenant Resolution System"
+					},
+					"response": []
+				}
+			],
+			"description": "Tenant-related API endpoints"
+		},
+		{
+			"name": "Domain Management",
+			"item": [
+				{
+					"name": "Add Custom Domain",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Domain added successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('domain');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"domain\": \"{{test_domain}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/domains",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"domains"
+							]
+						},
+						"description": "Add a custom domain to a tenant.\n\n**Day 11:** Vercel Domain Management\n\n**Required:**\n- Domain must be valid format (e.g., example.com)\n- Tenant must be authenticated\n\n**Response:**\n- Domain information\n- Verification status\n- DNS configuration instructions"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Domain Info",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has domain info\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('domain');",
+									"    pm.expect(jsonData).to.have.property('verification');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/domains?domain={{test_domain}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"domains"
+							],
+							"query": [
+								{
+									"key": "domain",
+									"value": "{{test_domain}}",
+									"description": "Domain name to get info for"
+								}
+							]
+						},
+						"description": "Get domain information and verification status.\n\n**Day 11:** Vercel Domain Management\n\n**Returns:**\n- Domain details\n- Verification status\n- DNS configuration instructions"
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Domain",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Domain removed successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/domains?domain={{test_domain}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"domains"
+							],
+							"query": [
+								{
+									"key": "domain",
+									"value": "{{test_domain}}",
+									"description": "Domain name to remove"
+								}
+							]
+						},
+						"description": "Remove a custom domain from a tenant.\n\n**Day 11:** Vercel Domain Management\n\n**Note:** Domain must belong to the authenticated tenant."
+					},
+					"response": []
+				}
+			],
+			"description": "Domain management endpoints for custom domains"
+		},
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Landlord Register",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Registration successful\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('user');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Admin User\",\n    \"email\": \"admin@example.com\",\n    \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/landlord/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"landlord",
+								"register"
+							]
+						},
+						"description": "Register a new landlord (admin) user.\n\n**Day 12:** Supabase Authentication\n\n**Required Fields:**\n- name: Full name\n- email: Email address\n- password: Password (min 8 characters)\n\n**Response:**\n- User object with landlord role"
+					},
+					"response": []
+				},
+				{
+					"name": "Landlord Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Login successful\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('user');",
+									"    pm.expect(jsonData.user.role).to.eql('landlord');",
+									"    ",
+									"    // Save session token if available",
+									"    if (jsonData.session && jsonData.session.access_token) {",
+									"        pm.environment.set('auth_token', jsonData.session.access_token);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/landlord/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"landlord",
+								"login"
+							]
+						},
+						"description": "Login for landlord (admin) users.\n\n**Day 12:** Supabase Authentication\n\n**Required Fields:**\n- email: Email address\n- password: Password\n\n**Response:**\n- User object\n- Session token (saved to environment)"
+					},
+					"response": []
+				},
+				{
+					"name": "Tenant Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Login successful\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('user');",
+									"    pm.expect(jsonData.user.role).to.be.oneOf(['tenant_admin', 'tenant_staff']);",
+									"    ",
+									"    // Save session token",
+									"    if (jsonData.session && jsonData.session.access_token) {",
+									"        pm.environment.set('auth_token', jsonData.session.access_token);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"tenant@example.com\",\n    \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/tenant/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"tenant",
+								"login"
+							]
+						},
+						"description": "Login for tenant users (admin/staff).\n\n**Day 12:** Supabase Authentication\n\n**Note:** Requires tenant context (access via tenant subdomain)\n\n**Required Fields:**\n- email: Email address\n- password: Password\n\n**Response:**\n- User object with tenant_id\n- Session token"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has user data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('user');",
+									"    pm.expect(jsonData.user).to.have.property('id');",
+									"    pm.expect(jsonData.user).to.have.property('email');",
+									"    pm.expect(jsonData.user).to.have.property('role');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/auth/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"me"
+							]
+						},
+						"description": "Get current authenticated user information.\n\n**Day 12:** Supabase Authentication\n\n**Note:** Requires authentication (session cookie or token)\n\n**Response:**\n- User object with role and metadata"
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Logout successful\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    ",
+									"    // Clear auth token",
+									"    pm.environment.unset('auth_token');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/auth/logout",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"logout"
+							]
+						},
+						"description": "Logout current user.\n\n**Day 12:** Supabase Authentication\n\n**Note:** Clears session cookies and tokens"
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Token refreshed\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('session');",
+									"    ",
+									"    // Update auth token",
+									"    if (jsonData.session && jsonData.session.access_token) {",
+									"        pm.environment.set('auth_token', jsonData.session.access_token);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/refresh",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"refresh"
+							]
+						},
+						"description": "Refresh authentication token.\n\n**Day 12:** Supabase Authentication\n\n**Required Fields:**\n- refresh_token: Refresh token from login\n\n**Response:**\n- New session with access_token and refresh_token"
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication endpoints for landlord and tenant users"
+		},
+		{
+			"name": "Products",
+			"item": [
+				{
+					"name": "Get Products",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has products array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('products');",
+									"    pm.expect(jsonData.products).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/products",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"products"
+							]
+						},
+						"description": "Get all products for the current tenant.\n\n**Day 10:** Example API route with tenant context\n\n**Features:**\n- Automatically filtered by tenant_id via RLS\n- Returns products for current tenant only"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Product created successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('product');",
+									"    pm.expect(jsonData.product).to.have.property('id');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Test Product\",\n    \"description\": \"This is a test product\",\n    \"price\": 29.99,\n    \"sku\": \"TEST-001\",\n    \"stock_quantity\": 100,\n    \"status\": \"active\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/products",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"products"
+							]
+						},
+						"description": "Create a new product for the current tenant.\n\n**Day 10:** Example API route\n\n**Required Fields:**\n- name: Product name\n- price: Product price\n\n**Optional Fields:**\n- description: Product description\n- sku: Stock keeping unit\n- stock_quantity: Quantity in stock\n- status: Product status (default: 'active')"
+					},
+					"response": []
+				}
+			],
+			"description": "Product management endpoints (Example implementation from Day 10)"
+		},
+		{
+			"name": "Admin Tenant Management",
+			"item": [
+				{
+					"name": "List Tenants",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has tenants array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('tenants');",
+									"    pm.expect(jsonData.tenants).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/tenants",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"tenants"
+							]
+						},
+						"description": "List all tenants (landlord only).\n\n**Day 14:** Tenant Management\n\n**Note:** Requires landlord authentication\n\n**Response:**\n- Array of tenant objects with id, name, subdomain, status, etc."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Tenant",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has tenant data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('tenant');",
+									"    pm.expect(jsonData.tenant).to.have.property('id');",
+									"    ",
+									"    // Save tenant ID for other requests",
+									"    pm.environment.set('tenant_id', jsonData.tenant.id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/tenants/{{tenant_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"tenants",
+								"{{tenant_id}}"
+							]
+						},
+						"description": "Get tenant details by ID (landlord only).\n\n**Day 14:** Tenant Management\n\n**Path Parameters:**\n- tenant_id: UUID of the tenant\n\n**Response:**\n- Tenant object with full details including plan information"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Tenant",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Tenant created successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('tenant');",
+									"    pm.expect(jsonData.tenant).to.have.property('id');",
+									"    ",
+									"    // Save tenant ID for other requests",
+									"    pm.environment.set('tenant_id', jsonData.tenant.id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Test Store\",\n    \"subdomain\": \"teststore\",\n    \"adminEmail\": \"admin@teststore.com\",\n    \"adminPassword\": \"password123\",\n    \"adminName\": \"Store Admin\",\n    \"planId\": null\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/tenants",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"tenants"
+							]
+						},
+						"description": "Create a new tenant (landlord only).\n\n**Day 13-14:** Tenant Management\n\n**Required Fields:**\n- name: Store name\n- subdomain: Subdomain (3-63 chars, lowercase alphanumeric and hyphens)\n- adminEmail: Admin user email\n- adminPassword: Admin password (min 8 chars)\n- adminName: Admin user name\n\n**Optional Fields:**\n- planId: UUID of price plan (null for free trial)\n\n**Response:**\n- Tenant object with id, name, subdomain, status\n- Automatically creates admin user\n- Sends welcome email\n- Adds subdomain to Vercel"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Tenant",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Tenant updated successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('tenant');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Store Name\",\n    \"status\": \"active\",\n    \"plan_id\": null,\n    \"expire_date\": null\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/tenants/{{tenant_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"tenants",
+								"{{tenant_id}}"
+							]
+						},
+						"description": "Update tenant settings (landlord only).\n\n**Day 14:** Tenant Management\n\n**Path Parameters:**\n- tenant_id: UUID of the tenant\n\n**Optional Fields:**\n- name: Store name\n- custom_domain: Custom domain (or null)\n- status: 'active', 'suspended', or 'expired'\n- plan_id: UUID of price plan (or null)\n- expire_date: Expiration date (ISO string or null)\n\n**Response:**\n- Updated tenant object"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Tenant",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Tenant deleted successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData.tenant.status).to.eql('deleted');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/tenants/{{tenant_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"tenants",
+								"{{tenant_id}}"
+							]
+						},
+						"description": "Soft delete a tenant (landlord only).\n\n**Day 14:** Tenant Management\n\n**Path Parameters:**\n- tenant_id: UUID of the tenant\n\n**Actions:**\n- Sets tenant status to 'deleted' (soft delete)\n- Removes subdomain from Vercel\n- Preserves data for potential restoration\n\n**Response:**\n- Deleted tenant object with status 'deleted'"
+					},
+					"response": []
+				},
+				{
+					"name": "Change Subdomain",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Subdomain changed successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('tenant');",
+									"    pm.expect(jsonData.tenant).to.have.property('subdomain');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"newSubdomain\": \"newsubdomain\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/tenants/{{tenant_id}}/subdomain",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"tenants",
+								"{{tenant_id}}",
+								"subdomain"
+							]
+						},
+						"description": "Change tenant subdomain (landlord only).\n\n**Day 14:** Tenant Management\n\n**Path Parameters:**\n- tenant_id: UUID of the tenant\n\n**Required Fields:**\n- newSubdomain: New subdomain (3-63 chars, lowercase alphanumeric and hyphens)\n\n**Actions:**\n- Validates subdomain format and availability\n- Updates subdomain in database\n- Removes old subdomain from Vercel\n- Adds new subdomain to Vercel\n\n**Response:**\n- Updated tenant object with new subdomain"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Subscription",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Subscription updated successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('tenant');",
+									"    pm.expect(jsonData).to.have.property('newExpireDate');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"plan_id\": \"{{plan_id}}\",\n    \"action\": \"upgrade\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/tenants/{{tenant_id}}/subscription",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"tenants",
+								"{{tenant_id}}",
+								"subscription"
+							]
+						},
+						"description": "Update tenant subscription (landlord only).\n\n**Day 25-26:** Subscription Management\n\n**Path Parameters:**\n- tenant_id: UUID of the tenant\n\n**Required Fields:**\n- plan_id: UUID of the new price plan\n\n**Optional Fields:**\n- action: 'upgrade', 'downgrade', or 'renew' (default: 'upgrade')\n\n**Actions:**\n- Upgrade/Downgrade: Starts immediately with new plan duration\n- Renew: Extends from current expiration date\n\n**Response:**\n- Updated tenant object\n- New expiration date"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Billing History",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has billing data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('billingHistory');",
+									"    pm.expect(jsonData).to.have.property('currentPlan');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/tenants/{{tenant_id}}/billing",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"tenants",
+								"{{tenant_id}}",
+								"billing"
+							]
+						},
+						"description": "Get tenant billing history (landlord only).\n\n**Day 25-26:** Subscription Management\n\n**Path Parameters:**\n- tenant_id: UUID of the tenant\n\n**Response:**\n- Billing history array\n- Current plan information\n- Subscription status\n- Expiration date"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Price Plans",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has price plans\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('pricePlans');",
+									"    pm.expect(jsonData.pricePlans).to.be.an('array');",
+									"    ",
+									"    // Save first plan ID for subscription requests",
+									"    if (jsonData.pricePlans.length > 0) {",
+									"        pm.environment.set('plan_id', jsonData.pricePlans[0].id);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/price-plans",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"price-plans"
+							]
+						},
+						"description": "List all price plans (landlord only).\n\n**Day 25-26:** Subscription Management\n\n**Query Parameters:**\n- status: 'active' | 'inactive' | 'all' (default: 'active')\n\n**Response:**\n- Array of price plans with id, name, price, duration_months, features, status"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Price Plan",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Price plan created successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('pricePlan');",
+									"    pm.expect(jsonData.pricePlan).to.have.property('id');",
+									"    ",
+									"    // Save plan ID for future requests",
+									"    pm.environment.set('plan_id', jsonData.pricePlan.id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Premium Plan\",\n    \"price\": 99.99,\n    \"duration_months\": 1,\n    \"features\": {\n        \"max_products\": 1000,\n        \"max_orders\": -1,\n        \"max_storage_mb\": 5000,\n        \"max_customers\": -1,\n        \"max_pages\": 50,\n        \"max_blogs\": 100\n    },\n    \"status\": \"active\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/price-plans",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"price-plans"
+							]
+						},
+						"description": "Create a new price plan (landlord only).\n\n**Day 25-26:** Subscription Management\n\n**Required Fields:**\n- name: Plan name (max 255 chars)\n- price: Price (positive number)\n- duration_months: Duration in months (positive integer)\n\n**Optional Fields:**\n- features: JSON object with plan limits (e.g., max_products, max_orders, max_storage_mb)\n  - Use -1 for unlimited\n- status: 'active' or 'inactive' (default: 'active')\n\n**Response:**\n- Created price plan object"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Price Plan",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has price plan\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('pricePlan');",
+									"    pm.expect(jsonData.pricePlan).to.have.property('id');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/price-plans/{{plan_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"price-plans",
+								"{{plan_id}}"
+							]
+						},
+						"description": "Get a specific price plan by ID (landlord only).\n\n**Day 25-26:** Subscription Management\n\n**Path Parameters:**\n- plan_id: UUID of the price plan\n\n**Response:**\n- Price plan object with all details"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Price Plan",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Price plan updated successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('pricePlan');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Premium Plan Updated\",\n    \"price\": 129.99,\n    \"features\": {\n        \"max_products\": 2000,\n        \"max_orders\": -1\n    },\n    \"status\": \"active\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/price-plans/{{plan_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"price-plans",
+								"{{plan_id}}"
+							]
+						},
+						"description": "Update a price plan (landlord only).\n\n**Day 25-26:** Subscription Management\n\n**Path Parameters:**\n- plan_id: UUID of the price plan\n\n**Optional Fields:**\n- name: Plan name\n- price: Price\n- duration_months: Duration in months\n- features: JSON object with plan limits\n- status: 'active' or 'inactive'\n\n**Response:**\n- Updated price plan object"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Price Plan",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Price plan deleted successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/price-plans/{{plan_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"price-plans",
+								"{{plan_id}}"
+							]
+						},
+						"description": "Delete a price plan (landlord only).\n\n**Day 25-26:** Subscription Management\n\n**Path Parameters:**\n- plan_id: UUID of the price plan\n\n**Note:**\n- If plan is in use by tenants, it will be soft-deleted (status set to 'inactive')\n- If no tenants are using it, it will be permanently deleted\n\n**Response:**\n- Success message"
+					},
+					"response": []
+				},
+				{
+					"name": "Subscription Expiry Checker",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Expiry check completed\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('results');",
+									"    pm.expect(jsonData.results).to.have.property('checked');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{cron_secret_token}}",
+								"description": "CRON_SECRET_TOKEN for authentication"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/subscriptions/expiry-checker",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"subscriptions",
+								"expiry-checker"
+							]
+						},
+						"description": "Check for expired subscriptions and apply grace period logic.\n\n**Day 25-26:** Subscription Management\n\n**Security:**\n- Requires CRON_SECRET_TOKEN in Authorization header\n- Should be called by cron jobs, not manually\n\n**Actions:**\n- Finds tenants with expired subscriptions\n- Applies grace period (default: 7 days)\n- Updates tenant status (expired/suspended)\n- Sends subscription expired email notifications\n\n**Response:**\n- Results object with checked, expired, gracePeriod, suspended counts"
+					},
+					"response": []
+				},
+				{
+					"name": "Payment Reminders",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Payment reminders processed\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('results');",
+									"    pm.expect(jsonData.results).to.have.property('checked');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{cron_secret_token}}",
+								"description": "CRON_SECRET_TOKEN for authentication"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/subscriptions/payment-reminders",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"subscriptions",
+								"payment-reminders"
+							]
+						},
+						"description": "Send payment reminder emails to tenants with upcoming or overdue payments.\n\n**Day 25-26:** Subscription Management\n\n**Security:**\n- Requires CRON_SECRET_TOKEN in Authorization header\n- Should be called by cron jobs (daily or weekly), not manually\n\n**Actions:**\n- Finds tenants with subscriptions expiring in 7 days\n- Sends renewal reminder emails (7 days before expiry)\n- Sends payment due reminder emails\n\n**Response:**\n- Results object with checked, renewal_reminders_sent, payment_reminders_sent, errors"
+					},
+					"response": []
+				}
+			],
+			"description": "Admin tenant management endpoints for landlords (Day 13-14, 25-26)"
+		},
+		{
+			"name": "Products",
+			"item": [
+				{
+					"name": "List Products",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has products array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('products');",
+									"    pm.expect(jsonData).to.have.property('pagination');",
+									"    ",
+									"    // Save first product ID if available",
+									"    if (jsonData.products && jsonData.products.length > 0) {",
+									"        pm.environment.set('product_id', jsonData.products[0].id);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/products?page=1&limit=20&status=active",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"products"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number"
+								},
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Items per page (max 100)"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search term (name, description, SKU)",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "active",
+									"description": "Filter by status",
+									"disabled": true
+								},
+								{
+									"key": "category_id",
+									"value": "",
+									"description": "Filter by category",
+									"disabled": true
+								},
+								{
+									"key": "min_price",
+									"value": "",
+									"description": "Minimum price",
+									"disabled": true
+								},
+								{
+									"key": "max_price",
+									"value": "",
+									"description": "Maximum price",
+									"disabled": true
+								},
+								{
+									"key": "in_stock",
+									"value": "",
+									"description": "Filter by stock (true/false)",
+									"disabled": true
+								},
+								{
+									"key": "sort_by",
+									"value": "created_at",
+									"description": "Sort field (name, price, created_at, updated_at)"
+								},
+								{
+									"key": "sort_order",
+									"value": "desc",
+									"description": "Sort order (asc, desc)"
+								}
+							]
+						},
+						"description": "List products with search, filtering, and pagination.\n\n**Day 15:** Product Model & API\n\n**Query Parameters:**\n- page: Page number (default: 1)\n- limit: Items per page (default: 20, max: 100)\n- search: Search term (searches name, description, SKU)\n- status: Filter by status (active, inactive, draft, archived)\n- category_id: Filter by category UUID\n- brand_id: Filter by brand UUID\n- min_price: Minimum price filter\n- max_price: Maximum price filter\n- in_stock: Filter by stock availability (true/false)\n- sort_by: Sort field (name, price, created_at, updated_at)\n- sort_order: Sort order (asc, desc)\n\n**Response:**\n- products: Array of product objects\n- pagination: Pagination metadata"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has product data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('product');",
+									"    pm.expect(jsonData.product).to.have.property('id');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/products/{{product_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"products",
+								"{{product_id}}"
+							]
+						},
+						"description": "Get product details by ID.\n\n**Day 15:** Product Model & API\n\n**Path Parameters:**\n- product_id: UUID of the product\n\n**Response:**\n- Product object with variants included"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Product created successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('product');",
+									"    pm.expect(jsonData.product).to.have.property('id');",
+									"    ",
+									"    // Save product ID for other requests",
+									"    pm.environment.set('product_id', jsonData.product.id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Test Product\",\n    \"description\": \"This is a test product description\",\n    \"short_description\": \"Short description\",\n    \"price\": 29.99,\n    \"sale_price\": 24.99,\n    \"stock_quantity\": 100,\n    \"status\": \"active\",\n    \"category_id\": null,\n    \"brand_id\": null\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/products",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"products"
+							]
+						},
+						"description": "Create a new product.\n\n**Day 15:** Product Model & API\n\n**Required Fields:**\n- name: Product name\n- price: Product price (positive number)\n\n**Optional Fields:**\n- slug: URL slug (auto-generated if not provided)\n- description: Full product description\n- short_description: Short description (max 500 chars)\n- sale_price: Sale price (must be less than price)\n- sku: Stock keeping unit (auto-generated if not provided)\n- stock_quantity: Stock quantity (default: 0)\n- status: Product status (active, inactive, draft, archived)\n- image: Main product image URL\n- gallery: Array of image URLs\n- category_id: Category UUID\n- brand_id: Brand UUID\n- metadata: Additional metadata (JSON object)\n\n**Response:**\n- Product object with generated slug and SKU"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Product updated successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('product');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Product Name\",\n    \"price\": 39.99,\n    \"stock_quantity\": 150\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/products/{{product_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"products",
+								"{{product_id}}"
+							]
+						},
+						"description": "Update product.\n\n**Day 15:** Product Model & API\n\n**Path Parameters:**\n- product_id: UUID of the product\n\n**Optional Fields (all fields optional):**\n- name: Product name\n- slug: URL slug\n- description: Full description\n- short_description: Short description\n- price: Product price\n- sale_price: Sale price\n- sku: Stock keeping unit\n- stock_quantity: Stock quantity\n- status: Product status\n- image: Main image URL\n- gallery: Array of image URLs\n- category_id: Category UUID\n- brand_id: Brand UUID\n- metadata: Additional metadata\n\n**Response:**\n- Updated product object"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Product deleted successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/products/{{product_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"products",
+								"{{product_id}}"
+							]
+						},
+						"description": "Delete product.\n\n**Day 15:** Product Model & API\n\n**Path Parameters:**\n- product_id: UUID of the product\n\n**Note:** This permanently deletes the product and all related variants. Use with caution.\n\n**Response:**\n- Success message"
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Product Image",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Image uploaded successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('url');",
+									"    pm.expect(jsonData).to.have.property('path');",
+									"    ",
+									"    // Save image URL for product creation/update",
+									"    pm.environment.set('product_image_url', jsonData.url);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": [],
+									"description": "Image file (JPEG, PNG, WebP, GIF, max 5MB)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/products/upload",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"products",
+								"upload"
+							]
+						},
+						"description": "Upload product image to Supabase Storage.\n\n**Day 15:** Product Model & API\n\n**Form Data:**\n- file: Image file (required)\n\n**Supported Formats:**\n- JPEG, JPG, PNG, WebP, GIF\n\n**File Size Limit:**\n- Maximum 5MB\n\n**Response:**\n- url: Public URL of uploaded image\n- path: Storage path\n\n**Note:** Requires Supabase Storage bucket 'product-images' to be created"
+					},
+					"response": []
+				},
+				{
+					"name": "List Product Variants",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has variants array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('variants');",
+									"    pm.expect(jsonData.variants).to.be.an('array');",
+									"    ",
+									"    // Save first variant ID if available",
+									"    if (jsonData.variants && jsonData.variants.length > 0) {",
+									"        pm.environment.set('variant_id', jsonData.variants[0].id);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/products/{{product_id}}/variants",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"products",
+								"{{product_id}}",
+								"variants"
+							]
+						},
+						"description": "List all variants for a product.\n\n**Day 15:** Product Model & API\n\n**Path Parameters:**\n- product_id: UUID of the product\n\n**Response:**\n- Array of variant objects"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Product Variant",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Variant created successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('variant');",
+									"    pm.expect(jsonData.variant).to.have.property('id');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"attribute_id\": null,\n    \"attribute_value_id\": null,\n    \"price\": 34.99,\n    \"stock_quantity\": 50,\n    \"sku\": null,\n    \"image\": null\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/products/{{product_id}}/variants",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"products",
+								"{{product_id}}",
+								"variants"
+							]
+						},
+						"description": "Create a new product variant.\n\n**Day 15:** Product Model & API\n\n**Path Parameters:**\n- product_id: UUID of the product\n\n**Optional Fields:**\n- attribute_id: Attribute UUID (e.g., size, color)\n- attribute_value_id: Attribute value UUID\n- price: Variant price (overrides product price)\n- stock_quantity: Stock quantity (default: 0)\n- sku: Variant SKU (auto-generated if not provided)\n- image: Variant image URL\n\n**Response:**\n- Variant object with generated SKU"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Product Variant",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Variant updated successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('variant');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"price\": 39.99,\n    \"stock_quantity\": 75\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/products/{{product_id}}/variants/{{variant_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"products",
+								"{{product_id}}",
+								"variants",
+								"{{variant_id}}"
+							]
+						},
+						"description": "Update product variant.\n\n**Day 15:** Product Model & API\n\n**Path Parameters:**\n- product_id: UUID of the product\n- variant_id: UUID of the variant\n\n**Optional Fields (all optional):**\n- attribute_id: Attribute UUID\n- attribute_value_id: Attribute value UUID\n- price: Variant price\n- stock_quantity: Stock quantity\n- sku: Variant SKU\n- image: Variant image URL\n\n**Response:**\n- Updated variant object"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Product Variant",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Variant deleted successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/products/{{product_id}}/variants/{{variant_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"products",
+								"{{product_id}}",
+								"variants",
+								"{{variant_id}}"
+							]
+						},
+						"description": "Delete product variant.\n\n**Day 15:** Product Model & API\n\n**Path Parameters:**\n- product_id: UUID of the product\n- variant_id: UUID of the variant\n\n**Response:**\n- Success message"
+					},
+					"response": []
+				}
+			],
+			"description": "Product management endpoints (Day 15)"
+		},
+		{
+			"name": "Categories",
+			"item": [
+				{
+					"name": "List Categories",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has categories array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('categories');",
+									"    pm.expect(jsonData.categories).to.be.an('array');",
+									"    ",
+									"    // Save first category ID if available",
+									"    if (jsonData.categories && jsonData.categories.length > 0) {",
+									"        pm.environment.set('category_id', jsonData.categories[0].id);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/categories?parent_id=&status=active&include_children=false",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"categories"
+							],
+							"query": [
+								{
+									"key": "parent_id",
+									"value": "",
+									"description": "Filter by parent category UUID",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "active",
+									"description": "Filter by status (active, inactive)",
+									"disabled": true
+								},
+								{
+									"key": "include_children",
+									"value": "false",
+									"description": "Include child categories",
+									"disabled": true
+								}
+							]
+						},
+						"description": "List categories with optional filtering.\n\n**Day 15:** Product Model & API\n\n**Query Parameters:**\n- parent_id: Filter by parent category UUID (null for top-level)\n- status: Filter by status (active, inactive)\n- include_children: Include child categories (true/false)\n\n**Response:**\n- Array of category objects with parent/child relationships"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has category data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('category');",
+									"    pm.expect(jsonData.category).to.have.property('id');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/categories/{{category_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"categories",
+								"{{category_id}}"
+							]
+						},
+						"description": "Get category details by ID.\n\n**Day 15:** Product Model & API\n\n**Path Parameters:**\n- category_id: UUID of the category\n\n**Response:**\n- Category object with parent and children included"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Category created successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('category');",
+									"    pm.expect(jsonData.category).to.have.property('id');",
+									"    ",
+									"    // Save category ID for other requests",
+									"    pm.environment.set('category_id', jsonData.category.id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Electronics\",\n    \"slug\": \"electronics\",\n    \"parent_id\": null,\n    \"image\": null,\n    \"status\": \"active\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/categories",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"categories"
+							]
+						},
+						"description": "Create a new category.\n\n**Day 15:** Product Model & API\n\n**Required Fields:**\n- name: Category name\n\n**Optional Fields:**\n- slug: URL slug (auto-generated if not provided)\n- parent_id: Parent category UUID (null for top-level)\n- image: Category image URL\n- status: Category status (active, inactive)\n\n**Response:**\n- Category object with generated slug"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Category updated successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData).to.have.property('category');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Category Name\",\n    \"status\": \"active\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/categories/{{category_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"categories",
+								"{{category_id}}"
+							]
+						},
+						"description": "Update category.\n\n**Day 15:** Product Model & API\n\n**Path Parameters:**\n- category_id: UUID of the category\n\n**Optional Fields (all optional):**\n- name: Category name\n- slug: URL slug\n- parent_id: Parent category UUID\n- image: Category image URL\n- status: Category status\n\n**Response:**\n- Updated category object"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Category deleted successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/categories/{{category_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"categories",
+								"{{category_id}}"
+							]
+						},
+						"description": "Delete category.\n\n**Day 15:** Product Model & API\n\n**Path Parameters:**\n- category_id: UUID of the category\n\n**Validation:**\n- Cannot delete category with subcategories\n- Cannot delete category used by products\n\n**Response:**\n- Success message"
+					},
+					"response": []
+				}
+			],
+			"description": "Category management endpoints (Day 15)"
+		},
+		{
+			"name": "Inventory Management",
+			"item": [
+				{
+					"name": "Adjust Inventory",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has adjustment data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('adjustment');",
+									"    pm.expect(jsonData.adjustment).to.have.property('quantity_before');",
+									"    pm.expect(jsonData.adjustment).to.have.property('quantity_after');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"product_id\": \"{{product_id}}\",\n    \"adjustment_type\": \"increase\",\n    \"quantity\": 10,\n    \"reason\": \"restock\",\n    \"notes\": \"Restocked inventory\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/inventory/adjust",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"inventory",
+								"adjust"
+							]
+						},
+						"description": "Adjust inventory for a product or variant.\n\n**Day 17:** Inventory & Stock Management\n\n**Body Parameters:**\n- product_id (optional): UUID of the product\n- variant_id (optional): UUID of the variant\n- adjustment_type (required): 'increase', 'decrease', 'set', 'sale', 'return', 'damage', 'transfer'\n- quantity (required): Quantity to adjust\n- reason (optional): Reason for adjustment\n- notes (optional): Additional notes\n\n**Note:** Either product_id or variant_id must be provided, but not both."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Inventory History",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has history array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('history');",
+									"    pm.expect(jsonData.history).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/inventory/history?page=1&limit=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"inventory",
+								"history"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Items per page",
+									"disabled": true
+								},
+								{
+									"key": "product_id",
+									"value": "",
+									"description": "Filter by product ID",
+									"disabled": true
+								},
+								{
+									"key": "variant_id",
+									"value": "",
+									"description": "Filter by variant ID",
+									"disabled": true
+								},
+								{
+									"key": "adjustment_type",
+									"value": "",
+									"description": "Filter by adjustment type",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get inventory adjustment history.\n\n**Day 17:** Inventory & Stock Management\n\n**Query Parameters:**\n- page (optional): Page number (default: 1)\n- limit (optional): Items per page (default: 20)\n- product_id (optional): Filter by product UUID\n- variant_id (optional): Filter by variant UUID\n- adjustment_type (optional): Filter by type\n\n**Response:**\n- Array of inventory history records with pagination"
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Inventory Update",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has results\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('results');",
+									"    pm.expect(jsonData.results).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"updates\": [\n        {\n            \"product_id\": \"{{product_id}}\",\n            \"adjustment_type\": \"increase\",\n            \"quantity\": 10,\n            \"reason\": \"restock\"\n        },\n        {\n            \"variant_id\": \"{{variant_id}}\",\n            \"adjustment_type\": \"set\",\n            \"quantity\": 50,\n            \"reason\": \"correction\"\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/inventory/bulk",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"inventory",
+								"bulk"
+							]
+						},
+						"description": "Update inventory for multiple products/variants at once.\n\n**Day 17:** Inventory & Stock Management\n\n**Body Parameters:**\n- updates (required): Array of update objects\n  - product_id (optional): UUID of the product\n  - variant_id (optional): UUID of the variant\n  - adjustment_type (required): 'increase', 'decrease', 'set'\n  - quantity (required): Quantity to adjust\n  - reason (optional): Reason for adjustment\n\n**Response:**\n- Results array with success status for each update\n- Errors array if any updates failed"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Low Stock Alerts",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has alerts data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('products');",
+									"    pm.expect(jsonData).to.have.property('variants');",
+									"    pm.expect(jsonData).to.have.property('total_alerts');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/inventory/alerts?threshold=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"inventory",
+								"alerts"
+							],
+							"query": [
+								{
+									"key": "threshold",
+									"value": "10",
+									"description": "Stock threshold (default: 10)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get products and variants with low stock.\n\n**Day 17:** Inventory & Stock Management\n\n**Query Parameters:**\n- threshold (optional): Stock threshold (default: 10)\n\n**Response:**\n- products: Array of products with low stock\n- variants: Array of variants with low stock\n- total_alerts: Total number of alerts\n- threshold: Threshold used for filtering"
+					},
+					"response": []
+				}
+			],
+			"description": "Inventory management endpoints (Day 17)"
+		},
+		{
+			"name": "Cart Management",
+			"item": [
+				{
+					"name": "Get Cart",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has cart data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('cart');",
+									"    pm.expect(jsonData.cart).to.have.property('items');",
+									"    pm.expect(jsonData.cart).to.have.property('total');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/cart",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"cart"
+							]
+						},
+						"description": "Get current user's cart items.\n\n**Day 18:** Order Management\n\n**Note:** Requires authentication\n\n**Response:**\n- cart: Cart object with items, total, and item_count"
+					},
+					"response": []
+				},
+				{
+					"name": "Add to Cart",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Item added successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('cart');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"product_id\": \"{{product_id}}\",\n    \"variant_id\": null,\n    \"quantity\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/cart",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"cart"
+							]
+						},
+						"description": "Add item to cart.\n\n**Day 18:** Order Management\n\n**Required Fields:**\n- product_id: UUID of the product\n- quantity: Quantity to add (min: 1)\n\n**Optional Fields:**\n- variant_id: UUID of the variant (if product has variants)\n\n**Response:**\n- Updated cart object\n\n**Note:**\n- Checks stock availability\n- Updates quantity if item already exists in cart"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Cart Item",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Cart item updated successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('cart');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"product_id\": \"{{product_id}}\",\n    \"variant_id\": null,\n    \"quantity\": 2\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/cart",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"cart"
+							]
+						},
+						"description": "Update cart item quantity.\n\n**Day 18:** Order Management\n\n**Required Fields:**\n- product_id: UUID of the product\n- quantity: New quantity (min: 1, removes item if 0)\n\n**Optional Fields:**\n- variant_id: UUID of the variant\n\n**Response:**\n- Updated cart object"
+					},
+					"response": []
+				},
+				{
+					"name": "Remove from Cart",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Item removed successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('cart');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/cart?product_id={{product_id}}&variant_id=",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"cart"
+							],
+							"query": [
+								{
+									"key": "product_id",
+									"value": "{{product_id}}",
+									"description": "Product UUID (required)"
+								},
+								{
+									"key": "variant_id",
+									"value": "",
+									"description": "Variant UUID (optional)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Remove item from cart.\n\n**Day 18:** Order Management\n\n**Query Parameters:**\n- product_id (required): UUID of the product\n- variant_id (optional): UUID of the variant\n\n**Response:**\n- Updated cart object"
+					},
+					"response": []
+				}
+			],
+			"description": "Shopping cart management endpoints (Day 18)"
+		},
+		{
+			"name": "Checkout",
+			"item": [
+				{
+					"name": "Create Order (Checkout)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Order created successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('order');",
+									"    pm.expect(jsonData.order).to.have.property('id');",
+									"    pm.expect(jsonData.order).to.have.property('order_number');",
+									"    ",
+									"    // Save order ID for other requests",
+									"    pm.environment.set('order_id', jsonData.order.id);",
+									"    pm.environment.set('order_number', jsonData.order.order_number);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"items\": [\n        {\n            \"product_id\": \"{{product_id}}\",\n            \"variant_id\": null,\n            \"quantity\": 1\n        }\n    ],\n    \"shipping_address\": {\n        \"name\": \"John Doe\",\n        \"email\": \"john@example.com\",\n        \"phone\": \"+1234567890\",\n        \"address_line_1\": \"123 Main St\",\n        \"address_line_2\": \"Apt 4B\",\n        \"city\": \"New York\",\n        \"state\": \"NY\",\n        \"postal_code\": \"10001\",\n        \"country\": \"USA\"\n    },\n    \"billing_address\": {\n        \"name\": \"John Doe\",\n        \"email\": \"john@example.com\",\n        \"phone\": \"+1234567890\",\n        \"address_line_1\": \"123 Main St\",\n        \"address_line_2\": \"Apt 4B\",\n        \"city\": \"New York\",\n        \"state\": \"NY\",\n        \"postal_code\": \"10001\",\n        \"country\": \"USA\"\n    },\n    \"payment_method\": \"pesapal\",\n    \"coupon_code\": null,\n    \"notes\": null\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/checkout",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"checkout"
+							]
+						},
+						"description": "Create order from cart (checkout).\n\n**Day 18:** Order Management\n**Day 25-26:** Plan limits enforced - checks order limit before creating order\n\n**Required Fields:**\n- items: Array of cart items\n  - product_id: UUID of the product\n  - quantity: Quantity (min: 1)\n  - variant_id (optional): UUID of the variant\n- shipping_address: Shipping address object\n  - name, email, phone, address_line_1, city, state, postal_code, country (all required)\n  - address_line_2 (optional)\n- payment_method: 'pesapal', 'paypal', or 'cash_on_delivery'\n\n**Optional Fields:**\n- billing_address: Billing address (uses shipping_address if not provided)\n- coupon_code: Coupon code for discount\n- notes: Order notes\n\n**Actions:**\n- Validates stock availability\n- Creates order with unique order number\n- Updates inventory (decreases stock)\n- Clears cart\n- Sends order confirmation email to customer\n- Sends new order alert to tenant admin\n\n**Response:**\n- Order object with id, order_number, total_amount, status, payment_status"
+					},
+					"response": []
+				}
+			],
+			"description": "Checkout and order creation endpoints (Day 18)"
+		},
+		{
+			"name": "Orders",
+			"item": [
+				{
+					"name": "List Orders",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has orders array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('orders');",
+									"    pm.expect(jsonData).to.have.property('pagination');",
+									"    ",
+									"    // Save first order ID if available",
+									"    if (jsonData.orders && jsonData.orders.length > 0) {",
+									"        pm.environment.set('order_id', jsonData.orders[0].id);",
+									"        pm.environment.set('order_number', jsonData.orders[0].order_number);",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/orders?page=1&limit=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default: 1)"
+								},
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Items per page (default: 20, max: 100)"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search term (order number, customer name, email)",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "",
+									"description": "Filter by status (pending, processing, shipped, delivered, cancelled, refunded)",
+									"disabled": true
+								},
+								{
+									"key": "payment_status",
+									"value": "",
+									"description": "Filter by payment status (pending, paid, failed, refunded)",
+									"disabled": true
+								},
+								{
+									"key": "order_number",
+									"value": "",
+									"description": "Filter by order number",
+									"disabled": true
+								},
+								{
+									"key": "customer_email",
+									"value": "",
+									"description": "Filter by customer email",
+									"disabled": true
+								},
+								{
+									"key": "start_date",
+									"value": "",
+									"description": "Filter by start date (ISO string)",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "",
+									"description": "Filter by end date (ISO string)",
+									"disabled": true
+								},
+								{
+									"key": "sort_by",
+									"value": "created_at",
+									"description": "Sort field (created_at, total_amount, order_number)"
+								},
+								{
+									"key": "sort_order",
+									"value": "desc",
+									"description": "Sort order (asc, desc)"
+								}
+							]
+						},
+						"description": "List orders with filtering and pagination.\n\n**Day 18-19:** Order Management\n\n**Query Parameters:**\n- page: Page number (default: 1)\n- limit: Items per page (default: 20, max: 100)\n- search: Search term (searches order number, customer name, email)\n- status: Filter by order status\n- payment_status: Filter by payment status\n- order_number: Filter by order number\n- customer_email: Filter by customer email\n- start_date: Filter by start date (ISO string)\n- end_date: Filter by end date (ISO string)\n- sort_by: Sort field (created_at, total_amount, order_number)\n- sort_order: Sort order (asc, desc)\n\n**Response:**\n- orders: Array of order objects\n- pagination: Pagination metadata"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Order",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has order data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('order');",
+									"    pm.expect(jsonData.order).to.have.property('id');",
+									"    pm.expect(jsonData.order).to.have.property('order_number');",
+									"    pm.expect(jsonData.order).to.have.property('items');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/orders/{{order_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"{{order_id}}"
+							]
+						},
+						"description": "Get order details by ID.\n\n**Day 18-19:** Order Management\n\n**Path Parameters:**\n- order_id: UUID of the order\n\n**Response:**\n- Order object with items, shipping/billing addresses, and payment information"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Order Status",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Order status updated successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('order');",
+									"    pm.expect(jsonData.order).to.have.property('status');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"processing\",\n    \"notes\": \"Order is being processed\",\n    \"tracking_number\": null,\n    \"shipping_carrier\": null\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/orders/{{order_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"{{order_id}}"
+							]
+						},
+						"description": "Update order status.\n\n**Day 18-19:** Order Management\n\n**Path Parameters:**\n- order_id: UUID of the order\n\n**Body Parameters:**\n- status (required): New status (pending, processing, shipped, delivered)\n- notes (optional): Notes about the status update\n- tracking_number (optional): Tracking number (required when status is 'shipped')\n- shipping_carrier (optional): Shipping carrier name (e.g., UPS, FedEx)\n\n**Status Transitions:**\n- pending → processing, cancelled\n- processing → shipped, cancelled\n- shipped → delivered, cancelled\n- delivered → (final state)\n- cancelled → refunded\n\n**Email Notifications:**\n- Automatically sends email when status changes to 'shipped' or 'delivered'\n\n**Response:**\n- Updated order object"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Payment Status",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Payment status updated successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('order');",
+									"    pm.expect(jsonData.order).to.have.property('payment_status');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"payment_status\": \"paid\",\n    \"transaction_id\": \"TXN-123456\",\n    \"payment_gateway\": \"pesapal\",\n    \"notes\": \"Payment confirmed\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/orders/{{order_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"{{order_id}}"
+							]
+						},
+						"description": "Update order payment status.\n\n**Day 18-19:** Order Management\n\n**Path Parameters:**\n- order_id: UUID of the order\n\n**Body Parameters:**\n- payment_status (required): New payment status (pending, paid, failed, refunded)\n- transaction_id (optional): Payment transaction ID\n- payment_gateway (optional): Payment gateway name\n- notes (optional): Notes about the payment\n\n**Response:**\n- Updated order object"
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Order",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Order cancelled successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('order');",
+									"    pm.expect(jsonData.order.status).to.eql('cancelled');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reason\": \"Customer requested cancellation\",\n    \"refund\": true,\n    \"notes\": \"Full refund processed\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/orders/{{order_id}}/cancel",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"{{order_id}}",
+								"cancel"
+							]
+						},
+						"description": "Cancel an order.\n\n**Day 18-19:** Order Management\n\n**Path Parameters:**\n- order_id: UUID of the order\n\n**Required Fields:**\n- reason: Cancellation reason (required, max 500 chars)\n\n**Optional Fields:**\n- refund: Whether to process refund (default: false)\n- notes: Additional notes\n\n**Actions:**\n- Validates order can be cancelled (cannot cancel delivered orders)\n- Restores inventory (increases stock)\n- Updates order status to 'cancelled'\n- Updates payment status to 'refunded' if refund is true\n- Sends cancellation email to customer\n\n**Response:**\n- Updated order object with cancelled status"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Order",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Order deleted successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/orders/{{order_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"{{order_id}}"
+							]
+						},
+						"description": "Soft delete order (cancels the order).\n\n**Day 18-19:** Order Management\n\n**Path Parameters:**\n- order_id: UUID of the order\n\n**Note:** This is a soft delete that sets order status to 'cancelled'. Use the cancel endpoint for proper cancellation with refund handling.\n\n**Response:**\n- Success message"
+					},
+					"response": []
+				}
+			],
+			"description": "Order management endpoints (Day 18-19)"
+		},
+		{
+			"name": "Support Tickets",
+			"item": [
+				{
+					"name": "List Support Tickets",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has tickets data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('tickets');",
+									"    pm.expect(jsonData.tickets).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/support/tickets?page=1&limit=20&status=open&priority=medium",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"support",
+								"tickets"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number"
+								},
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Items per page"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search term (subject, description)",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "open",
+									"description": "Filter by status (open, in_progress, resolved, closed)"
+								},
+								{
+									"key": "priority",
+									"value": "medium",
+									"description": "Filter by priority (low, medium, high, urgent)"
+								},
+								{
+									"key": "department_id",
+									"value": "",
+									"description": "Filter by department ID",
+									"disabled": true
+								},
+								{
+									"key": "user_id",
+									"value": "",
+									"description": "Filter by user/customer ID",
+									"disabled": true
+								}
+							]
+						},
+						"description": "List support tickets with filtering and pagination.\n\n**Day 21.5:** Support Ticket System\n\n**Query Parameters:**\n- page: Page number (default: 1)\n- limit: Items per page (default: 20, max: 100)\n- search: Search term (searches subject and description)\n- status: Filter by status (open, in_progress, resolved, closed)\n- priority: Filter by priority (low, medium, high, urgent)\n- department_id: Filter by department ID\n- user_id: Filter by user/customer ID\n- sort_by: Sort field (created_at, updated_at, priority, status)\n- sort_order: Sort order (asc, desc)\n\n**Response:**\n- tickets: Array of ticket objects with customer info and message count\n- pagination: Pagination metadata"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Support Ticket",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Ticket created successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('ticket');",
+									"    pm.expect(jsonData.ticket).to.have.property('id');",
+									"    ",
+									"    // Store ticket ID for use in other requests",
+									"    pm.environment.set('ticket_id', jsonData.ticket.id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"subject\": \"Product not working as expected\",\n    \"description\": \"I received my order but the product is not functioning properly. Please help.\",\n    \"priority\": \"high\",\n    \"department_id\": null\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/support/tickets",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"support",
+								"tickets"
+							]
+						},
+						"description": "Create a new support ticket.\n\n**Day 21.5:** Support Ticket System\n\n**Required Fields:**\n- subject: Ticket subject (required, max 255 chars)\n- description: Ticket description (required, max 5000 chars)\n\n**Optional Fields:**\n- priority: Priority level (low, medium, high, urgent) - default: medium\n- department_id: Department UUID (optional)\n\n**Actions:**\n- Creates ticket with status 'open'\n- Associates ticket with authenticated customer\n- Sends email notification to tenant admin\n\n**Response:**\n- Ticket object with id, subject, description, status, priority"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Support Ticket",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has ticket data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('ticket');",
+									"    pm.expect(jsonData.ticket).to.have.property('id');",
+									"    pm.expect(jsonData.ticket).to.have.property('support_ticket_messages');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/support/tickets/{{ticket_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"support",
+								"tickets",
+								"{{ticket_id}}"
+							]
+						},
+						"description": "Get support ticket details by ID.\n\n**Day 21.5:** Support Ticket System\n\n**Path Parameters:**\n- ticket_id: UUID of the ticket\n\n**Response:**\n- Ticket object with customer info and all messages"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Support Ticket",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Ticket updated successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('ticket');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"in_progress\",\n    \"priority\": \"high\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/support/tickets/{{ticket_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"support",
+								"tickets",
+								"{{ticket_id}}"
+							]
+						},
+						"description": "Update support ticket (status, priority, assignment).\n\n**Day 21.5:** Support Ticket System\n\n**Path Parameters:**\n- ticket_id: UUID of the ticket\n\n**Body Parameters (all optional):**\n- status: New status (open, in_progress, resolved, closed)\n- priority: New priority (low, medium, high, urgent)\n- department_id: Assign to department\n- subject: Update subject\n- description: Update description\n\n**Email Notifications:**\n- Sends email to customer when status changes\n- Sends email to assigned staff when ticket is assigned\n\n**Response:**\n- Updated ticket object"
+					},
+					"response": []
+				},
+				{
+					"name": "Close Support Ticket",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Ticket closed successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData.ticket.status).to.eql('closed');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/support/tickets/{{ticket_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"support",
+								"tickets",
+								"{{ticket_id}}"
+							]
+						},
+						"description": "Close support ticket (soft delete).\n\n**Day 21.5:** Support Ticket System\n\n**Path Parameters:**\n- ticket_id: UUID of the ticket\n\n**Actions:**\n- Sets ticket status to 'closed'\n- Updates updated_at timestamp\n\n**Response:**\n- Success message and updated ticket object"
+					},
+					"response": []
+				},
+				{
+					"name": "List Ticket Messages",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has messages data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('messages');",
+									"    pm.expect(jsonData.messages).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/support/tickets/{{ticket_id}}/messages",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"support",
+								"tickets",
+								"{{ticket_id}}",
+								"messages"
+							]
+						},
+						"description": "List all messages for a support ticket.\n\n**Day 21.5:** Support Ticket System\n\n**Path Parameters:**\n- ticket_id: UUID of the ticket\n\n**Response:**\n- messages: Array of message objects (ordered by created_at ascending)"
+					},
+					"response": []
+				},
+				{
+					"name": "Add Ticket Message",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Message created successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData.message).to.have.property('id');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"message\": \"Thank you for your response. I have tried the suggested solution but it still doesn't work.\",\n    \"attachments\": []\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/support/tickets/{{ticket_id}}/messages",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"support",
+								"tickets",
+								"{{ticket_id}}",
+								"messages"
+							]
+						},
+						"description": "Add a message/reply to a support ticket.\n\n**Day 21.5:** Support Ticket System\n\n**Path Parameters:**\n- ticket_id: UUID of the ticket\n\n**Required Fields:**\n- message: Message content (required, max 5000 chars)\n\n**Optional Fields:**\n- attachments: Array of attachment URLs (optional)\n\n**Actions:**\n- Creates message associated with authenticated user\n- Updates ticket's updated_at timestamp\n- If ticket was 'resolved', changes status to 'in_progress'\n- Sends email notification:\n  - To admin if customer replied\n  - To customer if admin replied\n\n**Response:**\n- Message object with id, message, attachments, user_id, created_at"
+					},
+					"response": []
+				},
+				{
+					"name": "List Support Departments",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has departments data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('departments');",
+									"    pm.expect(jsonData.departments).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/support/departments",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"support",
+								"departments"
+							]
+						},
+						"description": "List support departments.\n\n**Day 21.5:** Support Ticket System\n\n**Response:**\n- departments: Array of department objects (id, name, description, email)\n\n**Note:** Currently returns default departments. In a full implementation, departments would be stored in a database table or tenant metadata."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Support Department",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Department created successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('department');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Technical Support\",\n    \"description\": \"Handles technical issues and troubleshooting\",\n    \"email\": \"tech@example.com\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/support/departments",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"support",
+								"departments"
+							]
+						},
+						"description": "Create a new support department.\n\n**Day 21.5:** Support Ticket System\n\n**Required Fields:**\n- name: Department name (required, max 255 chars)\n\n**Optional Fields:**\n- description: Department description (max 1000 chars)\n- email: Department email address\n\n**Note:** This is a placeholder implementation. In a full implementation, departments would be stored in a database table.\n\n**Response:**\n- Department object with id, name, description, email"
+					},
+					"response": []
+				}
+			],
+			"description": "Support ticket management endpoints (Day 21.5-22)"
+		},
+		{
+			"name": "Landlord Support Tickets",
+			"item": [
+				{
+					"name": "List Landlord Support Tickets",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has tickets data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('tickets');",
+									"    pm.expect(jsonData.tickets).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/support/tickets?page=1&limit=20&status=open&priority=medium",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"support",
+								"tickets"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number"
+								},
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Items per page"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search term (subject, description)",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "open",
+									"description": "Filter by status (open, in_progress, resolved, closed)"
+								},
+								{
+									"key": "priority",
+									"value": "medium",
+									"description": "Filter by priority (low, medium, high, urgent)"
+								},
+								{
+									"key": "category",
+									"value": "",
+									"description": "Filter by category (billing, technical, feature_request, bug_report, account, other)",
+									"disabled": true
+								},
+								{
+									"key": "tenant_id",
+									"value": "",
+									"description": "Filter by tenant ID",
+									"disabled": true
+								}
+							]
+						},
+						"description": "List landlord support tickets with filtering and pagination.\n\n**Day 21.5-22:** Landlord Support Ticket System\n\n**Access:** Landlord/admin only\n\n**Query Parameters:**\n- page: Page number (default: 1)\n- limit: Items per page (default: 20, max: 100)\n- search: Search term (searches subject and description)\n- status: Filter by status (open, in_progress, resolved, closed)\n- priority: Filter by priority (low, medium, high, urgent)\n- category: Filter by category (billing, technical, feature_request, bug_report, account, other)\n- tenant_id: Filter by tenant ID\n- sort_by: Sort field (created_at, updated_at, priority, status)\n- sort_order: Sort order (asc, desc)\n\n**Response:**\n- tickets: Array of ticket objects with tenant info and message count\n- pagination: Pagination metadata"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Landlord Support Ticket",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Ticket created successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('ticket');",
+									"    pm.expect(jsonData.ticket).to.have.property('id');",
+									"    ",
+									"    // Store ticket ID for use in other requests",
+									"    pm.environment.set('landlord_ticket_id', jsonData.ticket.id);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"subject\": \"Billing question about subscription renewal\",\n    \"description\": \"I have a question about my upcoming subscription renewal. Can you clarify the pricing?\",\n    \"priority\": \"medium\",\n    \"category\": \"billing\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/support/tickets",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"support",
+								"tickets"
+							]
+						},
+						"description": "Create a new landlord support ticket (from tenant to landlord).\n\n**Day 21.5-22:** Landlord Support Ticket System\n\n**Access:** Tenant admin/staff (creates ticket) or Landlord (for testing)\n\n**Required Fields:**\n- subject: Ticket subject (required, max 255 chars)\n- description: Ticket description (required, max 5000 chars)\n\n**Optional Fields:**\n- priority: Priority level (low, medium, high, urgent) - default: medium\n- category: Category (billing, technical, feature_request, bug_report, account, other) - default: other\n\n**Actions:**\n- Creates ticket with status 'open'\n- Associates ticket with authenticated tenant\n- Sends email notification to landlord admin\n\n**Response:**\n- Ticket object with id, subject, description, status, priority, category"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Landlord Support Ticket",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has ticket data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('ticket');",
+									"    pm.expect(jsonData.ticket).to.have.property('id');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/support/tickets/{{landlord_ticket_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"support",
+								"tickets",
+								"{{landlord_ticket_id}}"
+							]
+						},
+						"description": "Get landlord support ticket details by ID.\n\n**Day 21.5-22:** Landlord Support Ticket System\n\n**Access:** Landlord/admin only\n\n**Path Parameters:**\n- ticket_id: UUID of the ticket\n\n**Response:**\n- Ticket object with tenant info and all messages"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Landlord Support Ticket",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Ticket updated successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('ticket');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"in_progress\",\n    \"priority\": \"high\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/support/tickets/{{landlord_ticket_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"support",
+								"tickets",
+								"{{landlord_ticket_id}}"
+							]
+						},
+						"description": "Update landlord support ticket (status, priority).\n\n**Day 21.5-22:** Landlord Support Ticket System\n\n**Access:** Landlord/admin only\n\n**Path Parameters:**\n- ticket_id: UUID of the ticket\n\n**Body Parameters (all optional):**\n- status: New status (open, in_progress, resolved, closed)\n- priority: New priority (low, medium, high, urgent)\n- category: Update category\n- subject: Update subject\n- description: Update description\n\n**Email Notifications:**\n- Sends email to tenant when status changes\n\n**Response:**\n- Updated ticket object"
+					},
+					"response": []
+				},
+				{
+					"name": "Close Landlord Support Ticket",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Ticket closed successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData.ticket.status).to.eql('closed');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/support/tickets/{{landlord_ticket_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"support",
+								"tickets",
+								"{{landlord_ticket_id}}"
+							]
+						},
+						"description": "Close landlord support ticket (soft delete).\n\n**Day 21.5-22:** Landlord Support Ticket System\n\n**Access:** Landlord/admin only\n\n**Path Parameters:**\n- ticket_id: UUID of the ticket\n\n**Actions:**\n- Sets ticket status to 'closed'\n- Updates updated_at timestamp\n\n**Response:**\n- Success message and updated ticket object"
+					},
+					"response": []
+				},
+				{
+					"name": "List Landlord Ticket Messages",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has messages data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('messages');",
+									"    pm.expect(jsonData.messages).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/admin/support/tickets/{{landlord_ticket_id}}/messages",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"support",
+								"tickets",
+								"{{landlord_ticket_id}}",
+								"messages"
+							]
+						},
+						"description": "List all messages for a landlord support ticket.\n\n**Day 21.5-22:** Landlord Support Ticket System\n\n**Access:** Landlord/admin only\n\n**Path Parameters:**\n- ticket_id: UUID of the ticket\n\n**Response:**\n- messages: Array of message objects (ordered by created_at ascending)"
+					},
+					"response": []
+				},
+				{
+					"name": "Add Landlord Ticket Message",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Message created successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success', true);",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"    pm.expect(jsonData.message).to.have.property('id');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"message\": \"Thank you for your inquiry. We are looking into this issue and will get back to you shortly.\",\n    \"attachments\": []\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/admin/support/tickets/{{landlord_ticket_id}}/messages",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"support",
+								"tickets",
+								"{{landlord_ticket_id}}",
+								"messages"
+							]
+						},
+						"description": "Add a message/reply to a landlord support ticket.\n\n**Day 21.5-22:** Landlord Support Ticket System\n\n**Access:** Landlord/admin (reply to tenant) or Tenant admin (reply to landlord)\n\n**Path Parameters:**\n- ticket_id: UUID of the ticket\n\n**Required Fields:**\n- message: Message content (required, max 5000 chars)\n\n**Optional Fields:**\n- attachments: Array of attachment URLs (optional)\n\n**Actions:**\n- Creates message associated with authenticated user\n- Updates ticket's updated_at timestamp\n- If ticket was 'resolved', changes status to 'in_progress'\n- Sends email notification:\n  - To tenant if landlord replied\n  - To landlord if tenant replied\n\n**Response:**\n- Message object with id, message, attachments, user_id, created_at"
+					},
+					"response": []
+				}
+			],
+			"description": "Landlord support ticket management endpoints (Day 21.5-22). Tickets from tenants to the landlord/platform admin."
+		},
+		{
+			"name": "Mobile API (Phase 0)",
+			"description": "Phase 0 mobile API endpoints for Flutter integration.",
+			"item": [
+				{
+					"name": "Mobile Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Mobile login succeeds\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});",
+									"",
+									"if (jsonData.success && jsonData.data) {",
+									"    var requiresMfa = jsonData.data.requiresMfa === true;",
+									"    pm.environment.set('mobile_requires_mfa', requiresMfa ? 'true' : 'false');",
+									"    if (jsonData.data.user && jsonData.data.user.id) {",
+									"        pm.environment.set('mobile_user_id', jsonData.data.user.id);",
+									"    }",
+									"    if (jsonData.data.user && jsonData.data.user.email) {",
+									"        pm.environment.set('mobile_user_email', jsonData.data.user.email);",
+									"    }",
+									"    if (jsonData.data.user && jsonData.data.user.tenantId) {",
+									"        pm.environment.set('tenant_id', jsonData.data.user.tenantId);",
+									"    }",
+									"    if (requiresMfa && jsonData.data.tempSession) {",
+									"        pm.environment.set('mobile_temp_access_token', jsonData.data.tempSession.accessToken || '');",
+									"        pm.environment.set('mobile_temp_refresh_token', jsonData.data.tempSession.refreshToken || '');",
+									"        pm.environment.unset('mobile_access_token');",
+									"        pm.environment.unset('mobile_refresh_token');",
+									"        pm.environment.unset('auth_token');",
+									"    } else {",
+									"        pm.environment.set('mobile_access_token', jsonData.data.accessToken);",
+									"        pm.environment.set('mobile_refresh_token', jsonData.data.refreshToken);",
+									"        pm.environment.set('auth_token', jsonData.data.accessToken);",
+									"        pm.environment.unset('mobile_temp_access_token');",
+									"        pm.environment.unset('mobile_temp_refresh_token');",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{mobile_email}}\",\n  \"password\": \"{{mobile_password}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Login for mobile API and store bearer tokens in Postman environment."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Refresh returns new tokens\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('accessToken');",
+									"    pm.expect(jsonData.data).to.have.property('refreshToken');",
+									"});",
+									"",
+									"if (jsonData.success && jsonData.data) {",
+									"    pm.environment.set('mobile_access_token', jsonData.data.accessToken);",
+									"    pm.environment.set('mobile_refresh_token', jsonData.data.refreshToken);",
+									"    pm.environment.set('auth_token', jsonData.data.accessToken);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{mobile_refresh_token}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/auth/refresh",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"auth",
+								"refresh"
+							]
+						},
+						"description": "Refresh mobile access token using refresh token."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile MFA Status",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"MFA status response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('mfaRequired');",
+									"    pm.expect(jsonData.data).to.have.property('mfaEnabled');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{mobile_user_id}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/auth/mfa/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"auth",
+								"mfa",
+								"status"
+							]
+						},
+						"description": "Check MFA requirement/enabled status for mobile user."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile MFA Send Code",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"MFA code sent response\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data.sent).to.eql(true);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{mobile_user_id}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/auth/mfa/send-code",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"auth",
+								"mfa",
+								"send-code"
+							]
+						},
+						"description": "Send MFA OTP code to mobile user email."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile MFA Verify",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"MFA verify response\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data.verified).to.eql(true);",
+									"});",
+									"",
+									"if (jsonData.success && jsonData.data && jsonData.data.accessToken) {",
+									"    pm.environment.set('mobile_access_token', jsonData.data.accessToken);",
+									"    pm.environment.set('mobile_refresh_token', jsonData.data.refreshToken || '');",
+									"    pm.environment.set('auth_token', jsonData.data.accessToken);",
+									"    pm.environment.set('mobile_requires_mfa', 'false');",
+									"    pm.environment.unset('mobile_temp_access_token');",
+									"    pm.environment.unset('mobile_temp_refresh_token');",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{mobile_user_id}}\",\n  \"code\": \"{{mobile_mfa_code}}\",\n  \"tempSession\": {\n    \"accessToken\": \"{{mobile_temp_access_token}}\",\n    \"refreshToken\": \"{{mobile_temp_refresh_token}}\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/auth/mfa/verify",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"auth",
+								"mfa",
+								"verify"
+							]
+						},
+						"description": "Verify MFA OTP code for mobile user."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Overview",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Overview response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('metrics');",
+									"    pm.expect(jsonData.data).to.have.property('recentOrders');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/overview",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"overview"
+							]
+						},
+						"description": "Get mobile dashboard overview metrics and recent orders."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Products",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Products response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('items');",
+									"    pm.expect(jsonData).to.have.property('pagination');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/products?page=1&limit=20&search=&status=active",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"products"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								},
+								{
+									"key": "search",
+									"value": ""
+								},
+								{
+									"key": "status",
+									"value": "active"
+								}
+							]
+						},
+						"description": "Get tenant products for mobile dashboard with pagination and filters."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Orders",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Orders response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('items');",
+									"    pm.expect(jsonData).to.have.property('pagination');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/orders?page=1&limit=20&status=pending",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"orders"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								},
+								{
+									"key": "status",
+									"value": "pending"
+								}
+							]
+						},
+						"description": "Get tenant orders for mobile dashboard with pagination and filters."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Customers",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Customers response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('items');",
+									"    pm.expect(jsonData).to.have.property('pagination');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/customers?page=1&limit=20&search=",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"customers"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								},
+								{
+									"key": "search",
+									"value": ""
+								}
+							]
+						},
+						"description": "Get tenant customers for mobile dashboard with pagination and filters."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Inventory",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Inventory response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('items');",
+									"    pm.expect(jsonData.data).to.have.property('stats');",
+									"    pm.expect(jsonData).to.have.property('pagination');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/inventory?page=1&limit=20&threshold=10&low_stock_only=false",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"inventory"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								},
+								{
+									"key": "threshold",
+									"value": "10"
+								},
+								{
+									"key": "low_stock_only",
+									"value": "false"
+								}
+							]
+						},
+						"description": "Get inventory list + low-stock stats for mobile dashboard."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Settings",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Settings response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('store');",
+									"    pm.expect(jsonData.data).to.have.property('currency');",
+									"    pm.expect(jsonData.data).to.have.property('payment');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/settings",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"settings"
+							]
+						},
+						"description": "Get core tenant settings for mobile dashboard."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Logout",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Logout success\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});",
+									"",
+									"pm.environment.unset('mobile_access_token');",
+									"pm.environment.unset('mobile_refresh_token');",
+									"pm.environment.unset('auth_token');"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{mobile_refresh_token}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/auth/logout",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"auth",
+								"logout"
+							]
+						},
+						"description": "Logout mobile user and clear saved tokens from Postman environment."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Auto-set tenant headers if available",
+					"if (pm.environment.get('tenant_id')) {",
+					"    pm.request.headers.add({",
+					"        key: 'x-tenant-id',",
+					"        value: pm.environment.get('tenant_id')",
+					"    });",
+					"}",
+					"",
+					"// Auto-set auth token if available (for protected routes)",
+					"var activeToken = pm.environment.get('mobile_access_token') || pm.environment.get('auth_token');",
+					"if (activeToken) {",
+					"    pm.request.headers.add({",
+					"        key: 'Authorization',",
+					"        value: 'Bearer ' + activeToken",
+					"    });",
+					"}"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global test: Log response time",
+					"pm.test('Response time is less than 5000ms', function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+					"});"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000",
+			"type": "string"
+		}
+	]
+}
+
