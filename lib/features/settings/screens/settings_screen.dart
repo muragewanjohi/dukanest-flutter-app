@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../onboarding/providers/auth_provider.dart';
+import '../../../config/theme.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -10,12 +11,15 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     return Scaffold(
+      backgroundColor: AppTheme.surface,
       appBar: AppBar(
+        backgroundColor: AppTheme.surface,
+        foregroundColor: AppTheme.primaryDark,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: const Text('Store Settings'),
+        title: Text('Store Settings', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: AppTheme.primaryDark)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),

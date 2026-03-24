@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../config/theme.dart';
 import '../../demo/demo_data.dart';
 
+/// Customer Directory — Stitch: header, search row, chips, bordered cards.
 class CustomersListScreen extends StatefulWidget {
   const CustomersListScreen({super.key});
 
@@ -12,6 +14,7 @@ class CustomersListScreen extends StatefulWidget {
 
 class _CustomersListScreenState extends State<CustomersListScreen> {
   String _query = '';
+  int _chip = 0;
 
   Iterable<DemoCustomer> get _visible {
     if (_query.trim().isEmpty) return demoCustomers;
@@ -78,97 +81,155 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final visible = _visible.toList();
+    final chips = ['All Customers', 'VIP Customers', 'Repeat Buyers', 'New This Month'];
 
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text('Customers'),
-      ),
+      backgroundColor: AppTheme.surface,
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          Text('Your customers', style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
-          Text(
-            'View profiles, purchase history, and segment your audience.',
-            style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(
-                child: SearchBar(
-                  hintText: 'Search by name or email…',
-                  leading: const Icon(Icons.search),
-                  onChanged: (v) => setState(() => _query = v),
+              IconButton(
+                style: IconButton.styleFrom(
+                  backgroundColor: theme.colorScheme.surfaceContainerLow,
+                  foregroundColor: theme.colorScheme.onSurfaceVariant,
                 ),
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                onPressed: () => context.pop(),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Customers',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: AppTheme.primaryDark,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
+                onPressed: () {},
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Total', style: theme.textTheme.labelMedium),
-                        Text('${demoCustomers.length}', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
-                      ],
+                child: TextField(
+                  onChanged: (v) => setState(() => _query = v),
+                  decoration: InputDecoration(
+                    hintText: 'Search customer name...',
+                    filled: true,
+                    fillColor: theme.colorScheme.surfaceContainerLow,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
                     ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                    prefixIcon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ),
               ),
               const SizedBox(width: 10),
-              Expanded(
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Active (90d)', style: theme.textTheme.labelMedium),
-                        Text('${demoCustomers.length}', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
-                      ],
-                    ),
-                  ),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                child: Icon(Icons.tune, color: theme.colorScheme.onSurfaceVariant),
               ),
             ],
           ),
           const SizedBox(height: 12),
+          SizedBox(
+            height: 40,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: chips.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, i) {
+                final sel = _chip == i;
+                return Material(
+                  color: sel ? AppTheme.primary : theme.colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(999),
+                  child: InkWell(
+                    onTap: () => setState(() => _chip = i),
+                    borderRadius: BorderRadius.circular(999),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      child: Text(
+                        chips[i],
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: sel ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
           if (visible.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 48),
-              child: Center(
-                child: Text('No matches for “$_query”.', style: theme.textTheme.bodyLarge),
-              ),
+              child: Center(child: Text('No matches for "$_query".', style: theme.textTheme.bodyLarge)),
             )
           else
-            ...visible.map(
-              (c) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Card(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    leading: CircleAvatar(
-                      child: Text(_initials(c.name), style: const TextStyle(fontWeight: FontWeight.w700)),
-                    ),
-                    title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text('${c.orderCount} orders · Last: ${c.lastOrder}\n${c.email}'),
-                    isThreeLine: true,
-                    trailing: const Icon(Icons.chevron_right),
+            ...List.generate(visible.length, (index) {
+              final c = visible[index];
+              final highlight = index == 0;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Material(
+                  color: theme.colorScheme.surfaceContainerLowest,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
                     onTap: () => _showCustomerSheet(c),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: highlight
+                            ? const Border(left: BorderSide(color: AppTheme.primary, width: 4))
+                            : null,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 26,
+                            backgroundColor: theme.colorScheme.secondaryContainer.withValues(alpha: 0.6),
+                            child: Text(
+                              _initials(c.name),
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: AppTheme.primaryDark,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(c.name, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                                Text(c.email, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right_rounded, color: AppTheme.primaryDark),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
+              );
+            }),
         ],
       ),
     );

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Home Page Editor</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "tertiary": "#001c89",
+                        "secondary-container": "#dbd1ff",
+                        "surface": "#faf9f9",
+                        "on-error-container": "#93000a",
+                        "inverse-on-surface": "#f2f0f0",
+                        "primary-fixed-dim": "#bcc2ff",
+                        "on-tertiary-fixed": "#00105c",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container": "#efeded",
+                        "on-tertiary": "#ffffff",
+                        "primary-container": "#0025cc",
+                        "surface-dim": "#dbdad9",
+                        "tertiary-container": "#002cc2",
+                        "error": "#ba1a1a",
+                        "surface-container-low": "#f4f3f3",
+                        "primary": "#001790",
+                        "surface-tint": "#334ae6",
+                        "surface-container-high": "#e9e8e8",
+                        "secondary-fixed-dim": "#cac1ed",
+                        "surface-bright": "#faf9f9",
+                        "surface-variant": "#e3e2e2",
+                        "on-tertiary-fixed-variant": "#002eca",
+                        "error-container": "#ffdad6",
+                        "on-surface": "#1b1c1c",
+                        "on-background": "#1b1c1c",
+                        "on-secondary-fixed-variant": "#494267",
+                        "outline": "#757687",
+                        "tertiary-fixed": "#dee0ff",
+                        "on-primary-container": "#a0abff",
+                        "inverse-primary": "#bcc2ff",
+                        "primary-fixed": "#dfe0ff",
+                        "inverse-surface": "#2f3031",
+                        "on-error": "#ffffff",
+                        "secondary-fixed": "#e6deff",
+                        "on-primary-fixed-variant": "#0a2acf",
+                        "on-surface-variant": "#444655",
+                        "background": "#faf9f9",
+                        "on-secondary-fixed": "#1d1639",
+                        "on-primary-fixed": "#000c61",
+                        "on-secondary-container": "#5f587f",
+                        "secondary": "#615980",
+                        "outline-variant": "#c5c5d8",
+                        "on-tertiary-container": "#9eabff",
+                        "tertiary-fixed-dim": "#bac3ff",
+                        "on-primary": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "surface-container-highest": "#e3e2e2"
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #faf9f9;
+        }
+        .glass-header {
+            backdrop-filter: blur(12px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="text-on-surface pb-32">
+<!-- TopAppBar -->
+<header class="bg-[#FAF9F9] dark:bg-slate-950 sticky top-0 z-50 no-border tonal-shift bg-[#F4F3F3] dark:bg-slate-900 flex justify-between items-center px-6 py-4 w-full">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#001790] dark:text-blue-400" data-icon="arrow_back">arrow_back</span>
+<h1 class="font-['Plus_Jakarta_Sans'] font-semibold text-lg text-[#001790] dark:text-blue-400">Home Page Editor</h1>
+</div>
+<button class="bg-gradient-to-br from-primary to-primary-container text-white px-5 py-2 rounded-lg font-['Plus_Jakarta_Sans'] font-bold text-sm active:scale-95 duration-150">
+            Save
+        </button>
+</header>
+<main class="max-w-2xl mx-auto px-4 mt-6 space-y-8">
+<!-- Visual Preview Section -->
+<section class="space-y-4">
+<div class="flex justify-between items-end">
+<h2 class="font-headline font-semibold text-primary text-sm uppercase tracking-wider">Visual Preview</h2>
+<span class="text-xs text-outline font-medium">Auto-saving...</span>
+</div>
+<!-- Mobile Preview Frame -->
+<div class="relative aspect-[9/10] w-full rounded-2xl overflow-hidden shadow-[0px_12px_32px_rgba(12,5,40,0.06)] bg-white ring-8 ring-surface-container">
+<!-- Inner Mockup -->
+<div class="h-full w-full flex flex-col">
+<!-- Preview Nav -->
+<div class="p-4 flex justify-between items-center bg-white border-b border-surface-container-low">
+<div class="h-6 w-24 bg-surface-container-high rounded" data-alt="Placeholder for storefront logo"></div>
+<span class="material-symbols-outlined text-primary text-xl" data-icon="menu">menu</span>
+</div>
+<!-- Preview Hero -->
+<div class="flex-1 bg-primary relative overflow-hidden flex flex-col justify-end p-6">
+<div class="absolute inset-0 opacity-20" data-alt="Abstract architectural blue gradient background" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDvZqv0EGabibFuqQNzBZujr3pvWJp1jZfAeDVQ71FPOG5IEXR6qWVVxMN2UzHEE8bj1p8DFUp8s0ZijlGPtVFkeq7nqmrT_08r8iQ-NNcV9-ZrRdnJzMz934TjnSTHpBHuCFzfa42WN3mn2SpJQgwNAz90Mzc4FQorG30oPZiEhNAk39eWbTD7CbJzvjuZcIFlnSmzNL3pPOork9DrDapoSrO3WToCNJjJn70JrCBasXDA9B1UsIh8UNgc22RFwST7fkvD6vR0Ahcb'); background-size: cover;"></div>
+<div class="relative z-10 space-y-2">
+<div class="h-8 w-3/4 bg-white/20 rounded"></div>
+<div class="h-4 w-1/2 bg-white/10 rounded"></div>
+<div class="h-10 w-32 bg-primary-container rounded mt-4"></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Content Sections -->
+<section class="space-y-4">
+<h2 class="font-headline font-semibold text-primary text-sm uppercase tracking-wider">Content Sections</h2>
+<div class="space-y-3">
+<!-- Section Item: Header -->
+<div class="group bg-surface-container-low rounded-xl p-4 flex items-center justify-between transition-all hover:bg-surface-container-highest">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined" data-icon="web_asset">web_asset</span>
+</div>
+<div>
+<p class="font-headline font-semibold text-on-surface">Header &amp; Navigation</p>
+<p class="text-xs text-on-surface-variant">Logo, menu links, and search</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="w-10 h-10 rounded-full hover:bg-white flex items-center justify-center text-outline transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="visibility">visibility</span>
+</button>
+<button class="w-10 h-10 rounded-full hover:bg-white flex items-center justify-center text-primary-container transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="edit">edit</span>
+</button>
+</div>
+</div>
+<!-- Section Item: Hero Banner (Active/Selected look) -->
+<div class="group bg-surface-container-lowest ring-2 ring-primary-container/10 rounded-xl p-4 flex items-center justify-between shadow-sm">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-primary-container flex items-center justify-center text-white">
+<span class="material-symbols-outlined" data-icon="view_carousel">view_carousel</span>
+</div>
+<div>
+<p class="font-headline font-semibold text-on-surface">Hero Banner</p>
+<p class="text-xs text-on-surface-variant">Main call to action &amp; hero image</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="w-10 h-10 rounded-full hover:bg-surface-container-low flex items-center justify-center text-primary-container transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="visibility">visibility</span>
+</button>
+<button class="w-10 h-10 rounded-full hover:bg-surface-container-low flex items-center justify-center text-primary-container transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="edit">edit</span>
+</button>
+</div>
+</div>
+<!-- Section Item: Featured Collection -->
+<div class="group bg-surface-container-low rounded-xl p-4 flex items-center justify-between transition-all hover:bg-surface-container-highest">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined" data-icon="grid_view">grid_view</span>
+</div>
+<div>
+<p class="font-headline font-semibold text-on-surface">Featured Collection</p>
+<p class="text-xs text-on-surface-variant">Highlight top-selling products</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="w-10 h-10 rounded-full hover:bg-white flex items-center justify-center text-outline transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="visibility">visibility</span>
+</button>
+<button class="w-10 h-10 rounded-full hover:bg-white flex items-center justify-center text-primary-container transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="edit">edit</span>
+</button>
+</div>
+</div>
+<!-- Section Item: About Section -->
+<div class="group bg-surface-container-low rounded-xl p-4 flex items-center justify-between transition-all hover:bg-surface-container-highest">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined" data-icon="info">info</span>
+</div>
+<div>
+<p class="font-headline font-semibold text-on-surface">About Section</p>
+<p class="text-xs text-on-surface-variant">Brand story and mission statement</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="w-10 h-10 rounded-full hover:bg-white flex items-center justify-center text-outline transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="visibility_off">visibility_off</span>
+</button>
+<button class="w-10 h-10 rounded-full hover:bg-white flex items-center justify-center text-primary-container transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="edit">edit</span>
+</button>
+</div>
+</div>
+<!-- Section Item: Footer -->
+<div class="group bg-surface-container-low rounded-xl p-4 flex items-center justify-between transition-all hover:bg-surface-container-highest">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined" data-icon="bottom_panel_open">bottom_panel_open</span>
+</div>
+<div>
+<p class="font-headline font-semibold text-on-surface">Footer</p>
+<p class="text-xs text-on-surface-variant">Copyright, links, and social icons</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="w-10 h-10 rounded-full hover:bg-white flex items-center justify-center text-primary-container transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="visibility">visibility</span>
+</button>
+<button class="w-10 h-10 rounded-full hover:bg-white flex items-center justify-center text-primary-container transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="edit">edit</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Preview Store Floating Button -->
+<div class="fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6 flex justify-center pointer-events-none">
+<button class="pointer-events-auto flex items-center gap-2 bg-primary text-white px-8 py-4 rounded-full font-headline font-bold shadow-[0px_12px_32px_rgba(12,5,40,0.2)] active:scale-90 transition-transform glass-header bg-primary/90">
+<span class="material-symbols-outlined" data-icon="open_in_new">open_in_new</span>
+<span>Preview Store</span>
+</button>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 rounded-t-2xl bg-[#FAF9F9]/80 dark:bg-slate-950/80 backdrop-blur-xl shadow-[0px_-12px_32px_rgba(12,5,40,0.06)] flex justify-around items-center px-4 pb-6 pt-3">
+<!-- Editor - Active -->
+<div class="flex flex-col items-center justify-center bg-[#0025CC] text-white rounded-xl px-3 py-1.5 active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="edit_note">edit_note</span>
+<span class="font-['Inter'] text-[10px] font-medium">Editor</span>
+</div>
+<!-- Templates -->
+<div class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="auto_awesome_motion">auto_awesome_motion</span>
+<span class="font-['Inter'] text-[10px] font-medium">Templates</span>
+</div>
+<!-- Preview -->
+<div class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="visibility">visibility</span>
+<span class="font-['Inter'] text-[10px] font-medium">Preview</span>
+</div>
+<!-- Settings -->
+<div class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-['Inter'] text-[10px] font-medium">Settings</span>
+</div>
+</nav>
+</body></html>

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../config/theme.dart';
+
 /// Content Manager — Stitch: Content Management (Updated Nav & Sales).
 class ContentManagementScreen extends StatelessWidget {
   const ContentManagementScreen({super.key});
@@ -10,12 +12,15 @@ class ContentManagementScreen extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: AppTheme.surface,
       appBar: AppBar(
+        backgroundColor: AppTheme.surface,
+        foregroundColor: AppTheme.primaryDark,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: const Text('Content Manager'),
+        title: Text('Content Manager', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: AppTheme.primaryDark)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),

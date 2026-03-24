@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "tertiary": "#001c89",
+              "secondary-container": "#dbd1ff",
+              "surface": "#faf9f9",
+              "on-error-container": "#93000a",
+              "inverse-on-surface": "#f2f0f0",
+              "primary-fixed-dim": "#bcc2ff",
+              "on-tertiary-fixed": "#00105c",
+              "surface-container-lowest": "#ffffff",
+              "surface-container": "#efeded",
+              "on-tertiary": "#ffffff",
+              "primary-container": "#0025cc",
+              "surface-dim": "#dbdad9",
+              "tertiary-container": "#002cc2",
+              "error": "#ba1a1a",
+              "surface-container-low": "#f4f3f3",
+              "primary": "#001790",
+              "surface-tint": "#334ae6",
+              "surface-container-high": "#e9e8e8",
+              "secondary-fixed-dim": "#cac1ed",
+              "surface-bright": "#faf9f9",
+              "surface-variant": "#e3e2e2",
+              "on-tertiary-fixed-variant": "#002eca",
+              "error-container": "#ffdad6",
+              "on-surface": "#1b1c1c",
+              "on-background": "#1b1c1c",
+              "on-secondary-fixed-variant": "#494267",
+              "outline": "#757687",
+              "tertiary-fixed": "#dee0ff",
+              "on-primary-container": "#a0abff",
+              "inverse-primary": "#bcc2ff",
+              "primary-fixed": "#dfe0ff",
+              "inverse-surface": "#2f3031",
+              "on-error": "#ffffff",
+              "secondary-fixed": "#e6deff",
+              "on-primary-fixed-variant": "#0a2acf",
+              "on-surface-variant": "#444655",
+              "background": "#faf9f9",
+              "on-secondary-fixed": "#1d1639",
+              "on-primary-fixed": "#000c61",
+              "on-secondary-container": "#5f587f",
+              "secondary": "#615980",
+              "outline-variant": "#c5c5d8",
+              "on-tertiary-container": "#9eabff",
+              "tertiary-fixed-dim": "#bac3ff",
+              "on-primary": "#ffffff",
+              "on-secondary": "#ffffff",
+              "surface-container-highest": "#e3e2e2"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .primary-gradient {
+            background: linear-gradient(135deg, #001790 0%, #0025CC 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body text-on-surface min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="docked full-width top-0 sticky z-50 bg-[#FAF9F9] dark:bg-slate-950 no-border tonal-shift bg-[#F4F3F3] dark:bg-slate-900 flat no shadows flex justify-between items-center px-6 py-4 w-full">
+<div class="flex items-center gap-4">
+<button class="text-[#001790] dark:text-blue-400 active:scale-95 duration-150">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="font-['Plus_Jakarta_Sans'] font-semibold text-lg text-[#001790] dark:text-blue-400">New Page</h1>
+</div>
+<button class="font-['Plus_Jakarta_Sans'] font-semibold text-lg text-[#001790] dark:text-blue-400 active:scale-95 duration-150">
+            Save
+        </button>
+</header>
+<main class="px-6 py-8 max-w-md mx-auto">
+<!-- Input Section -->
+<section class="mb-10">
+<label class="block font-label text-label-md text-on-surface-variant mb-2 ml-1" for="page-name">Page Name</label>
+<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-4 text-body-md focus:ring-2 focus:ring-primary/20 outline-none transition-all placeholder:text-outline/50" id="page-name" placeholder="e.g. Summer Collection 2024" type="text"/>
+</section>
+<!-- Template Selection Section -->
+<section>
+<div class="flex justify-between items-end mb-6">
+<h2 class="font-headline text-headline-md text-primary">Select Template</h2>
+<span class="font-label text-label-md text-primary-container font-semibold">5 Options</span>
+</div>
+<div class="space-y-4">
+<!-- Blank Page Card -->
+<button class="w-full text-left bg-surface-container-lowest p-5 rounded-lg border-l-4 border-primary shadow-[0px_12px_32px_rgba(12,5,40,0.04)] flex items-center gap-5 active:scale-[0.98] transition-transform">
+<div class="w-12 h-12 rounded-full bg-primary-fixed flex items-center justify-center text-on-primary-fixed-variant">
+<span class="material-symbols-outlined" data-icon="insert_drive_file">insert_drive_file</span>
+</div>
+<div>
+<h3 class="font-headline text-title-lg text-on-surface">Blank Page</h3>
+<p class="font-body text-label-md text-on-surface-variant">Start with a clean slate and build from scratch.</p>
+</div>
+</button>
+<!-- About Us Card -->
+<button class="w-full text-left bg-surface-container-low p-5 rounded-lg flex items-center gap-5 hover:bg-surface-container-lowest transition-colors active:scale-[0.98]">
+<div class="w-12 h-12 rounded-full bg-secondary-fixed flex items-center justify-center text-on-secondary-fixed-variant">
+<span class="material-symbols-outlined" data-icon="groups">groups</span>
+</div>
+<div>
+<h3 class="font-headline text-title-lg text-on-surface">About Us</h3>
+<p class="font-body text-label-md text-on-surface-variant">Tell your brand's story and mission to your customers.</p>
+</div>
+</button>
+<!-- Contact Us Card -->
+<button class="w-full text-left bg-surface-container-low p-5 rounded-lg flex items-center gap-5 hover:bg-surface-container-lowest transition-colors active:scale-[0.98]">
+<div class="w-12 h-12 rounded-full bg-secondary-fixed flex items-center justify-center text-on-secondary-fixed-variant">
+<span class="material-symbols-outlined" data-icon="alternate_email">alternate_email</span>
+</div>
+<div>
+<h3 class="font-headline text-title-lg text-on-surface">Contact Us</h3>
+<p class="font-body text-label-md text-on-surface-variant">Standard layout with forms and location details.</p>
+</div>
+</button>
+<!-- FAQ Card -->
+<button class="w-full text-left bg-surface-container-low p-5 rounded-lg flex items-center gap-5 hover:bg-surface-container-lowest transition-colors active:scale-[0.98]">
+<div class="w-12 h-12 rounded-full bg-secondary-fixed flex items-center justify-center text-on-secondary-fixed-variant">
+<span class="material-symbols-outlined" data-icon="quiz">quiz</span>
+</div>
+<div>
+<h3 class="font-headline text-title-lg text-on-surface">FAQ</h3>
+<p class="font-body text-label-md text-on-surface-variant">Help your customers with common questions.</p>
+</div>
+</button>
+<!-- Promotion Page Card -->
+<button class="w-full text-left bg-surface-container-low p-5 rounded-lg flex items-center gap-5 hover:bg-surface-container-lowest transition-colors active:scale-[0.98]">
+<div class="w-12 h-12 rounded-full bg-secondary-fixed flex items-center justify-center text-on-secondary-fixed-variant">
+<span class="material-symbols-outlined" data-icon="campaign">campaign</span>
+</div>
+<div>
+<h3 class="font-headline text-title-lg text-on-surface">Promotion Page</h3>
+<p class="font-body text-label-md text-on-surface-variant">Optimized for high-conversion marketing campaigns.</p>
+</div>
+</button>
+</div>
+</section>
+</main>
+<!-- Bottom Action Area -->
+<div class="fixed bottom-0 left-0 w-full px-6 pb-8 pt-4 bg-surface/80 backdrop-blur-xl z-40">
+<button class="w-full primary-gradient text-white py-4 rounded-lg font-headline font-bold text-lg shadow-[0px_12px_32px_rgba(0,23,144,0.2)] active:scale-95 transition-transform">
+            Create Page
+        </button>
+</div>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-3 bg-[#FAF9F9]/80 dark:bg-slate-950/80 backdrop-blur-xl z-50 rounded-t-2xl shadow-[0px_-12px_32px_rgba(12,5,40,0.06)] hidden">
+<div class="flex flex-col items-center justify-center bg-[#0025CC] text-white rounded-xl px-3 py-1.5 active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="edit_note">edit_note</span>
+<span class="font-['Inter'] text-[10px] font-medium">Editor</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-3 py-1.5 active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="auto_awesome_motion">auto_awesome_motion</span>
+<span class="font-['Inter'] text-[10px] font-medium">Templates</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-3 py-1.5 active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="visibility">visibility</span>
+<span class="font-['Inter'] text-[10px] font-medium">Preview</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-3 py-1.5 active:scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-['Inter'] text-[10px] font-medium">Settings</span>
+</div>
+</nav>
+</body></html>

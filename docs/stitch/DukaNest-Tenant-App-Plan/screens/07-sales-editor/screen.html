@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Edit Sale - DukaNest</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-tertiary-container": "#9eabff",
+              "tertiary-fixed-dim": "#bac3ff",
+              "on-primary": "#ffffff",
+              "on-secondary": "#ffffff",
+              "surface-container-highest": "#e3e2e2",
+              "on-primary-fixed": "#000c61",
+              "on-secondary-container": "#5f587f",
+              "secondary": "#615980",
+              "outline-variant": "#c5c5d8",
+              "on-error": "#ffffff",
+              "secondary-fixed": "#e6deff",
+              "on-primary-fixed-variant": "#0a2acf",
+              "on-surface-variant": "#444655",
+              "background": "#faf9f9",
+              "on-secondary-fixed": "#1d1639",
+              "outline": "#757687",
+              "tertiary-fixed": "#dee0ff",
+              "on-primary-container": "#a0abff",
+              "inverse-primary": "#bcc2ff",
+              "primary-fixed": "#dfe0ff",
+              "inverse-surface": "#2f3031",
+              "surface-bright": "#faf9f9",
+              "surface-variant": "#e3e2e2",
+              "on-tertiary-fixed-variant": "#002eca",
+              "error-container": "#ffdad6",
+              "on-surface": "#1b1c1c",
+              "on-background": "#1b1c1c",
+              "on-secondary-fixed-variant": "#494267",
+              "surface-container-low": "#f4f3f3",
+              "primary": "#001790",
+              "surface-tint": "#334ae6",
+              "surface-container-high": "#e9e8e8",
+              "secondary-fixed-dim": "#cac1ed",
+              "primary-container": "#0025cc",
+              "surface-dim": "#dbdad9",
+              "tertiary-container": "#002cc2",
+              "error": "#ba1a1a",
+              "tertiary": "#001c89",
+              "secondary-container": "#dbd1ff",
+              "surface": "#faf9f9",
+              "on-error-container": "#93000a",
+              "inverse-on-surface": "#f2f0f0",
+              "primary-fixed-dim": "#bcc2ff",
+              "on-tertiary-fixed": "#00105c",
+              "surface-container-lowest": "#ffffff",
+              "surface-container": "#efeded",
+              "on-tertiary": "#ffffff"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-header {
+            background: rgba(250, 249, 249, 0.8);
+            backdrop-filter: blur(12px);
+        }
+        body {
+            background-color: #FAF9F9;
+            font-family: 'Inter', sans-serif;
+        }
+        h1, h2, h3 {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="text-on-surface min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="bg-[#FAF9F9]/80 dark:bg-slate-950/80 backdrop-blur-md shadow-[0px_12px_32px_rgba(12,5,40,0.06)] flex justify-between items-center w-full px-6 py-4 docked full-width top-0 sticky z-50">
+<div class="flex items-center gap-4">
+<button class="hover:opacity-80 transition-opacity active:scale-95 duration-200">
+<span class="material-symbols-outlined text-[#001790] dark:text-blue-400">arrow_back</span>
+</button>
+<h1 class="font-['Plus_Jakarta_Sans'] font-semibold text-lg text-[#001790] dark:text-blue-400">Edit Sale</h1>
+</div>
+<button class="text-[#0025CC] font-bold font-['Plus_Jakarta_Sans'] hover:opacity-80 transition-opacity active:scale-95 duration-200">
+        Save
+    </button>
+</header>
+<main class="max-w-2xl mx-auto px-6 py-8 space-y-10">
+<!-- General Info Section -->
+<section class="space-y-6">
+<div class="flex items-baseline justify-between">
+<h2 class="text-2xl font-bold tracking-tight text-primary">General Info</h2>
+<span class="text-label-md text-outline font-medium">Step 1 of 2</span>
+</div>
+<div class="space-y-4">
+<div class="group">
+<label class="block text-label-md font-semibold text-on-surface-variant mb-1.5 ml-1">Sale Name</label>
+<input class="w-full bg-surface-container-low border-none rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-primary/20 transition-all font-body text-on-surface" placeholder="Enter sale name" type="text" value="Summer Solstice Clearance"/>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div class="group">
+<label class="block text-label-md font-semibold text-on-surface-variant mb-1.5 ml-1">Start Date</label>
+<div class="relative">
+<input class="w-full bg-surface-container-low border-none rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-primary/20 transition-all font-body text-on-surface" type="text" value="June 21, 2024"/>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-outline">calendar_today</span>
+</div>
+</div>
+<div class="group">
+<label class="block text-label-md font-semibold text-on-surface-variant mb-1.5 ml-1">End Date</label>
+<div class="relative">
+<input class="w-full bg-surface-container-low border-none rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-primary/20 transition-all font-body text-on-surface" type="text" value="June 30, 2024"/>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-outline">calendar_month</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Products Section -->
+<section class="space-y-6">
+<div class="flex items-center justify-between">
+<h2 class="text-2xl font-bold tracking-tight text-primary">Products</h2>
+<button class="flex items-center gap-2 bg-secondary-container text-on-secondary-container px-4 py-2 rounded-full font-semibold text-sm hover:opacity-90 transition-all active:scale-95">
+<span class="material-symbols-outlined text-lg">add</span>
+                Add Product
+            </button>
+</div>
+<!-- Product List -->
+<div class="space-y-4">
+<!-- Product Card 1 -->
+<div class="bg-surface-container-lowest p-4 rounded-2xl flex items-center gap-4 transition-all hover:shadow-[0px_12px_32px_rgba(12,5,40,0.06)] relative group">
+<div class="w-20 h-20 rounded-xl overflow-hidden bg-surface-container-low flex-shrink-0">
+<img alt="Minimalist Watch" class="w-full h-full object-cover" data-alt="Minimalist white wrist watch on clean background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTdqT2--QFc1OdPIKI-h3R2mEYccgcTIHLF1ZekF7QiOEDoscpw7-9pASVFGIvqNQJduHOI2zQpRj3byf8DoIIC6-Q0GmxnqwPnE3nG6YOye6cgEmhO4zLdv3KEZ9PRWUNSxIj14CAecSnTaxEJQCThCTX0ssquqtvIZ52XNfI3HunQ_S_iEeYebG0AwgbHZV8tUNRs6WV9KQXJW2O43MRhToJrEHNII8lOsImOgbd9FSY21vPe4Ki_qrs-N7q4ZG6Iuqrk30LJHoy"/>
+</div>
+<div class="flex-grow space-y-1">
+<h3 class="font-semibold text-on-surface text-lg leading-tight">Minimalist Chrono Watch</h3>
+<p class="text-label-md text-outline font-medium">Original: $120.00</p>
+<div class="pt-1 flex items-center gap-2">
+<span class="text-label-md font-bold text-primary">Sale Price:</span>
+<div class="relative w-24">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant text-sm">$</span>
+<input class="w-full pl-6 pr-2 py-1 bg-surface-container-low border-none rounded-lg text-sm font-bold focus:ring-1 focus:ring-primary/40" type="text" value="89.00"/>
+</div>
+</div>
+</div>
+<button class="text-error/40 hover:text-error transition-colors p-2 self-start">
+<span class="material-symbols-outlined">delete</span>
+</button>
+</div>
+<!-- Product Card 2 -->
+<div class="bg-surface-container-lowest p-4 rounded-2xl flex items-center gap-4 transition-all hover:shadow-[0px_12px_32px_rgba(12,5,40,0.06)] relative group">
+<div class="w-20 h-20 rounded-xl overflow-hidden bg-surface-container-low flex-shrink-0">
+<img alt="Headphones" class="w-full h-full object-cover" data-alt="High quality wireless headphones on surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAr-TmD6bGqu7rrVKDnk7OFvWhKhzveE6EznZuL2-_ZY_mp671PETbsHtzy5eNf2O7eTdxqhpPzRYw5_UZO2sGo_zjRWpNOKPSz9BV2zTXqFEolQ4RtYTxjGsFPwmvuQVMgGSp6k6iMCW3RTXbb7Vr6R1Q2Yt9HjQx1bUj_2gTZwy_nMMSW2vrxBpJ5bcsQJKfzYZgRekijnhRahlpcOujZ9niGdL51_REMchFgi7wrIBlo2q6wDjLg_55DWg7pxwDEuQM7rCMjp80M"/>
+</div>
+<div class="flex-grow space-y-1">
+<h3 class="font-semibold text-on-surface text-lg leading-tight">Studio Wireless Gen 2</h3>
+<p class="text-label-md text-outline font-medium">Original: $299.00</p>
+<div class="pt-1 flex items-center gap-2">
+<span class="text-label-md font-bold text-primary">Sale Price:</span>
+<div class="relative w-24">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant text-sm">$</span>
+<input class="w-full pl-6 pr-2 py-1 bg-surface-container-low border-none rounded-lg text-sm font-bold focus:ring-1 focus:ring-primary/40" type="text" value="245.00"/>
+</div>
+</div>
+</div>
+<button class="text-error/40 hover:text-error transition-colors p-2 self-start">
+<span class="material-symbols-outlined">delete</span>
+</button>
+</div>
+<!-- Product Card 3 -->
+<div class="bg-surface-container-lowest p-4 rounded-2xl flex items-center gap-4 transition-all hover:shadow-[0px_12px_32px_rgba(12,5,40,0.06)] relative group">
+<div class="w-20 h-20 rounded-xl overflow-hidden bg-surface-container-low flex-shrink-0">
+<img alt="Sneakers" class="w-full h-full object-cover" data-alt="Red athletic running sneakers" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCg9j4DS723vZU5EZSqm0rCQMfAlHp7eWXJsYQxSJOcGwE8VmA2x-DRtKxTfThhvcy8yy4PZUbsa5daRKC1iP9WuqCDHqUak94QTIgavReecYmdPz3-TsOC9dNNlrI5uP4KPmhe2khcRgdFnH5O_cRMzhiP62s8pFYfkjIZo_bwVO-noV1YOmUP3Xp0modw-IPc6HXyvL_WId893rs57e0dwmsf5Ke3gclK9CH44B0bLDFW5KzomcKpzHW5M_5ucC45UxiAkEk-anEG"/>
+</div>
+<div class="flex-grow space-y-1">
+<h3 class="font-semibold text-on-surface text-lg leading-tight">CloudRun Performance</h3>
+<p class="text-label-md text-outline font-medium">Original: $85.00</p>
+<div class="pt-1 flex items-center gap-2">
+<span class="text-label-md font-bold text-primary">Sale Price:</span>
+<div class="relative w-24">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant text-sm">$</span>
+<input class="w-full pl-6 pr-2 py-1 bg-surface-container-low border-none rounded-lg text-sm font-bold focus:ring-1 focus:ring-primary/40" type="text" value="65.00"/>
+</div>
+</div>
+</div>
+<button class="text-error/40 hover:text-error transition-colors p-2 self-start">
+<span class="material-symbols-outlined">delete</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Analytics Preview -->
+<section class="grid grid-cols-1 md:grid-cols-5 gap-6">
+<div class="md:col-span-3 bg-primary-container text-white p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[160px]">
+<div class="relative z-10">
+<p class="text-white/70 text-sm font-medium">Estimated Revenue Impact</p>
+<h3 class="text-3xl font-bold mt-1">+$4,250.00</h3>
+</div>
+<div class="relative z-10 flex items-center gap-2 text-sm text-white/90">
+<span class="material-symbols-outlined text-lg">trending_up</span>
+<span>12% higher than last sale campaign</span>
+</div>
+<!-- Abstract Gradient Swirl -->
+<div class="absolute -right-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
+</div>
+<div class="md:col-span-2 bg-surface-container-low p-6 rounded-3xl flex flex-col justify-center gap-2">
+<p class="text-outline text-xs font-bold uppercase tracking-wider">Quick Note</p>
+<p class="text-on-surface-variant text-sm italic">"Focusing on top sellers for the summer clearance event."</p>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg shadow-[0px_-8px_24px_rgba(12,5,40,0.04)] z-50 rounded-t-[2rem]">
+<!-- Dashboard -->
+<a class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-2xl transition-all duration-300" href="#">
+<span class="material-symbols-outlined">grid_view</span>
+<span class="font-['Inter'] text-[10px] font-medium tracking-tight">Dashboard</span>
+</a>
+<!-- Orders -->
+<a class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-2xl transition-all duration-300" href="#">
+<span class="material-symbols-outlined">shopping_cart</span>
+<span class="font-['Inter'] text-[10px] font-medium tracking-tight">Orders</span>
+</a>
+<!-- Products -->
+<a class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-2xl transition-all duration-300" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-['Inter'] text-[10px] font-medium tracking-tight">Products</span>
+</a>
+<!-- Analytics (ACTIVE) -->
+<a class="flex flex-col items-center justify-center bg-[#0025CC] text-white rounded-2xl px-4 py-2 scale-110 duration-300 ease-out transition-all" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">insights</span>
+<span class="font-['Inter'] text-[10px] font-medium tracking-tight">Analytics</span>
+</a>
+<!-- More -->
+<a class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-2xl transition-all duration-300" href="#">
+<span class="material-symbols-outlined">more_horiz</span>
+<span class="font-['Inter'] text-[10px] font-medium tracking-tight">More</span>
+</a>
+</nav>
+</body></html>

@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Order Details - DukaNest</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-primary": "#ffffff",
+              "on-tertiary-fixed": "#00105c",
+              "primary-fixed": "#dfe0ff",
+              "tertiary-fixed": "#dee0ff",
+              "primary": "#001790",
+              "inverse-on-surface": "#f2f0f0",
+              "tertiary-container": "#002cc2",
+              "surface-tint": "#334ae6",
+              "on-tertiary-container": "#9eabff",
+              "on-surface": "#1b1c1c",
+              "secondary-container": "#dbd1ff",
+              "on-tertiary": "#ffffff",
+              "error-container": "#ffdad6",
+              "primary-container": "#0025cc",
+              "on-error": "#ffffff",
+              "outline-variant": "#c5c5d8",
+              "on-background": "#1b1c1c",
+              "on-secondary-fixed-variant": "#494267",
+              "on-secondary": "#ffffff",
+              "secondary-fixed": "#e6deff",
+              "tertiary-fixed-dim": "#bac3ff",
+              "surface-container-low": "#f4f3f3",
+              "surface-container-highest": "#e3e2e2",
+              "on-error-container": "#93000a",
+              "error": "#ba1a1a",
+              "surface-container-lowest": "#ffffff",
+              "surface-container": "#efeded",
+              "on-secondary-fixed": "#1d1639",
+              "on-primary-container": "#a0abff",
+              "inverse-surface": "#2f3031",
+              "inverse-primary": "#bcc2ff",
+              "tertiary": "#001c89",
+              "secondary": "#615980",
+              "on-primary-fixed": "#000c61",
+              "surface": "#faf9f9",
+              "secondary-fixed-dim": "#cac1ed",
+              "on-primary-fixed-variant": "#0a2acf",
+              "surface-variant": "#e3e2e2",
+              "surface-container-high": "#e9e8e8",
+              "surface-bright": "#faf9f9",
+              "primary-fixed-dim": "#bcc2ff",
+              "on-secondary-container": "#5f587f",
+              "on-surface-variant": "#444655",
+              "on-tertiary-fixed-variant": "#002eca",
+              "surface-dim": "#dbdad9",
+              "outline": "#757687",
+              "background": "#faf9f9"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #FAF9F9;
+      }
+      h1, h2, h3 {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+      }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center px-6 py-4 w-full bg-[#FAF9F9] dark:bg-slate-950 sticky top-0 z-50">
+<div class="flex items-center gap-4">
+<button class="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-slate-500">arrow_back</span>
+</button>
+<h1 class="text-xl font-bold text-[#001790] dark:text-[#0025CC]">Order #DKN-8829</h1>
+</div>
+<div class="flex items-center gap-3">
+<button class="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center overflow-hidden">
+<img alt="User Avatar" class="w-full h-full object-cover" data-alt="Store owner professional profile portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBYNcARSFNN-b8ct1FSGr2g6zoPRV3QUjw5sb16F4jJlamo225muiun234Zz8Upd_RN5cmauNcUJtDBBdX5JMGivANpvGVeZZYdSSFaqriBfrlNSynd6QlbhN0SOE_lLUAESXrz3vaAdPyAtlgZX8vSM9uY0dOw7L6EDgNwOATYzmyZvhXuRcGu9wCqN9Bwbuc2PsIRrfa3XiWPRHzbiLTIROU0MjrVwVfgAe5dNg8kYJttC_aSM6XSPRvXNSlxPeb2UwMU83Kmkp78"/>
+</button>
+<button class="material-symbols-outlined text-[#001790] dark:text-[#0025CC] p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-transform active:scale-95">notifications</button>
+</div>
+</header>
+<main class="max-w-7xl mx-auto px-4 md:px-6 py-8 pb-32">
+<!-- Dashboard Style Layout (Asymmetric) -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+<!-- Left Column: Order Items & Timeline (60% width) -->
+<div class="lg:col-span-8 space-y-6">
+<!-- Items Summary Card -->
+<section class="bg-surface-container-lowest rounded-xl p-6">
+<div class="flex justify-between items-end mb-6">
+<div>
+<h2 class="text-xl font-semibold text-primary">Items Ordered</h2>
+<p class="text-label-md text-on-surface-variant">3 items from Electronics &amp; Accessories</p>
+</div>
+<div class="bg-primary-fixed text-on-primary-fixed-variant px-3 py-1 rounded-full text-xs font-semibold">
+                            PREMIUM CUSTOMER
+                        </div>
+</div>
+<div class="space-y-4">
+<!-- Order Item 1 -->
+<div class="flex items-center gap-4 p-4 bg-surface-container-low rounded-xl group transition-all hover:bg-white hover:shadow-[0px_12px_32px_rgba(12,5,40,0.06)]">
+<div class="w-16 h-16 rounded-lg bg-white flex items-center justify-center overflow-hidden">
+<img alt="Product" class="w-full h-full object-cover" data-alt="High-end noise cancelling headphones" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWjGc1hlvrvqIYLxM-3WNXMY7Zq7TqvAde4K7gacZMDAeXITtnj4MWSGBm1KFfjxAJwmGVVeFHm2VXNbANZXSY-Sb4jxmqWIVdrn5MqnA8TyHdffh2bPcD8fijxveCaByWeJpsUzVAwCtTMr_lSDYjQPEfUIygYmL4Z6frHzoGYdNqTyGUKKfQHEoks0A4hKvfW8q5GHDVbxbQZkJfU0Obei8Z7DGRAFDJNz0jCGhORwzauZ_D1O6bXUtTzuuw40nkDJRt1y4CZ_ew"/>
+</div>
+<div class="flex-1">
+<h3 class="font-semibold text-on-surface">Pro Wireless Headphones</h3>
+<p class="text-sm text-on-surface-variant">Midnight Blue • Qty: 1</p>
+</div>
+<div class="text-right">
+<span class="font-bold text-primary">$299.00</span>
+</div>
+</div>
+<!-- Order Item 2 -->
+<div class="flex items-center gap-4 p-4 bg-surface-container-low rounded-xl group transition-all hover:bg-white hover:shadow-[0px_12px_32px_rgba(12,5,40,0.06)]">
+<div class="w-16 h-16 rounded-lg bg-white flex items-center justify-center overflow-hidden">
+<img alt="Product" class="w-full h-full object-cover" data-alt="Fast charging power adapter" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCLcm_TCAM1RGqqFuJYS9Lo09Hsz6K_QtMGCCxkjx6gTmzqZvBy2kFHrmPEwSFuuKMd2hL6O4M0DP34f5IGuq2fpVuzUmhdJlShLhcsTe2g7mkFuK0UlEVc_9cOznWI1Aa_qVnluY-GPX3_8tLINesvRYMXHke4hc_KSRjg4ET87zmwrC7VmVIgpZV1jh-t0O8oE_Ppdeskrv_EjV6jiRYoeD4hbJiKtOgEfsQvXOFliEhMTr_cbpvoJ54hRa_F2F7rYjzchlgy650j"/>
+</div>
+<div class="flex-1">
+<h3 class="font-semibold text-on-surface">Fast Charge 45W Adapter</h3>
+<p class="text-sm text-on-surface-variant">USB-C • Qty: 2</p>
+</div>
+<div class="text-right">
+<span class="font-bold text-primary">$78.00</span>
+</div>
+</div>
+<!-- Order Item 3 -->
+<div class="flex items-center gap-4 p-4 bg-surface-container-low rounded-xl group transition-all hover:bg-white hover:shadow-[0px_12px_32px_rgba(12,5,40,0.06)]">
+<div class="w-16 h-16 rounded-lg bg-white flex items-center justify-center overflow-hidden">
+<img alt="Product" class="w-full h-full object-cover" data-alt="Braided nylon cable" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQfD813MMZVHTnns8Rq2PpP0G-LqUG-JYb_b0AFgU5LhhPpvKEY_WjE0d6HwIa9DmrFJUOf-YiLBDf56UHX8OR7V5nmE8s6oPx_5xN3I4Rlfvf6KNrLHoa5E4EzAatLNKh8qlsBWwZuVhwexonPv5tgHtCuJ2qaRPIbhMz_Kvw0IVgmfBqtTJjqdcMVZpdJhkTbmJAW5mv-xhaHAN-jpA6wttPMo6MJEvF27JMcSbagepP5bRZx8dEiedqwVkdu2dCAVbwLZdL-alI"/>
+</div>
+<div class="flex-1">
+<h3 class="font-semibold text-on-surface">Braided Cable 2.0m</h3>
+<p class="text-sm text-on-surface-variant">Space Grey • Qty: 1</p>
+</div>
+<div class="text-right">
+<span class="font-bold text-primary">$19.00</span>
+</div>
+</div>
+</div>
+<!-- Totals -->
+<div class="mt-8 pt-6 space-y-3 border-t-0 bg-surface-container-low/30 rounded-xl p-6">
+<div class="flex justify-between text-sm text-on-surface-variant">
+<span>Subtotal</span>
+<span>$396.00</span>
+</div>
+<div class="flex justify-between text-sm text-on-surface-variant">
+<span>Shipping (Standard)</span>
+<span>$12.00</span>
+</div>
+<div class="flex justify-between text-sm text-on-surface-variant">
+<span>Estimated Tax</span>
+<span>$31.68</span>
+</div>
+<div class="flex justify-between text-lg font-bold text-primary pt-2">
+<span>Total</span>
+<span>$439.68</span>
+</div>
+</div>
+</section>
+<!-- Order Timeline -->
+<section class="bg-surface-container-lowest rounded-xl p-6">
+<h2 class="text-xl font-semibold text-primary mb-6">Processing Timeline</h2>
+<div class="space-y-8 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-surface-container">
+<!-- Timeline Step 1 -->
+<div class="relative pl-10">
+<div class="absolute left-0 top-1 w-6 h-6 rounded-full bg-primary-container flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-white text-[14px]" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<h4 class="font-semibold text-on-surface">Order Received</h4>
+<p class="text-sm text-on-surface-variant">Oct 24, 2023 • 09:41 AM</p>
+</div>
+<!-- Timeline Step 2 -->
+<div class="relative pl-10">
+<div class="absolute left-0 top-1 w-6 h-6 rounded-full bg-primary-container flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-white text-[14px]" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<h4 class="font-semibold text-on-surface">Payment Confirmed</h4>
+<p class="text-sm text-on-surface-variant">Oct 24, 2023 • 09:45 AM via Stripe</p>
+</div>
+<!-- Timeline Step 3 (Current) -->
+<div class="relative pl-10">
+<div class="absolute left-0 top-1 w-6 h-6 rounded-full bg-surface-container-highest border-4 border-white ring-2 ring-primary-container flex items-center justify-center z-10">
+<div class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></div>
+</div>
+<h4 class="font-semibold text-primary">Processing Order</h4>
+<p class="text-sm text-on-surface-variant">Started Oct 24, 2023 • 11:20 AM</p>
+</div>
+<!-- Timeline Step 4 (Future) -->
+<div class="relative pl-10 opacity-40">
+<div class="absolute left-0 top-1 w-6 h-6 rounded-full bg-surface-container flex items-center justify-center z-10"></div>
+<h4 class="font-semibold text-on-surface">Shipped</h4>
+<p class="text-sm text-on-surface-variant">Pending action</p>
+</div>
+</div>
+</section>
+</div>
+<!-- Right Column: Details & Actions (40% width) -->
+<div class="lg:col-span-4 space-y-6">
+<!-- Action Card -->
+<section class="bg-surface-container-lowest rounded-xl p-6 shadow-[0px_12px_32px_rgba(12,5,40,0.06)] border border-primary/5">
+<h2 class="text-lg font-semibold text-primary mb-4">Quick Actions</h2>
+<div class="space-y-3">
+<button class="w-full py-4 rounded-xl bg-gradient-to-br from-primary to-primary-container text-white font-semibold flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-95">
+<span class="material-symbols-outlined text-[20px]">local_shipping</span>
+                            Mark as Shipped
+                        </button>
+<button class="w-full py-4 rounded-xl bg-surface-container-highest text-on-surface font-semibold flex items-center justify-center gap-2 hover:bg-surface-container-high transition-all active:scale-95">
+<span class="material-symbols-outlined text-[20px]">print</span>
+                            Print Packing Slip
+                        </button>
+<button class="w-full py-4 rounded-xl text-error font-semibold flex items-center justify-center gap-2 hover:bg-error-container/20 transition-all active:scale-95">
+<span class="material-symbols-outlined text-[20px]">cancel</span>
+                            Cancel Order
+                        </button>
+</div>
+</section>
+<!-- Customer Details Card -->
+<section class="bg-surface-container-lowest rounded-xl p-6">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-primary p-2 bg-primary-fixed rounded-lg">person</span>
+<h2 class="text-lg font-semibold text-on-surface">Customer Info</h2>
+</div>
+<div class="space-y-4">
+<div>
+<label class="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">Contact Name</label>
+<p class="text-on-surface font-medium">Sarah Jenkins</p>
+</div>
+<div>
+<label class="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">Email Address</label>
+<p class="text-primary-container font-medium">s.jenkins@example.com</p>
+</div>
+<div>
+<label class="text-[10px] uppercase tracking-wider text-on-surface-variant font-bold">Phone</label>
+<p class="text-on-surface font-medium">+1 (555) 902-4412</p>
+</div>
+</div>
+</section>
+<!-- Shipping Address Card -->
+<section class="bg-surface-container-lowest rounded-xl p-6">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-primary p-2 bg-primary-fixed rounded-lg">location_on</span>
+<h2 class="text-lg font-semibold text-on-surface">Shipping Address</h2>
+</div>
+<div class="p-4 bg-surface-container-low rounded-xl">
+<p class="text-on-surface leading-relaxed">
+                            Sarah Jenkins<br/>
+                            4820 North Parkway Blvd<br/>
+                            Suite 1204<br/>
+                            Austin, TX 78701<br/>
+                            United States
+                        </p>
+<a class="inline-flex items-center gap-1 text-primary-container text-sm font-semibold mt-3 hover:underline" href="#">
+<span class="material-symbols-outlined text-sm">map</span>
+                            View on Map
+                        </a>
+</div>
+</section>
+<!-- Internal Notes -->
+<section class="bg-surface-container-lowest rounded-xl p-6">
+<h2 class="text-lg font-semibold text-primary mb-4">Internal Notes</h2>
+<textarea class="w-full h-32 bg-surface-container-low border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 placeholder:text-slate-400" placeholder="Add a private note about this order..."></textarea>
+<button class="mt-2 text-primary-container text-xs font-bold uppercase tracking-widest hover:text-primary transition-colors">Save Note</button>
+</section>
+</div>
+</div>
+</main>
+<!-- Contextual Status Bar (Mobile focused / Persistent info) -->
+<div class="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-t border-primary/5 py-4 px-6 flex items-center justify-between z-40 lg:hidden">
+<div class="flex flex-col">
+<span class="text-[10px] text-on-surface-variant font-bold uppercase">Total Order</span>
+<span class="text-xl font-bold text-primary">$439.68</span>
+</div>
+<button class="px-6 py-3 rounded-xl bg-primary text-white font-bold text-sm shadow-lg active:scale-90 transition-transform">
+            Process Order
+        </button>
+</div>
+</body></html>

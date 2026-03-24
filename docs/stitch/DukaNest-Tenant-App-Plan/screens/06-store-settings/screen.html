@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>DukaNest - Store Settings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "error": "#ba1a1a",
+                        "secondary-container": "#dbd1ff",
+                        "on-secondary-fixed-variant": "#494267",
+                        "tertiary-fixed-dim": "#bac3ff",
+                        "surface-dim": "#dbdad9",
+                        "surface-container-lowest": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#334ae6",
+                        "on-secondary-fixed": "#1d1639",
+                        "secondary": "#615980",
+                        "outline-variant": "#c5c5d8",
+                        "primary": "#001790",
+                        "on-primary-container": "#a0abff",
+                        "secondary-fixed-dim": "#cac1ed",
+                        "on-surface": "#1b1c1c",
+                        "tertiary-fixed": "#dee0ff",
+                        "inverse-primary": "#bcc2ff",
+                        "on-tertiary-fixed": "#00105c",
+                        "surface-container-high": "#e9e8e8",
+                        "on-tertiary-fixed-variant": "#002eca",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed-variant": "#0a2acf",
+                        "on-primary-fixed": "#000c61",
+                        "surface-container-low": "#f4f3f3",
+                        "on-error": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "on-surface-variant": "#444655",
+                        "outline": "#757687",
+                        "on-secondary-container": "#5f587f",
+                        "background": "#faf9f9",
+                        "primary-container": "#0025cc",
+                        "primary-fixed-dim": "#bcc2ff",
+                        "surface-bright": "#faf9f9",
+                        "on-primary": "#ffffff",
+                        "inverse-on-surface": "#f2f0f0",
+                        "secondary-fixed": "#e6deff",
+                        "primary-fixed": "#dfe0ff",
+                        "on-tertiary-container": "#9eabff",
+                        "on-secondary": "#ffffff",
+                        "tertiary-container": "#002cc2",
+                        "surface-variant": "#e3e2e2",
+                        "on-background": "#1b1c1c",
+                        "inverse-surface": "#2f3031",
+                        "surface-container-highest": "#e3e2e2",
+                        "surface-container": "#efeded",
+                        "surface": "#faf9f9",
+                        "tertiary": "#001c89"
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body {
+            background-color: #FAF9F9;
+            color: #1B1C1C;
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="font-body selection:bg-primary-container selection:text-white">
+<!-- TopAppBar -->
+<header class="w-full sticky top-0 z-50 bg-[#FAF9F9] dark:bg-slate-950 flex justify-between items-center px-6 py-4">
+<div class="flex items-center gap-4">
+<button class="flex items-center justify-center w-10 h-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors active:scale-95 duration-150">
+<span class="material-symbols-outlined text-slate-500" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="font-headline font-semibold text-lg text-[#001790] dark:text-blue-400">Store Settings</h1>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-container-high flex items-center justify-center">
+<img class="w-full h-full object-cover" data-alt="Small store brand logo icon" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAbVr_DrR6Zl1zgHY-UzaAJv8Zt-hwEziC6E1PodWeT1coHnow1o7quXrUSYG-xefmbXVuBaaK3j2oaeGunxX9VaACFD09XqEx6rW5UGUkHtC5kzZFEmW79VnjN4nsc1pIOLRFs8co1avZDr5SQ-gdCcWljg86w0gzATPWpGzwleaxxCt4kaUHkwXV_2anDCQxfWO2KrPkmo2hO16MbSGES0w1pkG8xlArbwt_iijnN1Pge6fQB5-duKbVa0SM19zMraBOmmkIatBK1"/>
+</div>
+</div>
+</header>
+<main class="px-6 pb-32 pt-4 max-w-2xl mx-auto">
+<!-- Store Header Visual -->
+<section class="mb-8">
+<div class="bg-gradient-to-br from-primary to-primary-container rounded-xl p-6 text-white shadow-[0px_12px_32px_rgba(12,5,40,0.06)]">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-3">
+<div class="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Main store logo preview" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBRwMWkY0HCGCFQgtE00RYDMi3igr5UEKhUQxc1GHEgFN2WR_gUG7iS_jLNgPfAgjRxT_m8JnRUnh2H_KnmemI-xsFvCrLFUwPLHjXh8pnYJYfpTF18z1kP0GzWqlUt7bUdN0k8EXzuoHZko_af4Baun8BRsXUCQ8frptpVpBJS745NXVhiVES76bptLAjXNJFY-k1iIpCj8IEuHPAAw9PEL3ENjMb8ileu5kExKLAoF7KG2xdleOPcKKeHrKR0v5iMnNiHxQA1ixtD"/>
+</div>
+<div>
+<h2 class="font-headline font-bold text-xl leading-tight">DukaNest Premium</h2>
+<p class="font-label text-sm opacity-80">dukanest.com/mystore</p>
+</div>
+</div>
+<span class="material-symbols-outlined opacity-60" data-icon="qr_code_2">qr_code_2</span>
+</div>
+</div>
+</section>
+<!-- Categorized List -->
+<div class="space-y-6">
+<!-- Category: General -->
+<div>
+<h3 class="font-headline font-semibold text-sm uppercase tracking-widest text-on-surface-variant mb-3 px-1">General</h3>
+<div class="bg-white rounded-xl overflow-hidden shadow-[0px_4px_12px_rgba(12,5,40,0.03)]">
+<button class="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="storefront">storefront</span>
+</div>
+<div class="text-left">
+<p class="font-title text-[15px] font-semibold text-on-surface">Store Identity</p>
+<p class="font-label text-xs text-on-surface-variant">Name, logo, and subdomain</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:translate-x-1 transition-transform" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Category: Operations -->
+<div>
+<h3 class="font-headline font-semibold text-sm uppercase tracking-widest text-on-surface-variant mb-3 px-1">Operations</h3>
+<div class="bg-white rounded-xl overflow-hidden shadow-[0px_4px_12px_rgba(12,5,40,0.03)] flex flex-col">
+<button class="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+</div>
+<div class="text-left">
+<p class="font-title text-[15px] font-semibold text-on-surface">Payments</p>
+<p class="font-label text-xs text-on-surface-variant">M-Pesa, PesaPal, Bank Transfer</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">ACTIVE</span>
+<span class="material-symbols-outlined text-outline group-hover:translate-x-1 transition-transform" data-icon="chevron_right">chevron_right</span>
+</div>
+</button>
+<div class="h-[1px] bg-slate-100 mx-4"></div>
+<button class="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="local_shipping">local_shipping</span>
+</div>
+<div class="text-left">
+<p class="font-title text-[15px] font-semibold text-on-surface">Shipping</p>
+<p class="font-label text-xs text-on-surface-variant">Delivery zones, fees, providers</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:translate-x-1 transition-transform" data-icon="chevron_right">chevron_right</span>
+</button>
+<div class="h-[1px] bg-slate-100 mx-4"></div>
+<button class="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+</div>
+<div class="text-left">
+<p class="font-title text-[15px] font-semibold text-on-surface">Taxes</p>
+<p class="font-label text-xs text-on-surface-variant">Tax rules, inclusive/exclusive</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:translate-x-1 transition-transform" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Category: Communications -->
+<div>
+<h3 class="font-headline font-semibold text-sm uppercase tracking-widest text-on-surface-variant mb-3 px-1">Communications</h3>
+<div class="bg-white rounded-xl overflow-hidden shadow-[0px_4px_12px_rgba(12,5,40,0.03)] flex flex-col">
+<button class="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="notifications_active">notifications_active</span>
+</div>
+<div class="text-left">
+<p class="font-title text-[15px] font-semibold text-on-surface">Notifications</p>
+<p class="font-label text-xs text-on-surface-variant">Push preferences, Email alerts</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:translate-x-1 transition-transform" data-icon="chevron_right">chevron_right</span>
+</button>
+<div class="h-[1px] bg-slate-100 mx-4"></div>
+<button class="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="support_agent">support_agent</span>
+</div>
+<div class="text-left">
+<p class="font-title text-[15px] font-semibold text-on-surface">Support</p>
+<p class="font-label text-xs text-on-surface-variant">Help center, Ticket history</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline group-hover:translate-x-1 transition-transform" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+<!-- Advanced -->
+<div class="pt-2">
+<button class="w-full flex items-center justify-between p-4 rounded-xl border border-dashed border-outline-variant hover:bg-slate-50 transition-colors text-on-surface-variant group">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined" data-icon="developer_mode">developer_mode</span>
+<p class="font-title text-[15px] font-medium">Developer Tools &amp; API</p>
+</div>
+<span class="material-symbols-outlined" data-icon="open_in_new">open_in_new</span>
+</button>
+</div>
+</div>
+<!-- System Footer Info -->
+<div class="mt-12 text-center">
+<p class="font-label text-xs text-on-surface-variant opacity-50">DukaNest v2.4.1 (Stable)</p>
+<p class="font-label text-[10px] text-on-surface-variant opacity-40 mt-1 uppercase tracking-tighter">Powered by Architecture Digital</p>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl z-50 rounded-t-2xl shadow-[0px_-12px_32px_rgba(12,5,40,0.06)]">
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 tap-highlight-none active:scale-90 transition-transform hover:text-[#001790] dark:hover:text-blue-300">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-['Inter'] text-[10px] font-medium mt-1">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 tap-highlight-none active:scale-90 transition-transform hover:text-[#001790] dark:hover:text-blue-300">
+<span class="material-symbols-outlined" data-icon="shopping_bag">shopping_bag</span>
+<span class="font-['Inter'] text-[10px] font-medium mt-1">Orders</span>
+</button>
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 tap-highlight-none active:scale-90 transition-transform hover:text-[#001790] dark:hover:text-blue-300">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="font-['Inter'] text-[10px] font-medium mt-1">Products</span>
+</button>
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 tap-highlight-none active:scale-90 transition-transform hover:text-[#001790] dark:hover:text-blue-300">
+<span class="material-symbols-outlined" data-icon="campaign">campaign</span>
+<span class="font-['Inter'] text-[10px] font-medium mt-1">Marketing</span>
+</button>
+<button class="flex flex-col items-center justify-center bg-[#0025CC] text-white rounded-xl px-3 py-1.5 transition-all tap-highlight-none active:scale-90">
+<span class="material-symbols-outlined" data-icon="more_horiz">more_horiz</span>
+<span class="font-['Inter'] text-[10px] font-medium mt-1">More</span>
+</button>
+</nav>
+</body></html>

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../config/theme.dart';
+
 /// Edit Sale — Stitch: Sales Editor.
 class SalesEditorScreen extends StatefulWidget {
   const SalesEditorScreen({super.key});
@@ -51,12 +53,15 @@ class _SalesEditorScreenState extends State<SalesEditorScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: AppTheme.surface,
       appBar: AppBar(
+        backgroundColor: AppTheme.surface,
+        foregroundColor: AppTheme.primaryDark,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: const Text('Edit Sale'),
+        title: Text('Edit Sale', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: AppTheme.primaryDark)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),

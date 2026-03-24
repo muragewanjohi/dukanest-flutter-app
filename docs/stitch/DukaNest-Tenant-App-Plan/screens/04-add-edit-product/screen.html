@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Edit Product - DukaNest</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-background": "#1b1c1c",
+              "outline-variant": "#c5c5d8",
+              "on-secondary": "#ffffff",
+              "secondary-fixed": "#e6deff",
+              "on-secondary-fixed-variant": "#494267",
+              "tertiary-fixed-dim": "#bac3ff",
+              "surface-container-low": "#f4f3f3",
+              "surface-container-lowest": "#ffffff",
+              "surface-container": "#efeded",
+              "on-secondary-fixed": "#1d1639",
+              "surface-container-highest": "#e3e2e2",
+              "on-error-container": "#93000a",
+              "error": "#ba1a1a",
+              "inverse-surface": "#2f3031",
+              "inverse-primary": "#bcc2ff",
+              "tertiary": "#001c89",
+              "on-primary-container": "#a0abff",
+              "surface": "#faf9f9",
+              "secondary-fixed-dim": "#cac1ed",
+              "on-primary-fixed-variant": "#0a2acf",
+              "secondary": "#615980",
+              "on-primary-fixed": "#000c61",
+              "on-surface-variant": "#444655",
+              "surface-variant": "#e3e2e2",
+              "surface-container-high": "#e9e8e8",
+              "surface-bright": "#faf9f9",
+              "primary-fixed-dim": "#bcc2ff",
+              "on-secondary-container": "#5f587f",
+              "outline": "#757687",
+              "background": "#faf9f9",
+              "on-tertiary-fixed-variant": "#002eca",
+              "surface-dim": "#dbdad9",
+              "on-tertiary-fixed": "#00105c",
+              "on-primary": "#ffffff",
+              "primary-fixed": "#dfe0ff",
+              "tertiary-fixed": "#dee0ff",
+              "primary": "#001790",
+              "inverse-on-surface": "#f2f0f0",
+              "tertiary-container": "#002cc2",
+              "surface-tint": "#334ae6",
+              "on-surface": "#1b1c1c",
+              "on-tertiary-container": "#9eabff",
+              "secondary-container": "#dbd1ff",
+              "on-tertiary": "#ffffff",
+              "error-container": "#ffdad6",
+              "primary-container": "#0025cc",
+              "on-error": "#ffffff"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Digital Architect Asymmetry */
+        .asymmetric-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        
+        .glass-header {
+            background: rgba(250, 249, 249, 0.8);
+            backdrop-filter: blur(12px);
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(0, 37, 204, 0.15);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface selection:bg-primary-fixed">
+<!-- TopAppBar -->
+<header class="w-full sticky top-0 z-50 glass-header">
+<div class="flex items-center justify-between px-6 py-4 w-full">
+<div class="flex items-center gap-4">
+<button class="text-primary active:scale-95 duration-200 p-1">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="font-headline font-semibold text-lg text-primary">Edit Product</h1>
+</div>
+<button class="font-headline font-semibold text-primary-container hover:bg-surface-container-low px-4 py-2 rounded-lg transition-colors active:scale-95">
+            Publish
+        </button>
+</div>
+<div class="bg-surface-container dark:bg-slate-800 h-[1px] w-full opacity-50"></div>
+</header>
+<main class="max-w-[360px] mx-auto pb-32 px-4 pt-6 space-y-8">
+<!-- Image Section -->
+<section class="space-y-3">
+<div class="flex justify-between items-end">
+<h2 class="font-headline font-semibold text-on-surface text-base">Media</h2>
+<span class="text-label-md text-on-surface-variant font-medium">1 / 5 Photos</span>
+</div>
+<div class="flex gap-3 overflow-x-auto hide-scrollbar py-2">
+<!-- Existing Image -->
+<div class="relative flex-shrink-0 w-32 h-32 rounded-xl overflow-hidden bg-surface-container-low group">
+<img alt="Leather luxury bag" class="w-full h-full object-cover" data-alt="Premium brown leather designer handbag detail" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD0k9iZr9_nIhg0l_WEMnasUNYScknwKwxyz2tDE2DTOWu5ZjLFyLHn4iwm7yvZUiVJ3_EGxj8QXV5JWoCExk17vTO03OuVVJGaDkK_b0Fv1EAHEIlKvFNpsYWgZFqtHSF0ezvqM1SSXHgVfwXrY6179eYYhaQ4gDbkN7lDWGUB1GpP--UqZEvNwoXS8MMAks7fddRgCDlfcvf9Wa3tNIdYfYzkRLRsZK00uB9FDfNwzWvqho1lNAmecZ_XNi6q3N0sedPnTWk3bEUy"/>
+<button class="absolute top-2 right-2 bg-white/90 rounded-full p-1 shadow-sm">
+<span class="material-symbols-outlined text-error text-sm" data-icon="close">close</span>
+</button>
+</div>
+<!-- Add Placeholder -->
+<button class="flex-shrink-0 w-32 h-32 rounded-xl border-2 border-dashed border-outline-variant flex flex-col items-center justify-center gap-2 bg-surface-container-lowest hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-primary-container" data-icon="add_a_photo">add_a_photo</span>
+<span class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">Add Photo</span>
+</button>
+</div>
+</section>
+<!-- Basic Info Section -->
+<section class="bg-surface-container-lowest p-5 rounded-xl space-y-5">
+<div class="space-y-1.5">
+<label class="text-label-md font-semibold text-on-surface-variant ml-1">Product Name</label>
+<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-on-surface placeholder:text-outline font-medium" placeholder="Enter product name" type="text" value="Premium Leather Tote"/>
+</div>
+<div class="space-y-1.5">
+<label class="text-label-md font-semibold text-on-surface-variant ml-1">Description</label>
+<div class="bg-surface-container-low rounded-lg">
+<div class="flex gap-2 px-3 py-2 border-b border-surface-container-highest">
+<button class="p-1 hover:bg-surface-container-highest rounded"><span class="material-symbols-outlined text-lg" data-icon="format_bold">format_bold</span></button>
+<button class="p-1 hover:bg-surface-container-highest rounded"><span class="material-symbols-outlined text-lg" data-icon="format_italic">format_italic</span></button>
+<button class="p-1 hover:bg-surface-container-highest rounded"><span class="material-symbols-outlined text-lg" data-icon="format_list_bulleted">format_list_bulleted</span></button>
+</div>
+<textarea class="w-full bg-transparent border-none px-4 py-3 text-on-surface placeholder:text-outline text-sm leading-relaxed" placeholder="Tell customers about your product..." rows="4">Handcrafted from top-grain Italian leather. Features a spacious interior with multiple organizational pockets and a dedicated 13-inch laptop sleeve.</textarea>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-label-md font-semibold text-on-surface-variant ml-1">Category</label>
+<div class="relative">
+<select class="w-full appearance-none bg-surface-container-low border-none rounded-lg px-4 py-3 text-on-surface font-medium pr-10">
+<option>Bags &amp; Accessories</option>
+<option>Electronics</option>
+<option>Fashion</option>
+<option>Home Decor</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+</section>
+<!-- Pricing Section -->
+<section class="space-y-3">
+<h2 class="font-headline font-semibold text-on-surface text-base ml-1">Pricing</h2>
+<div class="asymmetric-grid">
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1">Regular Price</label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xs font-bold">KES</span>
+<input class="w-full bg-surface-container-lowest border-none rounded-lg pl-11 py-3 text-on-surface font-semibold shadow-sm" type="text" value="4,500"/>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1">Sale Price</label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-primary-container text-xs font-bold">KES</span>
+<input class="w-full bg-surface-container-lowest border-none rounded-lg pl-11 py-3 text-primary-container font-bold shadow-sm" type="text" value="3,900"/>
+</div>
+</div>
+</div>
+</section>
+<!-- Inventory Section -->
+<section class="bg-surface-container-lowest p-5 rounded-xl space-y-6">
+<div class="flex items-center justify-between">
+<h2 class="font-headline font-semibold text-on-surface text-base">Inventory</h2>
+<button class="text-primary-container text-xs font-bold flex items-center gap-1 hover:underline">
+                Manage Variants <span class="material-symbols-outlined text-sm" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1.5">
+<label class="text-label-md font-semibold text-on-surface-variant ml-1">SKU</label>
+<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-2.5 text-on-surface font-medium text-sm" type="text" value="BG-BRN-01"/>
+</div>
+<div class="space-y-1.5">
+<label class="text-label-md font-semibold text-on-surface-variant ml-1">Stock</label>
+<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-2.5 text-on-surface font-medium text-sm" type="number" value="24"/>
+</div>
+</div>
+</section>
+<!-- Sales & Promotions Section -->
+<section class="bg-surface-container-lowest p-5 rounded-xl space-y-4">
+<h2 class="font-headline font-semibold text-on-surface text-base">Sales &amp; Promotions</h2>
+<div class="space-y-1.5">
+<label class="text-label-md font-semibold text-on-surface-variant ml-1">Add to Existing Sale</label>
+<div class="relative">
+<select class="w-full appearance-none bg-surface-container-low border-none rounded-lg px-4 py-3 text-on-surface font-medium pr-10">
+<option disabled="" selected="">Select a campaign...</option>
+<option>Summer Flash Sale 2024</option>
+<option>Weekend Clearance</option>
+<option>New Arrival Promo</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant" data-icon="expand_more">expand_more</span>
+</div>
+<p class="text-[11px] text-on-surface-variant/80 ml-1 leading-tight">Apply this product to active flash sales or discount campaigns.</p>
+</div>
+</section>
+<!-- Visibility Toggle -->
+<section class="bg-primary/5 p-4 rounded-xl flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary-container" data-icon="visibility">visibility</span>
+</div>
+<div>
+<p class="font-headline font-semibold text-on-surface text-sm">Product Visibility</p>
+<p class="text-xs text-on-surface-variant">Active in your online store</p>
+</div>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 bg-[#FAF9F9]/80 backdrop-blur-xl flex justify-around items-center px-4 pb-6 pt-2 shadow-[0px_-4px_16px_rgba(12,5,40,0.04)] border-t border-slate-200/20">
+<div class="flex flex-col items-center justify-center text-slate-500 hover:text-[#0025CC] px-3 py-1.5 active:scale-90 transition-transform">
+<span class="material-symbols-outlined mb-1" data-icon="home">home</span>
+<span class="font-['Inter'] text-[10px] font-medium">Home</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-500 hover:text-[#0025CC] px-3 py-1.5 active:scale-90 transition-transform">
+<span class="material-symbols-outlined mb-1" data-icon="shopping_bag">shopping_bag</span>
+<span class="font-['Inter'] text-[10px] font-medium">Orders</span>
+</div>
+<!-- Active Tab -->
+<div class="flex flex-col items-center justify-center bg-[#0025CC] text-white rounded-xl px-3 py-1.5 active:scale-90 transition-transform">
+<span class="material-symbols-outlined mb-1" data-icon="inventory_2" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="font-['Inter'] text-[10px] font-medium">Products</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-500 hover:text-[#0025CC] px-3 py-1.5 active:scale-90 transition-transform">
+<span class="material-symbols-outlined mb-1" data-icon="trending_up">trending_up</span>
+<span class="font-['Inter'] text-[10px] font-medium">Analytics</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-500 hover:text-[#0025CC] px-3 py-1.5 active:scale-90 transition-transform">
+<span class="material-symbols-outlined mb-1" data-icon="more_horiz">more_horiz</span>
+<span class="font-['Inter'] text-[10px] font-medium">More</span>
+</div>
+</nav>
+</body></html>

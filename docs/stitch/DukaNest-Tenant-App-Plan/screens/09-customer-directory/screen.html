@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "error": "#ba1a1a",
+                        "secondary-container": "#dbd1ff",
+                        "on-secondary-fixed-variant": "#494267",
+                        "tertiary-fixed-dim": "#bac3ff",
+                        "surface-dim": "#dbdad9",
+                        "surface-container-lowest": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#334ae6",
+                        "on-secondary-fixed": "#1d1639",
+                        "secondary": "#615980",
+                        "outline-variant": "#c5c5d8",
+                        "primary": "#001790",
+                        "on-primary-container": "#a0abff",
+                        "secondary-fixed-dim": "#cac1ed",
+                        "on-surface": "#1b1c1c",
+                        "tertiary-fixed": "#dee0ff",
+                        "inverse-primary": "#bcc2ff",
+                        "on-tertiary-fixed": "#00105c",
+                        "surface-container-high": "#e9e8e8",
+                        "on-tertiary-fixed-variant": "#002eca",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed-variant": "#0a2acf",
+                        "on-primary-fixed": "#000c61",
+                        "surface-container-low": "#f4f3f3",
+                        "on-error": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "on-surface-variant": "#444655",
+                        "outline": "#757687",
+                        "on-secondary-container": "#5f587f",
+                        "background": "#faf9f9",
+                        "primary-container": "#0025cc",
+                        "primary-fixed-dim": "#bcc2ff",
+                        "surface-bright": "#faf9f9",
+                        "on-primary": "#ffffff",
+                        "inverse-on-surface": "#f2f0f0",
+                        "secondary-fixed": "#e6deff",
+                        "primary-fixed": "#dfe0ff",
+                        "on-tertiary-container": "#9eabff",
+                        "on-secondary": "#ffffff",
+                        "tertiary-container": "#002cc2",
+                        "surface-variant": "#e3e2e2",
+                        "on-background": "#1b1c1c",
+                        "inverse-surface": "#2f3031",
+                        "surface-container-highest": "#e3e2e2",
+                        "surface-container": "#efeded",
+                        "surface": "#faf9f9",
+                        "tertiary": "#001c89"
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-nav {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .primary-gradient {
+            background: linear-gradient(135deg, #001790 0%, #0025cc 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-surface font-body text-on-surface min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="w-full sticky top-0 z-50 bg-[#FAF9F9] dark:bg-slate-950 flex justify-between items-center px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-white overflow-hidden">
+<span class="material-symbols-outlined">menu</span>
+</div>
+<h1 class="font-['Plus_Jakarta_Sans'] font-semibold text-lg text-[#001790] dark:text-blue-400">Customers</h1>
+</div>
+<button class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-slate-100 transition-colors">
+<span class="material-symbols-outlined text-slate-500">search</span>
+</button>
+</header>
+<main class="px-6 py-4 space-y-8">
+<!-- Search & Filter Section -->
+<section class="space-y-4">
+<div class="flex gap-3">
+<div class="flex-1 relative">
+<input class="w-full bg-surface-container-low border-none rounded-xl py-3 pl-12 pr-4 text-body-md focus:ring-2 focus:ring-primary/20 transition-all outline-none" placeholder="Search customer name..." type="text"/>
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+</div>
+<button class="bg-surface-container-low p-3 rounded-xl text-on-surface-variant hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined">tune</span>
+</button>
+</div>
+<!-- Filter Chips -->
+<div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+<span class="bg-primary-container text-white px-4 py-2 rounded-full text-label-md whitespace-nowrap font-medium">All Customers</span>
+<span class="bg-surface-container-low text-on-surface-variant px-4 py-2 rounded-full text-label-md whitespace-nowrap font-medium">VIP Customers</span>
+<span class="bg-surface-container-low text-on-surface-variant px-4 py-2 rounded-full text-label-md whitespace-nowrap font-medium">Repeat Buyers</span>
+<span class="bg-surface-container-low text-on-surface-variant px-4 py-2 rounded-full text-label-md whitespace-nowrap font-medium">New This Month</span>
+</div>
+</section>
+<!-- Customer Directory List -->
+<section class="space-y-4">
+<!-- Customer Card 1 -->
+<div class="bg-surface-container-lowest p-5 rounded-xl flex items-center gap-4 transition-all active:scale-[0.98] border-l-4 border-primary">
+<div class="w-14 h-14 rounded-full bg-secondary-fixed flex items-center justify-center text-primary font-headline font-bold text-lg">
+                    AM
+                </div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h3 class="font-headline font-semibold text-on-surface">Amina Mohamed</h3>
+<span class="bg-error-container text-on-error-container px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">VIP</span>
+</div>
+<div class="flex gap-4 mt-1 text-on-surface-variant">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">shopping_bag</span>
+<span class="text-label-md">24 Orders</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">payments</span>
+<span class="text-label-md">Ksh 45,200</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<button class="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-primary-container hover:bg-secondary-container transition-colors">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">call</span>
+</button>
+<button class="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-primary-container hover:bg-secondary-container transition-colors">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">chat</span>
+</button>
+</div>
+</div>
+<!-- Customer Card 2 -->
+<div class="bg-surface-container-low p-5 rounded-xl flex items-center gap-4 transition-all active:scale-[0.98]">
+<div class="w-14 h-14 rounded-full overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Professional male customer headshot" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBNQXtqWi6sgvkTlHaMkPHZmv9AKiqcWucURaAfjYB8-VNaT1B0-OMpUxoRkKpIuBX0g_n1oWocqGJ82DHVshIsteGsjo1ti-V6U9boJT3fGP8HyALIv1TxIx6IyYNPvW_e-eBML35GV6u-SQApJg3L_chcA7tbk49w7pDR39yCgCdBweucAQnEOku5STEUrhElm8CRQQzFZPu0myBbF7Lqs5LfGshZxg-j8abTLANkHWghKAPOMJEIKDFmHsHjVtrjJQ0bEEFtACOd"/>
+</div>
+<div class="flex-1">
+<h3 class="font-headline font-semibold text-on-surface">David Chen</h3>
+<div class="flex gap-4 mt-1 text-on-surface-variant">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">shopping_bag</span>
+<span class="text-label-md">12 Orders</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">payments</span>
+<span class="text-label-md">Ksh 18,900</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<button class="w-8 h-8 rounded-full bg-surface-container-lowest flex items-center justify-center text-primary-container hover:bg-secondary-container transition-colors">
+<span class="material-symbols-outlined text-sm">mail</span>
+</button>
+<button class="w-8 h-8 rounded-full bg-surface-container-lowest flex items-center justify-center text-primary-container hover:bg-secondary-container transition-colors">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">chat</span>
+</button>
+</div>
+</div>
+<!-- Customer Card 3 -->
+<div class="bg-surface-container-low p-5 rounded-xl flex items-center gap-4 transition-all active:scale-[0.98]">
+<div class="w-14 h-14 rounded-full bg-tertiary-fixed flex items-center justify-center text-tertiary font-headline font-bold text-lg">
+                    JO
+                </div>
+<div class="flex-1">
+<h3 class="font-headline font-semibold text-on-surface">Jane Otieno</h3>
+<div class="flex gap-4 mt-1 text-on-surface-variant">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">shopping_bag</span>
+<span class="text-label-md">3 Orders</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">payments</span>
+<span class="text-label-md">Ksh 2,450</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<button class="w-8 h-8 rounded-full bg-surface-container-lowest flex items-center justify-center text-primary-container hover:bg-secondary-container transition-colors">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">call</span>
+</button>
+<button class="w-8 h-8 rounded-full bg-surface-container-lowest flex items-center justify-center text-primary-container hover:bg-secondary-container transition-colors">
+<span class="material-symbols-outlined text-sm">mail</span>
+</button>
+</div>
+</div>
+<!-- Customer Card 4 -->
+<div class="bg-surface-container-low p-5 rounded-xl flex items-center gap-4 transition-all active:scale-[0.98]">
+<div class="w-14 h-14 rounded-full overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Smiling female customer profile" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCH2GImq-LSpLvPI76TX-WneBXG2TCDt7Zj08Ttr8SKeuMU44-As2D4RzdWxVJG3_3Bh2ExnyPlrITpLbajn--LICgvy4NDsfSl_EJmxECifT7b83WhAxNMexPsvbqZgOJRUG2qxmWwZUOCU_TFFzMSgnI-nEZY0SpGrqJiVMIOL4iK4OCihhNxDpSkiZBHjb88kjBJzGdF5rrXLBvJZZv148XhneS5lt91CVlF5iw6QBr1eNZnRsiVRj1JJGXCdzR-t6CkRkFHiCH2"/>
+</div>
+<div class="flex-1">
+<h3 class="font-headline font-semibold text-on-surface">Sarah Njoki</h3>
+<div class="flex gap-4 mt-1 text-on-surface-variant">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">shopping_bag</span>
+<span class="text-label-md">8 Orders</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">payments</span>
+<span class="text-label-md">Ksh 12,100</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<button class="w-8 h-8 rounded-full bg-surface-container-lowest flex items-center justify-center text-primary-container hover:bg-secondary-container transition-colors">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">chat</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Empty State (Hidden by default, shown for demonstration logic) -->
+<div class="hidden flex flex-col items-center justify-center py-20 text-center space-y-4">
+<div class="w-24 h-24 bg-surface-container-low rounded-full flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-4xl text-outline-variant">person_search</span>
+</div>
+<h2 class="font-headline font-bold text-xl text-on-surface">No customers yet</h2>
+<p class="text-body-md text-on-surface-variant max-w-[240px]">Start building your business relationships. Your customers will appear here.</p>
+<button class="primary-gradient text-white px-6 py-3 rounded-xl font-semibold mt-4 shadow-lg shadow-primary/20">Add Customer</button>
+</div>
+</main>
+<!-- FAB for adding customer -->
+<button class="fixed right-6 bottom-28 w-14 h-14 primary-gradient rounded-2xl flex items-center justify-center text-white shadow-xl shadow-primary/30 z-40 active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-3xl">person_add</span>
+</button>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-6 pt-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl z-50 rounded-t-2xl shadow-[0px_-12px_32px_rgba(12,5,40,0.06)]">
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 transition-all tap-highlight-none active:scale-90">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-['Inter'] text-[10px] font-medium">Home</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 transition-all tap-highlight-none active:scale-90">
+<span class="material-symbols-outlined">shopping_bag</span>
+<span class="font-['Inter'] text-[10px] font-medium">Orders</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 transition-all tap-highlight-none active:scale-90">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-['Inter'] text-[10px] font-medium">Products</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 px-3 py-1.5 transition-all tap-highlight-none active:scale-90">
+<span class="material-symbols-outlined">campaign</span>
+<span class="font-['Inter'] text-[10px] font-medium">Marketing</span>
+</div>
+<!-- Active Tab: Settings (Customers is often under more/settings in CRM lite) -->
+<div class="flex flex-col items-center justify-center bg-[#0025CC] text-white rounded-xl px-3 py-1.5 transition-all tap-highlight-none active:scale-90">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">more_horiz</span>
+<span class="font-['Inter'] text-[10px] font-medium">More</span>
+</div>
+</nav>
+</body></html>

@@ -1,0 +1,127 @@
+{
+  "projectTitle": "DukaNest Tenant App Plan",
+  "projectId": "13184140852829986275",
+  "exportedAt": "2026-03-24",
+  "screens": [
+    {
+      "order": 1,
+      "title": "Order Fulfillment",
+      "screenId": "dcc8c6385ea946149fb2709223611974",
+      "slug": "01-order-fulfillment",
+      "width": "780",
+      "height": "3156",
+      "screenshotUrl": "https://lh3.googleusercontent.com/aida/ADBb0uixkQO3mCG8yNhZOyr8ShwapWkp2UcarYjTbLxgbhEXWTnmxCgsXOYTQl6i7suVzp6uxQ1gj4dAPFlb3ZLUGYjKjVxdwyAE2OSwRQIStAiyEVUnTRhnGANaiHPBXqlcdyHHQ1xSDHlfYHg69_x9IIxLV2ysxdQvkIEiy5miV5yjREbqdVIbw_R1b-LvnltOd9il-ev-VO1ilXOhcIEZ-Fa1j-OXlPzli26oi1a9j0kQRfrQ6zKrouRssPfC",
+      "htmlUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sXzA3YTM1NzEyYjE0MDRmYzlhMzE2MDU0NzA1YmY4ODgwEgsSBxDrjZGE8g8YAZIBJAoKcHJvamVjdF9pZBIWQhQxMzE4NDE0MDg1MjgyOTk4NjI3NQ&filename=&opi=89354086"
+    },
+    {
+      "order": 2,
+      "title": "Order Details",
+      "screenId": "5e16f1799b28473b932a6ce317a1bd08",
+      "slug": "02-order-details",
+      "width": "780",
+      "height": "5182",
+      "screenshotUrl": "https://lh3.googleusercontent.com/aida/ADBb0ugU72jktHPEkP6p2sYoba6xn3Nn5opVXL34VDufbWhXR9FlZ3898ZpjW1FL_MeHelVmh8kATa5R90QQ3Sxc7Z5lJ7BJ99hIcjN_tfDaMLJsWrPCtcN9kGkGV6xJHLOAOanH8oXqrRSBmrUCxF1HqZ3FAPNijizxqsqZc0dTo0p3LXpLgBIye47riwRRST8pP98bYp-qKcZF0oBRx7LQ5hAICu80D8IcaW_kkbcZiq_6dcTOD9uyy8UIli6J",
+      "htmlUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sX2NjYjI4NTljMGQ5ZjRlNDZiMDI3Y2Q5NTMyNmU2MmFmEgsSBxDrjZGE8g8YAZIBJAoKcHJvamVjdF9pZBIWQhQxMzE4NDE0MDg1MjgyOTk4NjI3NQ&filename=&opi=89354086"
+    },
+    {
+      "order": 3,
+      "title": "Product Management",
+      "screenId": "5b6c4820e24840188a06e0b1889f11c3",
+      "slug": "03-product-management",
+      "width": "780",
+      "height": "3286",
+      "screenshotUrl": "https://lh3.googleusercontent.com/aida/ADBb0ujQtW3uvkP_o1Dh4kTO-1MaCBfQthSQHUrlP1oqiAR14MOjwCIOBumRwBATOf4qb4FCFmTFWG-gYjbHoxW3UmE1w4eR4TuYM6aFrUVN6F-L4Q7WlXg85tCTI1GVy7-3NEk0ZJEWFIXHpgzosoD4FxHTmZW9uE9XxU244imuC7HYwMAhhKeM_YMMTbSecQiwmuqlV3hYLpwMOtvHsVy2jp1faHbCzsAlUtwhUpk85XCUM7piXmVU2dTzqPtN",
+      "htmlUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sXzNhZWYwMjFiZDE0ODQzNjhiOGNlYWVlMDFiMzBkNGM2EgsSBxDrjZGE8g8YAZIBJAoKcHJvamVjdF9pZBIWQhQxMzE4NDE0MDg1MjgyOTk4NjI3NQ&filename=&opi=89354086"
+    },
+    {
+      "order": 4,
+      "title": "Add/Edit Product (Updated Nav & Sales)",
+      "screenId": "182f5b9ea5714ba5af46125f938e09a9",
+      "slug": "04-add-edit-product",
+      "width": "780",
+      "height": "3084",
+      "screenshotUrl": "https://lh3.googleusercontent.com/aida/ADBb0uiqPZoSqXxzjkFeJKMwKaGeBP0tEUZ4S2tsynM0y-J2awxfqcJUvoxNcH4yZNEY30azo18H4R7jyH5g9Z_bAKva4V56UsGm2SMeV7qlaYnFUy4VUZHg38I7tK4jUIJ7T33LCcmLY5KCoRe5-phGwfRkaOveSFn1_jTYI0jSdXFB5vJyBBLHOH1SvwR5Rifa2DRp0v-2rcwjPRZDQfDpX4Uthy9gkxnpwXW2lmxlBbDYb4s-8Di9bR3F50I",
+      "htmlUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sX2M1OWYxOGYxYzlmODQyNmE5NGI1MmYwYjg1NTY0MDMwEgsSBxDrjZGE8g8YAZIBJAoKcHJvamVjdF9pZBIWQhQxMzE4NDE0MDg1MjgyOTk4NjI3NQ&filename=&opi=89354086"
+    },
+    {
+      "order": 5,
+      "title": "Analytics (Deep Dive)",
+      "screenId": "8c57b1b33489407d8b97bfbaf4493ef5",
+      "slug": "05-analytics-deep-dive",
+      "width": "780",
+      "height": "5710",
+      "screenshotUrl": "https://lh3.googleusercontent.com/aida/ADBb0uh69CTEz0EHySS0_Ql1W2NCliWTsrnFYaXkun2ANG8cisni1sEpfu7tAF648NmxPkItbKKAxN5nB-M8Zb8LSk94nO0miHGtulgVTNL-09wpnSpvtLqGCJmEoSFdFOh3dE1l3YrpSRGyM76jT_y1rt7s4UCySwEJ3bRw1XkGVv-1eBchoOGbdaJCG_kA0Xt9jWlkHgOXc73CbLA0p8NBt0w_3JwkZ_qfzYzytdwmOfjJCLGSUKm0Defe2p9n",
+      "htmlUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sX2YzNGUzNjliNmNlNDRjYzE4MTk0NTU0NjI4Njg1ZGUzEgsSBxDrjZGE8g8YAZIBJAoKcHJvamVjdF9pZBIWQhQxMzE4NDE0MDg1MjgyOTk4NjI3NQ&filename=&opi=89354086"
+    },
+    {
+      "order": 6,
+      "title": "Store Settings",
+      "screenId": "e1ecf7951d11492c82adca2682445029",
+      "slug": "06-store-settings",
+      "width": "780",
+      "height": "2270",
+      "screenshotUrl": "https://lh3.googleusercontent.com/aida/ADBb0uhK5V5FjBWPOLX7spFjltTA2GcEv2s6WWYnKpQylHPTEy9FtmgzvaxoeksNiNiiUl5UNo6TsAddgMWHLaOJcfYYJKzLcyKuE4zY_a-743su6q8I3ouws7gZ1f2DAYgdpn27487itXJTGC6KtXVwbzsJArko6BPhMft5fWKqsWLKalhbq1OjkRirmjpprY1IRZv7XOdLevtI0vkJlvDUEoDgzWa7t4HUxZ5xcN8KFeqoWC4JNohcPCsea71z",
+      "htmlUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sXzFhZmY0ZTRhNmNkMTRjNTU4ZWFjMWRlYjcyZDk1NDVkEgsSBxDrjZGE8g8YAZIBJAoKcHJvamVjdF9pZBIWQhQxMzE4NDE0MDg1MjgyOTk4NjI3NQ&filename=&opi=89354086"
+    },
+    {
+      "order": 7,
+      "title": "Sales Editor",
+      "screenId": "8792636371ab4a40bf1c564d2419a238",
+      "slug": "07-sales-editor",
+      "width": "780",
+      "height": "3094",
+      "screenshotUrl": "https://lh3.googleusercontent.com/aida/ADBb0ujtcMi3pGyLTR4dynPgReN9Jq10SXAXXbEMuVEj4L6ukcL03cN2vsTzfzBCxDNrwKq39Zdf-5_SL6ctFAzejsACGcjUwxdalClPgVDx1eIsp5jjvVIEmv-9qs5lVao0TSk_kqLH5j5wmAURtvllemj7sz8kCRF0znlnhXoNxh8j2oIC5n0XHutb7j-rfMF9ypt2bkA_GF5NjWjQ7tyuwbYEVVojpGtvFIpWDKf7gEgrv4OpOwCqmCsTGfI",
+      "htmlUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sX2UyYTY3MTJkZTk2NTRjMjRhM2ZkNDYyNDhhNTA1YTZkEgsSBxDrjZGE8g8YAZIBJAoKcHJvamVjdF9pZBIWQhQxMzE4NDE0MDg1MjgyOTk4NjI3NQ&filename=&opi=89354086"
+    },
+    {
+      "order": 8,
+      "title": "Add New Page",
+      "screenId": "b5459219132845ca9d6e113b82dbd108",
+      "slug": "08-add-new-page",
+      "width": "780",
+      "height": "2108",
+      "screenshotUrl": "https://lh3.googleusercontent.com/aida/ADBb0ugMOawMDhZ3K8KQPGQPQTv201zh7faJWghNmCkJCGuaorpdU3zCBxfR6ttzJMONuPZHOTriJPJG7etujXsm50tU_vAPNkagyiWtZEbYBCsRfUiUrsPMPImDxtsgAUNzZ95M6yo9LPEyy57cHs7r_DDA_z4YvI6nx39_Xj05JW9JtwHY8si0o5YVd8ue9FgmcOCvdsn_j4ZyOZhAV6MBKUHnTD01PEFqBKp4T0yoBfC3v8cJYc75V8gm3rs",
+      "htmlUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sXzRmMDU4NTI1MmJjYTRjNDE5NmM1YmU4ZWI4NDkxNDFmEgsSBxDrjZGE8g8YAZIBJAoKcHJvamVjdF9pZBIWQhQxMzE4NDE0MDg1MjgyOTk4NjI3NQ&filename=&opi=89354086"
+    },
+    {
+      "order": 9,
+      "title": "Customer Directory",
+      "screenId": "97153574833d4f8eb445ca9eefd05b25",
+      "slug": "09-customer-directory",
+      "width": "780",
+      "height": "1768",
+      "screenshotUrl": "https://lh3.googleusercontent.com/aida/ADBb0uiyIKwBiBidYFbcfpAOAO7VFzSMu9miYhv4wfxjZ13dP0t3-DUDafhSexMxSaWvUmR9bai6pS_9w1C_YsarnjjTcqzhkc7xDANGuy8_cDO5fUfHPWv2GMga8J_oHoH3fto6d4gLpWk7pdNHvooB_R5-YCNwb2nsdKxa_K4JOKV29Gzk246QXPkoDCtBOGEmhsTjcqN7QK4WNFGmh999lEPXzcXBi3-ETDKdYBVAwQOYD4OkbGw0WZOowLU",
+      "htmlUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sXzNjMGQwNDM2MzU0ZTQ0ZDRiYTdhNjEwMWI5ZjQ5ZjFmEgsSBxDrjZGE8g8YAZIBJAoKcHJvamVjdF9pZBIWQhQxMzE4NDE0MDg1MjgyOTk4NjI3NQ&filename=&opi=89354086"
+    },
+    {
+      "order": 10,
+      "title": "More Menu",
+      "screenId": "6f4fb24a71664b82a12a8efcb7a9aa90",
+      "slug": "10-more-menu",
+      "width": "780",
+      "height": "2460",
+      "screenshotUrl": "https://lh3.googleusercontent.com/aida/ADBb0ujxCE27jymVq30WMgulZohR9_S3MuYMo-hjVuF7Eud-8YwP0gXDRFjQYQNd8Oa4t8N5IEwEoxrNP9U0qzVud_OZnZuCI3PPr_M-fzq1I7yu9ki0mQPqeuWp5SQfU-eHwZTMlMQaLmZ4jSxBcA7MOTPshN3mjaNT_KXa0uUWSGmAPWbDIRvn_H98W7NhOsGbLCeQtNSlrgd6jTms-1NJvOexyUCxTjiAMCN-ZAdFPO1UNTD1nWkDydPJpT4",
+      "htmlUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sX2UzMGIwNWE3ZTQxMDRkYzI4MjhkZGQzZDAwZjZjOWYzEgsSBxDrjZGE8g8YAZIBJAoKcHJvamVjdF9pZBIWQhQxMzE4NDE0MDg1MjgyOTk4NjI3NQ&filename=&opi=89354086"
+    },
+    {
+      "order": 11,
+      "title": "Content Management (Updated Nav & Sales)",
+      "screenId": "c0999576f9e44e32945d93fb39de9be4",
+      "slug": "11-content-management",
+      "width": "780",
+      "height": "3092",
+      "screenshotUrl": "https://lh3.googleusercontent.com/aida/ADBb0uhibfhgHbpjfaodlenO4rku3penOkkYyGC3fctaSLCdCS_-PMNf12V1QSyk-oHfpOy6csX3QdULQqG0Ti58wouPfFsZtFrRX3wEQFn-HoeHBLkhhs7uDtL4ZMMln_0jkla663G7Z0e7wzLVQ4H8-bo5CXAqVWqFMAtzLjKTIleHVSLnOr7a4S6UfinQNUBDyui2ts16M3csom9ZKpsF9lMuZKPPNzjhxORyg_b05V9X1lsS5_kL3wq0Oh0",
+      "htmlUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sX2IxYTY4MzE0YjQyMTRkOWFhM2Q3YzBlZDk5NmI3YzI1EgsSBxDrjZGE8g8YAZIBJAoKcHJvamVjdF9pZBIWQhQxMzE4NDE0MDg1MjgyOTk4NjI3NQ&filename=&opi=89354086"
+    },
+    {
+      "order": 12,
+      "title": "Page Editor",
+      "screenId": "f12e54c727e5404f947bb42fc7b50847",
+      "slug": "12-page-editor",
+      "width": "780",
+      "height": "2324",
+      "screenshotUrl": "https://lh3.googleusercontent.com/aida/ADBb0uihRdVLIMw4GAmGL3PYSYXxK47FhGp7RSQo-rqC5A_uJhXbMvu2VJpB6YaFy3qD-hwa4OyKJrmuwTymjAl36ySMjGAIopDzo3Csf9bhGDZLo8ERs2dDMIt_YXNH-OEhjDZ53_znTH5tznovkoq7plweW3q3iVslWKK_32Nk-Ntbs2FxTlfrT6OzzLeYiufstdM_gDOUOANUkxxqKYfZCeXqwt_W5t--U7Pzak5QH5qhOnFCHuhYc5S0XwfB",
+      "htmlUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ8Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpbCiVodG1sX2I3MGI5ZGU3OWM2OTQ2MjM4YTU3MGNhNDk1YjE1NjNlEgsSBxDrjZGE8g8YAZIBJAoKcHJvamVjdF9pZBIWQhQxMzE4NDE0MDg1MjgyOTk4NjI3NQ&filename=&opi=89354086"
+    }
+  ]
+}

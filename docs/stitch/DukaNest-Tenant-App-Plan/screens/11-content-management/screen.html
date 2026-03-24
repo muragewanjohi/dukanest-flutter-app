@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Content Manager - DukaNest</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-tertiary": "#ffffff",
+              "error-container": "#ffdad6",
+              "secondary-fixed-dim": "#cac1ed",
+              "surface-container-highest": "#e3e2e2",
+              "secondary-fixed": "#e6deff",
+              "outline": "#757687",
+              "surface-bright": "#faf9v9",
+              "tertiary": "#001c89",
+              "on-tertiary-fixed": "#00105c",
+              "background": "#faf9f9",
+              "on-primary-fixed": "#000c61",
+              "surface-dim": "#dbdad9",
+              "on-primary-container": "#a0abff",
+              "tertiary-fixed-dim": "#bac3ff",
+              "surface-tint": "#334ae6",
+              "primary": "#001790",
+              "on-secondary-fixed-variant": "#494267",
+              "surface-variant": "#e3e2e2",
+              "surface": "#faf9f9",
+              "on-surface": "#1b1c1c",
+              "tertiary-fixed": "#dee0ff",
+              "secondary": "#615980",
+              "primary-fixed-dim": "#bcc2ff",
+              "on-primary": "#ffffff",
+              "on-secondary-fixed": "#1d1639",
+              "error": "#ba1a1a",
+              "secondary-container": "#dbd1ff",
+              "outline-variant": "#c5c5d8",
+              "surface-container-lowest": "#ffffff",
+              "surface-container-low": "#f4f3f3",
+              "on-tertiary-fixed-variant": "#002eca",
+              "on-secondary-container": "#5f587f",
+              "inverse-primary": "#bcc2ff",
+              "on-surface-variant": "#444655",
+              "tertiary-container": "#002cc2",
+              "on-secondary": "#ffffff",
+              "on-error-container": "#93000a",
+              "on-error": "#ffffff",
+              "surface-container-high": "#e9e8e8",
+              "surface-container": "#efeded",
+              "primary-fixed": "#dfe0ff",
+              "on-background": "#1b1c1c",
+              "primary-container": "#0025cc",
+              "on-primary-fixed-variant": "#0a2acf",
+              "inverse-on-surface": "#f2f0f0",
+              "on-tertiary-container": "#9eabff",
+              "inverse-surface": "#2f3031"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .bg-gradient-brand {
+        background: linear-gradient(135deg, #001790 0%, #0025cc 100%);
+      }
+      body {
+        min-height: max(884px, 100dvh);
+      }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- Navigation Drawer (Desktop) -->
+<aside class="hidden md:flex fixed left-0 top-0 h-full w-64 flex-col pt-20 bg-surface-container-low border-r-0 z-40 transition-all duration-200">
+<div class="px-6 mb-8">
+<h1 class="text-lg font-bold text-primary font-headline">DukaNest Admin</h1>
+<p class="text-xs text-on-surface-variant">Premium Tier</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="text-slate-600 mx-2 px-4 py-3 flex items-center gap-3 hover:bg-surface-container transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-medium text-sm">Dashboard</span>
+</a>
+<a class="text-slate-600 mx-2 px-4 py-3 flex items-center gap-3 hover:bg-surface-container transition-colors" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-medium text-sm">Products</span>
+</a>
+<a class="text-slate-600 mx-2 px-4 py-3 flex items-center gap-3 hover:bg-surface-container transition-colors" href="#">
+<span class="material-symbols-outlined">shopping_cart</span>
+<span class="font-medium text-sm">Orders</span>
+</a>
+<a class="bg-primary-container text-white rounded-lg mx-2 px-4 py-3 flex items-center gap-3" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">article</span>
+<span class="font-medium text-sm">Content</span>
+</a>
+<a class="text-slate-600 mx-2 px-4 py-3 flex items-center gap-3 hover:bg-surface-container transition-colors" href="#">
+<span class="material-symbols-outlined">more_horiz</span>
+<span class="font-medium text-sm">More</span>
+</a>
+</nav>
+</aside>
+<!-- Main Canvas -->
+<main class="md:ml-64 min-h-screen pb-24 md:pb-8">
+<!-- TopAppBar -->
+<header class="w-full sticky top-0 z-50 bg-surface/80 backdrop-blur-xl flex items-center justify-between px-6 py-4">
+<div class="flex items-center gap-4">
+<a class="p-2 rounded-lg hover:bg-surface-container-low transition-colors flex items-center justify-center" href="#">
+<span class="material-symbols-outlined">arrow_back</span>
+</a>
+<h2 class="text-xl font-bold text-primary font-headline tracking-tight">Content Manager</h2>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 rounded-full hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold overflow-hidden">
+<img alt="Admin Profile" data-alt="Admin profile avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAad6vSBUp7TJUfwx6q_Zu98Ov5kBoXEE6qBmxohdxS3Xvva7vzUbTd5Y8YRBWNFTGzudNbQtShKEQH6NuGII-SsspXdB7DKKsz4Pimfw-Jw5ZbD3mkR2xLXoBuY18sQ55Wah_7XurHfjAkge6D7u_3_X-u4e-H1jxPrAIqkvKr208JNSiW_mN2sX_JILyDCrOLz4QvdqqC50F7jj7CEJhMVpBASAs5cMEfzX-FmTtgGIOTgkONTsfB_g9bii7TyqizG0D5kkTunZt5"/>
+</div>
+</div>
+</header>
+<!-- Content Area -->
+<div class="px-6 py-8 max-w-7xl mx-auto">
+<!-- Hero Search & Action Bar -->
+<div class="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center mb-10">
+<div class="relative w-full md:w-96 group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">search</span>
+<input class="w-full pl-12 pr-4 py-3 bg-surface-container-low border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none" placeholder="Search blog, pages, or banners..." type="text"/>
+</div>
+<div class="flex gap-3 w-full md:w-auto">
+<button class="flex-1 md:flex-none px-6 py-3 rounded-xl bg-surface-container-highest text-on-surface text-sm font-semibold flex items-center justify-center gap-2 hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-lg">filter_list</span>
+                        Filter
+                    </button>
+<button class="flex-1 md:flex-none px-6 py-3 rounded-xl bg-gradient-brand text-white text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-lg">add</span>
+                        Create New Post
+                    </button>
+</div>
+</div>
+<!-- Bento Grid Content -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<!-- Blog Posts Section (Large Area) -->
+<section class="lg:col-span-8 space-y-6">
+<div class="flex items-center justify-between">
+<h3 class="text-lg font-bold font-headline text-primary">Recent Blog Posts</h3>
+<a class="text-primary-container text-sm font-medium hover:underline" href="#">View All</a>
+</div>
+<div class="space-y-4">
+<!-- Blog Card 1 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl flex gap-4 group hover:shadow-[0px_12px_32px_rgba(12,5,40,0.06)] transition-all">
+<div class="w-24 h-24 rounded-lg bg-surface-container-low overflow-hidden flex-shrink-0">
+<img alt="Fresh Produce" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="Market vegetables fresh display" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB-RhbTwmQGO7UvdR2U6bjhTE0QV1j0bn_rjO7Zbff5AD0auumX1vOJ5DE8LEn_gLuje4RgOlekKTafcU4cEFIg8YbLekZAKyGPq3L3MDRm-0Gqjck0PbWRH6PQIdPcbdvMN-Ok0UdDRPHRW5-8M5d0BpWPKNXd_2nh3dAzxC78Rq_GlqnJgPCWsoNFgErS_-Iro9monw-9mKSyTADS99pcqYYNUa1qEnRBdQItJpJTAUjk7px1Da4YmTUozVm-59C68TsDAyItFwGx"/>
+</div>
+<div class="flex-1 flex flex-col justify-center">
+<div class="flex items-center justify-between mb-1">
+<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-secondary-container text-on-secondary-container">PUBLISHED</span>
+<button class="p-1 rounded hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">more_vert</span>
+</button>
+</div>
+<h4 class="font-semibold text-on-surface group-hover:text-primary transition-colors">How to source the best organic produce for your store</h4>
+<p class="text-xs text-on-surface-variant mt-1">Updated 2 days ago • 5 min read</p>
+</div>
+</div>
+<!-- Blog Card 2 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl flex gap-4 group hover:shadow-[0px_12px_32px_rgba(12,5,40,0.06)] transition-all">
+<div class="w-24 h-24 rounded-lg bg-surface-container-low overflow-hidden flex-shrink-0">
+<img alt="Payments" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="Customer paying at digital terminal" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA80fodEKI9Bj8t9_PWXNRVSio0X8LXbHmaQINWZi93GaEY3SJMXgx-r3xh10yi38nh6j3sCx4xJiM74YL2qG-icVpHJOWYgz8crbDtQhz0DQjN24Qv1tvtq91jouyjm1BjXVpS6XG-9U6rChK2piJBmdT1nSW5R9qHzXC8qQ1TQMHyVguvvxnvTE_ALCkzmq6eYkUMCugfmxm2RqPReygULyV7cP-V70qOtAWIusE4vxetts1-FLRRoTIr8k2iTdfdeQwLZ7Pu6rhY"/>
+</div>
+<div class="flex-1 flex flex-col justify-center">
+<div class="flex items-center justify-between mb-1">
+<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-surface-container-high text-on-surface-variant">DRAFT</span>
+<button class="p-1 rounded hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">more_vert</span>
+</button>
+</div>
+<h4 class="font-semibold text-on-surface group-hover:text-primary transition-colors">Modernizing your checkout: Why digital payments matter</h4>
+<p class="text-xs text-on-surface-variant mt-1">Edited 5 hours ago</p>
+</div>
+</div>
+<!-- Blog Card 3 -->
+<div class="bg-surface-container-lowest p-4 rounded-xl flex gap-4 group hover:shadow-[0px_12px_32px_rgba(12,5,40,0.06)] transition-all border-l-4 border-primary">
+<div class="w-24 h-24 rounded-lg bg-surface-container-low overflow-hidden flex-shrink-0">
+<img alt="New Post" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="Hands typing on laptop keyboard" src="https://lh3.googleusercontent.com/aida-public/AB6AXuClKuE-gQTnyop3ZW0H558UXJtiKoeQE0BvGO7WF7J5GfI_gAwBLphYC6QH6jZorgqDyop1FdRRU6nU8d86tZqhb64ykCqlCgRYRpvTO43J-G_cKjmlwbrn3PMq718hKHCT_XecwMCD4TMsvmI4ugABa_fACJXgOJQ-yIBqb4xXrfXdYiUtLayfiLf53ETo5t046pmpk20UxxhUph2Pr4u2hk_HJ5rQwv8DMmRyPdDlpHW1BZApTQhrWGnBobTw0NaGauyvDrK6Wyyt"/>
+</div>
+<div class="flex-1 flex flex-col justify-center">
+<div class="flex items-center justify-between mb-1">
+<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-secondary-container text-on-secondary-container uppercase">Published</span>
+<button class="p-1 rounded hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">more_vert</span>
+</button>
+</div>
+<h4 class="font-semibold text-on-surface group-hover:text-primary transition-colors">Customer loyalty programs that actually work</h4>
+<p class="text-xs text-on-surface-variant mt-1">Updated 1 week ago • 8 min read</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Sidebar Sections -->
+<div class="lg:col-span-4 space-y-8">
+<!-- Store Pages Section -->
+<section class="space-y-4">
+<div class="flex items-center justify-between px-2">
+<h3 class="text-lg font-bold font-headline text-primary">Pages</h3>
+<button class="text-primary-container p-1 rounded-lg hover:bg-primary/5">
+<span class="material-symbols-outlined">add_circle</span>
+</button>
+</div>
+<div class="bg-surface-container-low rounded-2xl overflow-hidden">
+<div class="divide-y divide-white/20">
+<div class="p-4 flex items-center justify-between hover:bg-surface-container-high transition-colors cursor-pointer group">
+<div>
+<p class="text-sm font-semibold text-on-surface group-hover:text-primary transition-colors">About Us</p>
+<p class="text-[10px] text-on-surface-variant">Last updated: Mar 12, 2024</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-container text-lg transition-colors group-hover:scale-110">edit</span>
+</div>
+</div>
+<div class="p-4 flex items-center justify-between hover:bg-surface-container-high transition-colors cursor-pointer group">
+<div>
+<p class="text-sm font-semibold text-on-surface group-hover:text-primary transition-colors">Privacy Policy</p>
+<p class="text-[10px] text-on-surface-variant">Last updated: Jan 05, 2024</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-container text-lg transition-colors group-hover:scale-110">edit</span>
+</div>
+</div>
+<div class="p-4 flex items-center justify-between hover:bg-surface-container-high transition-colors cursor-pointer group">
+<div>
+<p class="text-sm font-semibold text-on-surface group-hover:text-primary transition-colors">Terms of Service</p>
+<p class="text-[10px] text-on-surface-variant">Last updated: Feb 20, 2024</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-container text-lg transition-colors group-hover:scale-110">edit</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Active Sales Section -->
+<section class="space-y-4">
+<div class="flex items-center justify-between px-2">
+<h3 class="text-lg font-bold font-headline text-primary">Active Sales</h3>
+</div>
+<div class="space-y-3">
+<!-- Sale Card 1 -->
+<div class="p-4 rounded-xl bg-primary-container text-white relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-2">
+<div class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+</div>
+<div class="relative z-10">
+<p class="text-xs font-bold tracking-widest text-on-primary-container opacity-80 mb-1">ACTIVE</p>
+<p class="text-sm font-medium">Summer Flash Sale: 20% Off Storewide</p>
+<div class="mt-3 flex gap-2">
+<button class="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-xs font-medium transition-colors">Edit</button>
+</div>
+</div>
+<div class="absolute -bottom-4 -right-4 w-20 h-20 bg-white/10 rounded-full blur-xl"></div>
+</div>
+<!-- Sale Card 2 -->
+<div class="p-4 rounded-xl bg-surface-container-lowest border border-primary/10 hover:border-primary/30 transition-all flex items-center justify-between">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<div class="w-2 h-2 rounded-full bg-green-500"></div>
+<p class="text-[10px] font-bold tracking-widest text-primary opacity-80">ACTIVE</p>
+</div>
+<p class="text-sm font-medium text-on-surface">Buy 2 Get 1 Free: Organic Greens</p>
+</div>
+<button class="px-3 py-1.5 rounded-lg bg-primary/5 text-primary text-xs font-bold hover:bg-primary/10 transition-colors">Edit</button>
+</div>
+</div>
+</section>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Bar (Mobile) -->
+<footer class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-2 bg-white/80 backdrop-blur-xl shadow-[0px_-12px_32px_rgba(12,5,40,0.06)] rounded-t-2xl">
+<a class="flex flex-col items-center justify-center text-slate-400 px-3 py-1.5 hover:text-[#001790] tap-highlight-none active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-['Inter'] text-[10px] font-medium">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 px-3 py-1.5 hover:text-[#001790] tap-highlight-none active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined">shopping_bag</span>
+<span class="font-['Inter'] text-[10px] font-medium">Orders</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 px-3 py-1.5 hover:text-[#001790] tap-highlight-none active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-['Inter'] text-[10px] font-medium">Products</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 px-3 py-1.5 hover:text-[#001790] tap-highlight-none active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined">campaign</span>
+<span class="font-['Inter'] text-[10px] font-medium">Marketing</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-[#0025CC] text-white rounded-xl px-3 py-1.5 transition-all tap-highlight-none active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">more_horiz</span>
+<span class="font-['Inter'] text-[10px] font-medium">More</span>
+</a>
+</footer>
+</body></html>
