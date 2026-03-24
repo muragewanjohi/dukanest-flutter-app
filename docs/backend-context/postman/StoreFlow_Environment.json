@@ -127,6 +127,54 @@
 			"value": "",
 			"type": "default",
 			"enabled": true
+		},
+		{
+			"key": "onboarding_business_type",
+			"value": "Pets",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "onboarding_selling",
+			"value": "Ornamental Fish",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "onboarding_theme_slug",
+			"value": "grocery",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "starter_pack_job_id",
+			"value": "",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "starter_pack_image_url",
+			"value": "https://example.com/generated-image.png",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "mobile_device_id",
+			"value": "postman-device-1",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "mobile_push_token",
+			"value": "test-fcm-registration-token",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "mobile_mpesa_checkout_request_id",
+			"value": "",
+			"type": "default",
+			"enabled": true
 		}
 	],
 	"_postman_variable_scope": "environment",

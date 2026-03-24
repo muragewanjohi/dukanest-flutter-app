@@ -21,7 +21,7 @@ class _MfaScreenState extends ConsumerState<MfaScreen> {
 
   Future<void> _submit() async {
     final code = _codeController.text.trim();
-    if (code.length < 6) return; // Simple validation for TOTP
+    if (code.length < 6) return;
     
     setState(() => _isLoading = true);
     await ref.read(authProvider.notifier).verifyMfa(code);
@@ -31,50 +31,88 @@ class _MfaScreenState extends ConsumerState<MfaScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Two-Factor Authentication')),
+      backgroundColor: colorScheme.surface,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: IconThemeData(color: colorScheme.secondary),
+      ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(Icons.security, size: 64, color: Colors.blueGrey),
-              const SizedBox(height: 24),
-              const Text(
-                'Enter Authentication Code',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              const SizedBox(height: 48),
+              
+              // Custom Circular Icon Container matching "No Line" philosophy
+              Center(
+                child: Container(
+                  width: 96,
+                  height: 96,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF4F3F3), // surfaceContainerLow matching
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.security_outlined, 
+                    size: 48, 
+                    color: colorScheme.primaryContainer,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 48),
+              
+              Text(
+                'Two-Factor Auth',
+                style: theme.textTheme.headlineMedium,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Please enter the 6-digit code from your authenticator app.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 48),
               
-              if (authState.error != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
+              if (authState.error != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
                   child: Text(
                     authState.error!,
-                    style: const TextStyle(color: Colors.red),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: colorScheme.onErrorContainer,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ),
+                const SizedBox(height: 24),
+              ],
 
-              TextField(
+              TextFormField(
                 controller: _codeController,
                 keyboardType: TextInputType.number,
                 maxLength: 6,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 24, letterSpacing: 8),
+                style: theme.textTheme.headlineMedium?.copyWith(
+                   letterSpacing: 16,
+                   fontWeight: FontWeight.w600,
+                ),
                 decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
                   counterText: '',
+                  hintText: '000000',
+                  contentPadding: EdgeInsets.symmetric(vertical: 24),
                 ),
                 onChanged: (val) {
                   if (val.length == 6 && !_isLoading) {
@@ -82,15 +120,37 @@ class _MfaScreenState extends ConsumerState<MfaScreen> {
                   }
                 },
               ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+              const SizedBox(height: 48),
+              
+              // Signature Gradient Button
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    colors: [
+                      colorScheme.primaryContainer,
+                      colorScheme.primary,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    stops: const [0.0, 1.0],
+                     transform: const GradientRotation(2.35619), // 135 deg
+                  ),
                 ),
-                child: _isLoading 
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator())
-                  : const Text('Verify Code'),
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                  ),
+                  child: _isLoading 
+                    ? const SizedBox(
+                        height: 20, 
+                        width: 20, 
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Verify Code'),
+                ),
               ),
             ],
           ),

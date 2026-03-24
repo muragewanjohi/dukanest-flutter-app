@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "storeflow-api-collection",
 		"name": "DukaNest API Collection",
-		"description": "Complete API collection for DukaNest multi-tenant ecommerce platform. Updated after each development day.",
+		"description": "Complete API collection for DukaNest multi-tenant ecommerce platform. Includes Phase 0 mobile routes (auth, dashboard, media, M-Pesa, notifications) and onboarding starter-pack endpoints.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_exporter_id": "storeflow"
 	},
@@ -3977,6 +3977,61 @@
 					"response": []
 				},
 				{
+					"name": "Mobile Forgot Password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Forgot-password anti-enumeration response\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('sent');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{mobile_email}}\",\n  \"redirectTo\": \"{{base_url}}/reset-password\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/auth/forgot-password",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"auth",
+								"forgot-password"
+							]
+						},
+						"description": "Request Supabase password reset email. Always returns success payload (anti-enumeration). Optional redirectTo must be a valid URL."
+					},
+					"response": []
+				},
+				{
 					"name": "Mobile MFA Status",
 					"event": [
 						{
@@ -4469,6 +4524,801 @@
 							]
 						},
 						"description": "Get core tenant settings for mobile dashboard."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Delete Account",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200, 400, or 403\", function () {",
+									"    pm.expect([200, 400, 403]).to.include(pm.response.code);",
+									"});",
+									"var jsonData = pm.response.json();",
+									"if (pm.response.code === 200 && jsonData.success) {",
+									"    pm.test(\"Delete account success envelope\", function () {",
+									"        pm.expect(jsonData.data).to.have.property('retentionDays');",
+									"        pm.expect(jsonData.data).to.have.property('redirectTo');",
+									"    });",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"confirmation\": \"DELETE {{tenant_subdomain}}\",\n  \"reason\": \"\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/settings/delete-account",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"settings",
+								"delete-account"
+							]
+						},
+						"description": "Soft-delete the authenticated tenant (tenant_admin only, Bearer token). Confirmation must be exactly `DELETE {subdomain}` (set `tenant_subdomain` in environment). On success, clear local tokens — response `data.clearLocalSession` is true. Same email/SMS as web."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Sales",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Sales response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('items');",
+									"    pm.expect(jsonData).to.have.property('pagination');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/sales?page=1&limit=20&search=",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"sales"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								},
+								{
+									"key": "status",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "search",
+									"value": ""
+								}
+							]
+						},
+						"description": "List sales/promotions for the tenant (pagination + optional status/search)."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Analytics",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Analytics response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('period');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/analytics?days=30",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"analytics"
+							],
+							"query": [
+								{
+									"key": "days",
+									"value": "30",
+									"description": "1-365"
+								}
+							]
+						},
+						"description": "Aggregated analytics for the tenant (default window: 30 days)."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Media Upload",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Upload response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('url');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"description": "JPEG, PNG, WebP, or GIF; max 5MB",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/media/upload",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"media",
+								"upload"
+							]
+						},
+						"description": "Multipart upload to tenant storage. Select an image file for the `file` field."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile M-Pesa Initiate",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"STK push response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('checkoutRequestId');",
+									"});",
+									"",
+									"if (jsonData.success && jsonData.data && jsonData.data.checkoutRequestId) {",
+									"    pm.environment.set('mobile_mpesa_checkout_request_id', jsonData.data.checkoutRequestId);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"phoneNumber\": \"254712345678\",\n  \"amount\": 10,\n  \"reference\": \"POSTMAN-TEST\",\n  \"description\": \"DukaNest mobile payment test\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/mpesa/initiate",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"mpesa",
+								"initiate"
+							]
+						},
+						"description": "Initiate STK Push (sandbox/production per server env). Saves checkoutRequestId to {{mobile_mpesa_checkout_request_id}}."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile M-Pesa Status",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"M-Pesa status response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('status');",
+									"    pm.expect(jsonData.data).to.have.property('checkoutRequestId');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/mpesa/status?checkoutRequestId={{mobile_mpesa_checkout_request_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"mpesa",
+								"status"
+							],
+							"query": [
+								{
+									"key": "checkoutRequestId",
+									"value": "{{mobile_mpesa_checkout_request_id}}",
+									"description": "From initiate response (also accepts checkout_request_id)"
+								}
+							]
+						},
+						"description": "Poll STK status for a checkout request belonging to the tenant."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Notifications List",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Notifications list shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('items');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/notifications/list",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"notifications",
+								"list"
+							]
+						},
+						"description": "Derived notifications (orders, low stock, tickets, delivery fee) for the tenant user."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Register Device",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Register device response\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('deviceId');",
+									"});",
+									"",
+									"if (jsonData.success && jsonData.data && jsonData.data.deviceId) {",
+									"    pm.environment.set('mobile_device_id', jsonData.data.deviceId);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"deviceId\": \"{{mobile_device_id}}\",\n  \"token\": \"{{mobile_push_token}}\",\n  \"platform\": \"android\",\n  \"appVersion\": \"1.0.0\",\n  \"deviceName\": \"Postman\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/notifications/register-device",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"notifications",
+								"register-device"
+							]
+						},
+						"description": "Upsert FCM/APNs token for push. Set mobile_device_id (or let test save it from response)."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Notification Preferences (GET)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Preferences GET shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('preferences');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/notifications/preferences?deviceId={{mobile_device_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"notifications",
+								"preferences"
+							],
+							"query": [
+								{
+									"key": "deviceId",
+									"value": "{{mobile_device_id}}"
+								}
+							]
+						},
+						"description": "Read per-device notification toggles (requires prior register-device for same deviceId)."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Notification Preferences (PUT)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Preferences PUT shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('preferences');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"newOrder\": true,\n  \"pendingPayment\": true,\n  \"lowStock\": true,\n  \"supportTicket\": true,\n  \"deliveryUpdates\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/notifications/preferences?deviceId={{mobile_device_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"notifications",
+								"preferences"
+							],
+							"query": [
+								{
+									"key": "deviceId",
+									"value": "{{mobile_device_id}}"
+								}
+							]
+						},
+						"description": "Patch notification preferences for a registered device (boolean fields optional)."
+					},
+					"response": []
+				},
+				{
+					"name": "Onboarding Selling Exists",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Selling exists response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('exists');",
+									"    pm.expect(jsonData.data).to.have.property('matches');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"selling\": \"{{onboarding_selling}}\",\n  \"businessType\": \"{{onboarding_business_type}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/onboarding/selling-exists",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"onboarding",
+								"selling-exists"
+							]
+						},
+						"description": "Check whether a selling niche already exists before triggering Gemini/Nano Banana generation."
+					},
+					"response": []
+				},
+				{
+					"name": "Onboarding Starter Pack (Sync)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Starter pack response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('sellingPrecheck');",
+									"    pm.expect(jsonData.data).to.have.property('themeConfig');",
+									"    pm.expect(jsonData.data).to.have.property('gemini');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"businessType\": \"{{onboarding_business_type}}\",\n  \"selling\": \"{{onboarding_selling}}\",\n  \"themeSlug\": \"{{onboarding_theme_slug}}\",\n  \"locale\": \"en-KE\",\n  \"currency\": \"KES\",\n  \"productsCount\": 8,\n  \"categoriesCount\": 5,\n  \"blogPostsCount\": 2,\n  \"includeGeminiCall\": false,\n  \"checkSellingExists\": true,\n  \"forceExternalGeneration\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/onboarding/starter-pack",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"onboarding",
+								"starter-pack"
+							]
+						},
+						"description": "Build starter-pack contract payload and selling-precheck result. Set includeGeminiCall=true to execute Gemini directly."
+					},
+					"response": []
+				},
+				{
+					"name": "Onboarding Starter Pack Create Job",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 202\", function () {",
+									"    pm.response.to.have.status(202);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Job created\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('jobId');",
+									"});",
+									"",
+									"if (jsonData.success && jsonData.data && jsonData.data.jobId) {",
+									"    pm.environment.set('starter_pack_job_id', jsonData.data.jobId);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"businessType\": \"{{onboarding_business_type}}\",\n  \"selling\": \"{{onboarding_selling}}\",\n  \"themeSlug\": \"{{onboarding_theme_slug}}\",\n  \"locale\": \"en-KE\",\n  \"currency\": \"KES\",\n  \"productsCount\": 8,\n  \"categoriesCount\": 5,\n  \"blogPostsCount\": 2,\n  \"includeGeminiCall\": true,\n  \"checkSellingExists\": true,\n  \"forceExternalGeneration\": false,\n  \"geminiModel\": \"gemini-2.0-flash\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/onboarding/starter-pack-jobs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"onboarding",
+								"starter-pack-jobs"
+							]
+						},
+						"description": "Create async starter-pack generation job (recommended for Flutter). Stores jobId in {{starter_pack_job_id}}."
+					},
+					"response": []
+				},
+				{
+					"name": "Onboarding Starter Pack Job Status",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Job status response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('status');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/onboarding/starter-pack-jobs/{{starter_pack_job_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"onboarding",
+								"starter-pack-jobs",
+								"{{starter_pack_job_id}}"
+							]
+						},
+						"description": "Poll async starter-pack job status until running -> success|failed."
+					},
+					"response": []
+				},
+				{
+					"name": "Onboarding Starter Pack Save Assets",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Assets saved response\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('assetsSaved');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"assets\": [\n    {\n      \"productName\": \"Fancy Red Cap Oranda\",\n      \"sourcePrompt\": \"4k studio product photo of ornamental fish\",\n      \"imageUrl\": \"{{starter_pack_image_url}}\",\n      \"storagePath\": \"onboarding/starter-pack/red-cap-oranda.png\",\n      \"width\": 2048,\n      \"height\": 2048,\n      \"mimeType\": \"image/png\",\n      \"provider\": \"nano-banana\"\n    }\n  ],\n  \"persistMode\": \"tenant-profile\",\n  \"tenantId\": \"{{tenant_id}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/onboarding/starter-pack-jobs/{{starter_pack_job_id}}/save-assets",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"onboarding",
+								"starter-pack-jobs",
+								"{{starter_pack_job_id}}",
+								"save-assets"
+							]
+						},
+						"description": "Persist Nano Banana image outputs for a completed starter-pack job."
 					},
 					"response": []
 				},

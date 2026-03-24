@@ -38,6 +38,7 @@ Completed in web/backend:
   - `login`, `refresh`, `logout`, `mfa/status`, `mfa/send-code`, `mfa/verify`, `forgot-password`
 - Mobile dashboard endpoints:
   - `overview`, `products`, `orders`, `customers`, `inventory`, `sales`, `analytics`, `settings`
+  - `settings/delete-account` (POST, Bearer) — same soft-delete as web dashboard; body `{ "confirmation": "DELETE {subdomain}", "reason"?: string }`
 - Mobile notifications endpoints:
   - `list`, `register-device`, `preferences`
 - Mobile media upload endpoint
@@ -87,7 +88,7 @@ Completed in web/backend:
 - Customers list + detail
 - Inventory views/adjust
 - Notifications list + settings
-- Settings screen
+- Settings screen (including optional “delete my store” via `POST .../settings/delete-account`)
 - M-Pesa status/initiate screens for subscription flow
 
 ## Required Flutter Dependencies (Baseline)

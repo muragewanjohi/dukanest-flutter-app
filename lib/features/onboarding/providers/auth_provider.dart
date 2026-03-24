@@ -3,6 +3,7 @@ import '../../../core/auth/auth_service.dart';
 import '../../../core/auth/auth_state.dart';
 import '../../../core/auth/token_storage.dart';
 import '../../../core/api/api_client.dart';
+import '../../../config/app_mode.dart';
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(
@@ -32,6 +33,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> login(String email, String password) async {
+    if (kDemoMode) {
+      loginWithDemoUser(email: email);
+      return;
+    }
+
     state = state.copyWith(error: null); // Clear previous errors
     final response = await _authService.login(email, password);
 
@@ -56,6 +62,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  void loginWithDemoUser({required String email}) {
+    state = state.copyWith(
+      status: AuthStatus.authenticated,
+      user: AuthUser(
+        id: 'demo-user',
+        email: email,
+        role: 'owner',
+        tenantId: 'demo-tenant',
+        isMfaEnabled: false,
+      ),
+      error: null,
+    );
+  }
+
   Future<void> verifyMfa(String code) async {
     state = state.copyWith(error: null);
     final response = await _authService.verifyMfa(code);
@@ -73,6 +93,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> googleSignIn(String idToken) async {
+    if (kDemoMode) {
+      state = state.copyWith(
+        status: AuthStatus.authenticated,
+        user: AuthUser(
+          id: 'demo-google-user',
+          email: 'owner@dukanest.demo',
+          role: 'owner',
+          tenantId: 'demo-tenant',
+          isMfaEnabled: false,
+        ),
+        error: null,
+      );
+      return;
+    }
+
     state = state.copyWith(error: null);
     final response = await _authService.googleSignIn(idToken);
     

@@ -1,0 +1,9 @@
+﻿Analyzing flutter...                                            
+
+   info - 'background' is deprecated and shouldn't be used. Use surface instead. This feature was deprecated after v3.18.0-0.1.pre - lib\config\theme.dart:31:9 - deprecated_member_use
+  error - The argument type 'CardTheme' can't be assigned to the parameter type 'CardThemeData?'.  - lib\config\theme.dart:68:18 - argument_type_not_assignable
+warning - The receiver can't be null, so the null-aware operator '?.' is unnecessary - lib\features\onboarding\screens\login_screen.dart:150:78 - invalid_null_aware_operator
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\onboarding\screens\login_screen.dart:150:80 - deprecated_member_use
+warning - The receiver can't be null, so the null-aware operator '?.' is unnecessary - lib\features\onboarding\screens\login_screen.dart:155:78 - invalid_null_aware_operator
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\onboarding\screens\login_screen.dart:155:80 - deprecated_member_use
+

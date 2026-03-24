@@ -2,12 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/onboarding/screens/onboarding_carousel_screen.dart';
 import '../features/onboarding/screens/login_screen.dart';
+import '../features/onboarding/screens/register_screen.dart';
 import '../features/onboarding/screens/mfa_screen.dart';
 import '../features/dashboard/screens/dashboard_shell.dart';
 import '../features/dashboard/screens/dashboard_screen.dart';
 import '../features/orders/screens/orders_list_screen.dart';
+import '../features/orders/screens/order_detail_screen.dart';
 import '../features/products/screens/products_list_screen.dart';
+import '../features/products/screens/product_editor_screen.dart';
+import '../features/dashboard/screens/more_menu_screen.dart';
+import '../features/analytics/screens/analytics_screen.dart';
+import '../features/notifications/screens/notifications_screen.dart';
+import '../features/settings/screens/settings_screen.dart';
+import '../features/content/screens/content_management_screen.dart';
+import '../features/sales/screens/sales_editor_screen.dart';
+import '../features/customers/screens/customers_list_screen.dart';
 import '../features/onboarding/providers/auth_provider.dart';
 import '../core/auth/auth_state.dart';
 
@@ -18,15 +29,17 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/login',
+    initialLocation: '/onboarding',
     redirect: (context, state) {
       final isLoggingIn = state.matchedLocation == '/login';
+      final isOnboarding = state.matchedLocation == '/onboarding';
       final isMfaPhase = state.matchedLocation == '/mfa';
 
-      if (authState.status == AuthStatus.unauthenticated && !isLoggingIn) {
-        return '/login';
+      if (authState.status == AuthStatus.unauthenticated) {
+        if (isLoggingIn || isOnboarding || state.matchedLocation == '/register') return null;
+        return '/onboarding';
       }
-      
+
       if (authState.status == AuthStatus.awaitingMfa && !isMfaPhase) {
         return '/mfa';
       }
@@ -39,12 +52,40 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(
+        path: '/onboarding',
+        builder: (context, state) => const OnboardingCarouselScreen(),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
         path: '/mfa',
         builder: (context, state) => const MfaScreen(),
+      ),
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/customers',
+        builder: (context, state) => const CustomersListScreen(),
+      ),
+      GoRoute(
+        path: '/content-management',
+        builder: (context, state) => const ContentManagementScreen(),
+      ),
+      GoRoute(
+        path: '/sales-editor',
+        builder: (context, state) => const SalesEditorScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -64,6 +105,23 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/orders',
                 builder: (context, state) => const OrdersListScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'detail/:orderKey',
+                    builder: (context, state) {
+                      final key = Uri.decodeComponent(state.pathParameters['orderKey']!);
+                      return OrderDetailScreen(orderKey: key);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/analytics',
+                builder: (context, state) => const AnalyticsScreen(),
               ),
             ],
           ),
@@ -72,6 +130,27 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/products',
                 builder: (context, state) => const ProductsListScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'new',
+                    builder: (context, state) => const ProductEditorScreen(),
+                  ),
+                  GoRoute(
+                    path: 'edit/:sku',
+                    builder: (context, state) {
+                      final sku = Uri.decodeComponent(state.pathParameters['sku']!);
+                      return ProductEditorScreen(initialSku: sku);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/more',
+                builder: (context, state) => const MoreMenuScreen(),
               ),
             ],
           ),

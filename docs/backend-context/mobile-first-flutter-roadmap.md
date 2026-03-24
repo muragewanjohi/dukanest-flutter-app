@@ -49,6 +49,7 @@
 - [x] Create `/api/v1/mobile/*` route namespace
 - [x] Add mobile auth endpoints (`login`, `refresh`, `logout`, `mfa/*`, `forgot-password`)
 - [x] Add mobile dashboard endpoints (`overview`, `products`, `orders`, `customers`, `inventory`, `sales`, `analytics`, `settings`)
+- [x] Add `POST /api/v1/mobile/dashboard/settings/delete-account` (Bearer; same soft-delete as web)
 - [x] Add mobile notifications endpoints (`list`, `register-device`, `preferences`)
 - [x] Add mobile media upload endpoint
 - [x] Add mobile M-Pesa endpoints (`initiate`, `status`)
@@ -1628,6 +1629,168 @@ Use this as the backend contract for Flutter customer login/registration.
   }
 }
 ```
+
+### Flutter Onboarding Starter Pack APIs (Gemini + Nano Banana)
+
+To support niche onboarding from Flutter (e.g., `business_type: Pets`, `selling: Ornamental Fish`) while avoiding unnecessary generation costs, use this API sequence.
+
+#### 1) Pre-check if selling already exists
+
+**Endpoint**
+- `POST /api/onboarding/selling-exists`
+
+**Purpose**
+- Check whether this `selling` value already exists in tenant onboarding data before calling Gemini/Nano Banana.
+- If it exists, reuse existing content strategy and skip expensive generation by default.
+
+**Request body**
+
+```json
+{
+  "selling": "Ornamental Fish",
+  "businessType": "Pets"
+}
+```
+
+**Response (example)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "query": {
+      "selling": "Ornamental Fish",
+      "sellingKey": "ornamental fish",
+      "businessType": "Pets"
+    },
+    "exists": true,
+    "exactMatchCount": 7,
+    "matches": [
+      {
+        "selling": "Ornamental Fish",
+        "businessType": "Pets",
+        "tenantCount": 7
+      }
+    ]
+  }
+}
+```
+
+#### 2) Generate starter pack directly (sync mode)
+
+**Endpoint**
+- `POST /api/onboarding/starter-pack`
+
+**Key behavior**
+- Includes full theme color settings contract (all color keys + descriptions from theme settings).
+- Performs built-in selling precheck when `checkSellingExists = true`.
+- Skips Gemini call when selling exists unless forced.
+
+**Important request flags**
+- `includeGeminiCall` (default `false`)
+- `checkSellingExists` (default `true`)
+- `forceExternalGeneration` (default `false`)
+
+**Starter pack request example**
+
+```json
+{
+  "businessType": "Pets",
+  "selling": "Ornamental Fish",
+  "themeSlug": "grocery",
+  "locale": "en-KE",
+  "currency": "KES",
+  "productsCount": 8,
+  "categoriesCount": 5,
+  "blogPostsCount": 2,
+  "includeGeminiCall": true,
+  "checkSellingExists": true,
+  "forceExternalGeneration": false
+}
+```
+
+#### 3) Async job mode for Flutter (recommended)
+
+Use async mode for better mobile UX: create job, poll status, then save generated assets.
+
+##### 3a) Create generation job
+
+**Endpoint**
+- `POST /api/onboarding/starter-pack-jobs`
+
+**Response**
+- Returns `202` with `jobId` and `statusUrl`.
+
+```json
+{
+  "success": true,
+  "data": {
+    "jobId": "uuid",
+    "status": "running",
+    "statusUrl": "/api/onboarding/starter-pack-jobs/uuid"
+  }
+}
+```
+
+##### 3b) Poll job status
+
+**Endpoint**
+- `GET /api/onboarding/starter-pack-jobs/{jobId}`
+
+**Status values**
+- `running`
+- `success`
+- `failed`
+
+When `success`, `result` contains the same payload shape as `/api/onboarding/starter-pack` including:
+- `sellingPrecheck`
+- `themeConfig.requiredColorSettings`
+- `gemini.generatedStarterPack`
+- `nanoBanana.jobs`
+
+##### 3c) Save generated image assets metadata
+
+**Endpoint**
+- `POST /api/onboarding/starter-pack-jobs/{jobId}/save-assets`
+
+**Request body example**
+
+```json
+{
+  "assets": [
+    {
+      "productName": "Fancy Red Cap Oranda",
+      "sourcePrompt": "4k studio product photo ...",
+      "imageUrl": "https://cdn.example.com/onboarding/red-cap-oranda.png",
+      "storagePath": "onboarding/starter-pack/red-cap-oranda.png",
+      "width": 2048,
+      "height": 2048,
+      "mimeType": "image/png",
+      "provider": "nano-banana"
+    }
+  ],
+  "persistMode": "tenant-profile",
+  "tenantId": "tenant_uuid"
+}
+```
+
+`persistMode` options:
+- `job-only`: save only on job result payload
+- `tenant-profile`: also persist under `tenants.data.onboarding_generated_assets`
+
+#### Flutter implementation notes
+
+Recommended flow in app code:
+
+1. Call `/api/onboarding/selling-exists`.
+2. If `exists == true`: skip external generation unless merchant explicitly requests a fresh pack.
+3. Else call `/api/onboarding/starter-pack-jobs`.
+4. Poll `/api/onboarding/starter-pack-jobs/{jobId}` every 2-3 seconds until `success|failed`.
+5. On success, call Nano Banana for each `nanoBanana.jobs[*].prompt`.
+6. Upload final images to storage, then call `/save-assets`.
+7. Render preview and continue to simplified "update prices" flow.
+
+This keeps onboarding fast while controlling AI spend.
 
 ---
 

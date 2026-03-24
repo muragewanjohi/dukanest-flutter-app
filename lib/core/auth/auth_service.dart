@@ -21,7 +21,7 @@ class AuthService {
       return ApiResponse.fromJson(response.data, (json) => json as Map<String, dynamic>);
     } on DioException catch (e) {
       if (e.response != null) {
-        return ApiResponse.fromJson(e.response!.data, null);
+        return ApiResponse.fromJson(e.response!.data as Map<String, dynamic>, (json) => json as Map<String, dynamic>);
       }
       return ApiResponse(success: false, error: ApiError(code: 'NETWORK_ERROR', message: e.message ?? 'Network error'));
     }
@@ -35,7 +35,7 @@ class AuthService {
       return ApiResponse.fromJson(response.data, (json) => json as Map<String, dynamic>);
     } on DioException catch (e) {
       if (e.response != null) {
-         return ApiResponse.fromJson(e.response!.data, null);
+         return ApiResponse.fromJson(e.response!.data as Map<String, dynamic>, (json) => json as Map<String, dynamic>);
       }
       return ApiResponse(success: false, error: ApiError(code: 'NETWORK_ERROR', message: e.message ?? 'Network error'));
     }
@@ -49,7 +49,7 @@ class AuthService {
       return ApiResponse.fromJson(response.data, (json) => json as Map<String, dynamic>);
     } on DioException catch (e) {
       if (e.response != null) {
-        return ApiResponse.fromJson(e.response!.data, null);
+        return ApiResponse.fromJson(e.response!.data as Map<String, dynamic>, (json) => json as Map<String, dynamic>);
       }
       return ApiResponse(success: false, error: ApiError(code: 'NETWORK_ERROR', message: e.message ?? 'Network error'));
     }
