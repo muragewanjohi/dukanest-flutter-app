@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../data/attribute_value_format.dart';
+import '../data/attributes_repository.dart';
 
-/// Add/Edit Product — Stitch: Add/Edit Product (Updated Nav & Sales).
+/// Add/Edit Product — Stitch: Add/Edit Product (with Variants)
+/// (screen 6a3e6b8d009b4574bb092c68b80dfcc0; variant module + attributes integration).
 class ProductEditorScreen extends StatefulWidget {
   const ProductEditorScreen({
     super.key,
@@ -36,6 +40,28 @@ class _ProductDemo {
   final String category;
   final String description;
   final String? imageUrl;
+}
+
+/// One sellable variant (option combination + SKU + stock).
+class _VariantLine {
+  _VariantLine({
+    required this.options,
+    required String initialSku,
+    required String initialStock,
+  })  : sku = TextEditingController(text: initialSku),
+        stock = TextEditingController(text: initialStock);
+
+  /// Attribute display name → displayed option value (e.g. Color → Red).
+  final Map<String, String> options;
+  final TextEditingController sku;
+  final TextEditingController stock;
+
+  String get optionSummary => options.values.join(' · ');
+
+  void dispose() {
+    sku.dispose();
+    stock.dispose();
+  }
 }
 
 class _ProductEditorScreenState extends State<ProductEditorScreen> {
@@ -119,6 +145,241 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   String? _campaign;
   bool _visible = true;
   int _photoCount = 1;
+  final ScrollController _scrollController = ScrollController();
+  final List<_VariantLine> _variantLines = [];
+
+  static String _valueLabel(ProductAttribute a, String raw) {
+    return AttributeValueFormat.shortLabel(raw, a.displayType);
+  }
+
+  void _initVariantLines() {
+    _variantLines.clear();
+    final sku = widget.initialSku;
+    final baseSku = _sku.text.trim().isEmpty ? (sku ?? 'SKU') : _sku.text.trim();
+
+    if (sku == 'VN-2024-RD') {
+      _variantLines.addAll([
+        _VariantLine(
+          options: {'Color': 'Red', 'Size': 'Small'},
+          initialSku: '$baseSku-RD-S',
+          initialStock: '40',
+        ),
+        _VariantLine(
+          options: {'Color': 'Red', 'Size': 'Medium'},
+          initialSku: '$baseSku-RD-M',
+          initialStock: '35',
+        ),
+        _VariantLine(
+          options: {'Color': 'Midnight Black', 'Size': 'L'},
+          initialSku: '$baseSku-MB-L',
+          initialStock: '49',
+        ),
+      ]);
+      return;
+    }
+    if (sku != null && sku.isNotEmpty) {
+      _variantLines.add(
+        _VariantLine(
+          options: {'Default': 'Standard'},
+          initialSku: baseSku,
+          initialStock: _stock.text.trim().isEmpty ? '0' : _stock.text.trim(),
+        ),
+      );
+    }
+  }
+
+  bool _optionsEqual(Map<String, String> a, Map<String, String> b) {
+    if (a.length != b.length) return false;
+    for (final e in a.entries) {
+      if (b[e.key] != e.value) return false;
+    }
+    return true;
+  }
+
+  void _generateVariantsFromAttributes() {
+    final attrs = AttributesRepository.items.value;
+    if (attrs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add attributes under Products → Manage Attributes first.')),
+      );
+      return;
+    }
+    if (attrs.any((a) => a.values.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Each attribute needs at least one option value.')),
+      );
+      return;
+    }
+    var combos = <Map<String, String>>[<String, String>{}];
+    for (final a in attrs) {
+      final next = <Map<String, String>>[];
+      for (final combo in combos) {
+        for (final raw in a.values) {
+          final label = _valueLabel(a, raw);
+          next.add({...combo, a.name: label});
+        }
+      }
+      combos = next;
+      if (combos.length > 72) break;
+    }
+    final base = _sku.text.trim().isEmpty ? 'VAR' : _sku.text.trim();
+    var n = 1;
+    for (final c in combos) {
+      if (_variantLines.any((l) => _optionsEqual(l.options, c))) continue;
+      _variantLines.add(_VariantLine(
+        options: c,
+        initialSku: '$base-${n.toString().padLeft(2, '0')}',
+        initialStock: '0',
+      ));
+      n++;
+    }
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Variants updated from attribute combinations.')),
+    );
+  }
+
+  Future<void> _openAddVariantSheet() async {
+    final attrs = AttributesRepository.items.value;
+    if (attrs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Create attributes first (Manage Attributes).')),
+      );
+      return;
+    }
+    final selected = <String, String>{}; // attribute name → value label
+    for (final a in attrs) {
+      selected[a.name] = _valueLabel(a, a.values.first);
+    }
+
+    final added = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.surfaceContainerLowest,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: StatefulBuilder(
+            builder: (context, setModal) {
+              return DraggableScrollableSheet(
+                initialChildSize: 0.75,
+                minChildSize: 0.45,
+                maxChildSize: 0.95,
+                expand: false,
+                builder: (context, scrollController) {
+                  return ListView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                    children: [
+                      Text(
+                        'Add variant',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.primaryDark,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Pick one value per attribute. SKU can match your warehouse labels.',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      ...attrs.map((a) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                a.name,
+                                style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: AppTheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    isExpanded: true,
+                                    value: selected[a.name],
+                                    items: a.values
+                                        .map(
+                                          (raw) => DropdownMenuItem(
+                                            value: _valueLabel(a, raw),
+                                            child: Text(_valueLabel(a, raw)),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: (v) {
+                                      if (v != null) {
+                                        setModal(() => selected[a.name] = v);
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 8),
+                      FilledButton(
+                        onPressed: () {
+                          final combo = Map<String, String>.from(selected);
+                          if (_variantLines.any((l) => _optionsEqual(l.options, combo))) {
+                            Navigator.pop(ctx, false);
+                            return;
+                          }
+                          final base = _sku.text.trim().isEmpty ? 'VAR' : _sku.text.trim();
+                          final idx = _variantLines.length + 1;
+                          _variantLines.add(_VariantLine(
+                            options: combo,
+                            initialSku: '$base-V$idx',
+                            initialStock: '0',
+                          ));
+                          Navigator.pop(ctx, true);
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppTheme.primaryDark,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: Text('Add variant', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
+    if (added == true && mounted) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Variant added')));
+    } else if (added == false && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('That combination already exists')),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -142,6 +403,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
         _category = _categories[0];
       }
     }
+    _initVariantLines();
   }
 
   String get _heroImageUrl {
@@ -157,6 +419,10 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     _salePrice.dispose();
     _sku.dispose();
     _stock.dispose();
+    _scrollController.dispose();
+    for (final v in _variantLines) {
+      v.dispose();
+    }
     super.dispose();
   }
 
@@ -168,6 +434,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     return Scaffold(
       backgroundColor: AppTheme.surface,
       body: CustomScrollView(
+        controller: _scrollController,
         slivers: [
           SliverAppBar(
             pinned: true,
@@ -368,18 +635,18 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
                           ),
                           const Spacer(),
                           TextButton(
-                            onPressed: () {},
+                            onPressed: () => context.push('/attributes'),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  'Manage Variants',
+                                  'Manage attributes',
                                   style: theme.textTheme.labelLarge?.copyWith(
                                     color: AppTheme.primary,
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
-                                Icon(Icons.chevron_right, size: 18, color: AppTheme.primary),
+                                const Icon(Icons.chevron_right, size: 18, color: AppTheme.primary),
                               ],
                             ),
                           ),
@@ -414,6 +681,140 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(height: 16),
+                ValueListenableBuilder<List<ProductAttribute>>(
+                  valueListenable: AttributesRepository.items,
+                  builder: (context, attrs, _) {
+                    return _CardShell(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Product variants',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppTheme.primaryDark,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Each variant is a unique combination of your attributes, with its own SKU and stock.',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        height: 1.35,
+                                        color: theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.layers_outlined, color: AppTheme.primaryDark, size: 22),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    attrs.isEmpty
+                                        ? 'No attributes yet. Tap “Manage attributes” above to define options like Color or Size.'
+                                        : '${attrs.length} attribute(s) available — use them to build variants below.',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      height: 1.4,
+                                      color: AppTheme.primaryDark,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          if (_variantLines.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Text(
+                                'No variants yet. Generate from attributes or add one manually.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            )
+                          else
+                            ..._variantLines.asMap().entries.map((e) {
+                              final i = e.key;
+                              final line = e.value;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: _VariantRowTile(
+                                  line: line,
+                                  onRemove: () {
+                                    setState(() {
+                                      line.dispose();
+                                      _variantLines.removeAt(i);
+                                    });
+                                  },
+                                ),
+                              );
+                            }),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: attrs.isEmpty ? null : _generateVariantsFromAttributes,
+                                  icon: const Icon(Icons.auto_awesome, size: 20),
+                                  label: Text(
+                                    'Generate from attributes',
+                                    style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppTheme.primaryDark,
+                                    side: BorderSide(color: AppTheme.primary.withValues(alpha: 0.35)),
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: FilledButton.icon(
+                                  onPressed: attrs.isEmpty ? null : _openAddVariantSheet,
+                                  icon: const Icon(Icons.add, size: 20),
+                                  label: Text(
+                                    'Add variant',
+                                    style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
+                                  ),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: AppTheme.primaryDark,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
                 _CardShell(
@@ -729,6 +1130,117 @@ class _MediaThumb extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _VariantRowTile extends StatelessWidget {
+  const _VariantRowTile({
+    required this.line,
+    required this.onRemove,
+  });
+
+  final _VariantLine line;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: const Border(
+          left: BorderSide(color: AppTheme.primary, width: 4),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  line.optionSummary,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryDark,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: onRemove,
+                icon: Icon(Icons.delete_outline_rounded, color: theme.colorScheme.error),
+                tooltip: 'Remove variant',
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'SKU',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: line.sku,
+                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                      decoration: _variantFieldDeco(theme),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Stock',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: line.stock,
+                      keyboardType: TextInputType.number,
+                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                      decoration: _variantFieldDeco(theme),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static InputDecoration _variantFieldDeco(ThemeData theme) {
+    return InputDecoration(
+      filled: true,
+      fillColor: theme.colorScheme.surfaceContainerLowest,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     );
   }
 }

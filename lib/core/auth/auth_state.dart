@@ -26,8 +26,9 @@ class AuthUser {
       id: json['id'] as String,
       email: json['email'] as String,
       role: json['role'] as String? ?? 'user',
-      tenantId: json['tenant_id'] as String?,
-      isMfaEnabled: json['is_mfa_enabled'] as bool? ?? false,
+      tenantId: json['tenant_id'] as String? ?? json['tenantId'] as String?,
+      isMfaEnabled:
+          json['is_mfa_enabled'] as bool? ?? json['mfaEnabled'] as bool? ?? false,
     );
   }
 }

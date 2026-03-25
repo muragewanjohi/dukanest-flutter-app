@@ -19,31 +19,9 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bottomInset = MediaQuery.of(context).padding.bottom;
-    // Space above bottom nav (matches Stitch pb-32 feel).
-    final fabBottomPadding = bottomInset + 72;
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      floatingActionButton: Padding(
-        padding: EdgeInsets.only(bottom: fabBottomPadding),
-        child: Material(
-          color: AppTheme.primary.withValues(alpha: 0.85),
-          shape: const CircleBorder(),
-          elevation: 8,
-          shadowColor: Colors.black26,
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: () {},
-            child: const SizedBox(
-              width: 56,
-              height: 56,
-              child: Icon(Icons.add, color: Colors.white),
-            ),
-          ),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: ListView(
         padding: EdgeInsets.fromLTRB(24, 8 + MediaQuery.of(context).padding.top, 24, 120),
         children: [

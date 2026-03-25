@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/onboarding/screens/onboarding_carousel_screen.dart';
 import '../features/onboarding/screens/login_screen.dart';
+import '../features/onboarding/screens/reset_password_screen.dart';
 import '../features/onboarding/screens/register_screen.dart';
 import '../features/onboarding/screens/mfa_screen.dart';
 import '../features/dashboard/screens/dashboard_shell.dart';
@@ -12,6 +13,10 @@ import '../features/orders/screens/orders_list_screen.dart';
 import '../features/orders/screens/order_detail_screen.dart';
 import '../features/products/screens/products_list_screen.dart';
 import '../features/products/screens/product_editor_screen.dart';
+import '../features/products/screens/categories_management_screen.dart';
+import '../features/products/screens/category_editor_screen.dart';
+import '../features/products/screens/attributes_management_screen.dart';
+import '../features/products/screens/attribute_editor_screen.dart';
 import '../features/dashboard/screens/more_menu_screen.dart';
 import '../features/analytics/screens/analytics_screen.dart';
 import '../features/notifications/screens/notifications_screen.dart';
@@ -36,7 +41,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isMfaPhase = state.matchedLocation == '/mfa';
 
       if (authState.status == AuthStatus.unauthenticated) {
-        if (isLoggingIn || isOnboarding || state.matchedLocation == '/register') return null;
+        if (isLoggingIn ||
+            isOnboarding ||
+            state.matchedLocation == '/register' ||
+            state.matchedLocation == '/reset-password') {
+          return null;
+        }
         return '/onboarding';
       }
 
@@ -44,8 +54,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '/mfa';
       }
 
-      if (authState.status == AuthStatus.authenticated && (isLoggingIn || isMfaPhase)) {
-        return '/dashboard';
+      if (authState.status == AuthStatus.authenticated) {
+        final isRegister = state.matchedLocation == '/register';
+        final isResetPassword =
+            state.matchedLocation == '/reset-password';
+        if (isLoggingIn ||
+            isMfaPhase ||
+            isOnboarding ||
+            isRegister ||
+            isResetPassword) {
+          return '/dashboard';
+        }
       }
 
       return null;
@@ -62,6 +81,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/reset-password',
+        builder: (context, state) => const ResetPasswordScreen(),
       ),
       GoRoute(
         path: '/mfa',
@@ -86,6 +109,40 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/sales-editor',
         builder: (context, state) => const SalesEditorScreen(),
+      ),
+      GoRoute(
+        path: '/categories',
+        builder: (context, state) => const CategoriesManagementScreen(),
+        routes: [
+          GoRoute(
+            path: 'new',
+            builder: (context, state) => const CategoryEditorScreen(),
+          ),
+          GoRoute(
+            path: 'edit/:id',
+            builder: (context, state) {
+              final id = Uri.decodeComponent(state.pathParameters['id']!);
+              return CategoryEditorScreen(categoryId: id);
+            },
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/attributes',
+        builder: (context, state) => const AttributesManagementScreen(),
+        routes: [
+          GoRoute(
+            path: 'new',
+            builder: (context, state) => const AttributeEditorScreen(),
+          ),
+          GoRoute(
+            path: 'edit/:id',
+            builder: (context, state) {
+              final id = Uri.decodeComponent(state.pathParameters['id']!);
+              return AttributeEditorScreen(attributeId: id);
+            },
+          ),
+        ],
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -120,14 +177,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/analytics',
-                builder: (context, state) => const AnalyticsScreen(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
                 path: '/products',
                 builder: (context, state) => const ProductsListScreen(),
                 routes: [
@@ -143,6 +192,14 @@ final routerProvider = Provider<GoRouter>((ref) {
                     },
                   ),
                 ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/analytics',
+                builder: (context, state) => const AnalyticsScreen(),
               ),
             ],
           ),

@@ -44,14 +44,14 @@ class DashboardShell extends StatelessWidget {
               label: 'Orders',
             ),
             NavigationDestination(
-              icon: Icon(Icons.bar_chart_outlined),
-              selectedIcon: Icon(Icons.bar_chart),
-              label: 'Analytics',
-            ),
-            NavigationDestination(
               icon: Icon(Icons.inventory_2_outlined),
               selectedIcon: Icon(Icons.inventory_2),
               label: 'Products',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.bar_chart_outlined),
+              selectedIcon: Icon(Icons.bar_chart),
+              label: 'Analytics',
             ),
             NavigationDestination(
               icon: Icon(Icons.more_horiz),

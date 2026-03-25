@@ -12,6 +12,14 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   );
 });
 
+String? _pickString(Map<String, dynamic> m, List<String> keys) {
+  for (final k in keys) {
+    final v = m[k];
+    if (v is String && v.isNotEmpty) return v;
+  }
+  return null;
+}
+
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthService _authService;
   final TokenStorage _tokenStorage;
@@ -38,22 +46,68 @@ class AuthNotifier extends StateNotifier<AuthState> {
       return;
     }
 
-    state = state.copyWith(error: null); // Clear previous errors
+    state = state.copyWith(error: null);
     final response = await _authService.login(email, password);
 
     if (response.success && response.data != null) {
       final data = response.data!;
-      await _tokenStorage.saveTokens(
-        accessToken: data['access_token'],
-        refreshToken: data['refresh_token'],
-      );
-      
-      final user = AuthUser.fromJson(data['user']);
-      
-      if (user.isMfaEnabled && data['mfa_required'] == true) {
-        state = state.copyWith(status: AuthStatus.awaitingMfa, user: user);
+      final userMap = data['user'];
+      if (userMap is! Map) {
+        state = state.copyWith(error: 'Invalid login response');
+        return;
+      }
+      final user = AuthUser.fromJson(Map<String, dynamic>.from(userMap));
+
+      final requiresMfa = data['requiresMfa'] == true ||
+          data['mfa_required'] == true ||
+          data['mfaRequired'] == true;
+      final pendingMfa =
+          requiresMfa || (user.isMfaEnabled && data['mfa_required'] == true);
+
+      final tempSessionRaw = data['tempSession'];
+      Map<String, dynamic>? tempSession;
+      if (tempSessionRaw is Map) {
+        tempSession = Map<String, dynamic>.from(tempSessionRaw);
+      }
+      final tempAccess = tempSession != null
+          ? _pickString(tempSession, ['accessToken', 'access_token'])
+          : null;
+      final tempRefresh = tempSession != null
+          ? (_pickString(tempSession, ['refreshToken', 'refresh_token']) ?? '')
+          : null;
+
+      final access = _pickString(data, ['access_token', 'accessToken']);
+      final refresh = _pickString(data, ['refresh_token', 'refreshToken']);
+
+      if (pendingMfa) {
+        if (tempAccess != null) {
+          await _tokenStorage.saveTokens(
+            accessToken: tempAccess,
+            refreshToken: tempRefresh ?? '',
+          );
+        } else if (access != null) {
+          await _tokenStorage.saveTokens(
+            accessToken: access,
+            refreshToken: refresh ?? '',
+          );
+        }
+        state = state.copyWith(
+          status: AuthStatus.awaitingMfa,
+          user: user,
+          error: null,
+        );
       } else {
-        state = state.copyWith(status: AuthStatus.authenticated, user: user);
+        if (access != null) {
+          await _tokenStorage.saveTokens(
+            accessToken: access,
+            refreshToken: refresh ?? '',
+          );
+        }
+        state = state.copyWith(
+          status: AuthStatus.authenticated,
+          user: user,
+          error: null,
+        );
       }
     } else {
       state = state.copyWith(
@@ -78,18 +132,66 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> verifyMfa(String code) async {
     state = state.copyWith(error: null);
-    final response = await _authService.verifyMfa(code);
-    
-    if (response.success && response.data != null) {
-      // Assuming verification returns full fresh tokens
-      await _tokenStorage.saveTokens(
-        accessToken: response.data!['access_token'],
-        refreshToken: response.data!['refresh_token'],
-      );
-      state = state.copyWith(status: AuthStatus.authenticated);
-    } else {
-      state = state.copyWith(error: response.error?.message ?? 'MFA verification failed');
+    final user = state.user;
+    if (user == null) {
+      state = state.copyWith(error: 'Session expired. Please sign in again.');
+      return;
     }
+    final tempAccess = await _tokenStorage.getAccessToken();
+    final tempRefresh = await _tokenStorage.getRefreshToken();
+    if (tempAccess == null || tempRefresh == null) {
+      state = state.copyWith(error: 'Session expired. Please sign in again.');
+      return;
+    }
+
+    final response = await _authService.verifyMfa(
+      userId: user.id,
+      code: code,
+      tempAccessToken: tempAccess,
+      tempRefreshToken: tempRefresh,
+    );
+
+    if (response.success && response.data != null) {
+      final d = response.data!;
+      final access = _pickString(d, ['access_token', 'accessToken']);
+      final refresh = _pickString(d, ['refresh_token', 'refreshToken']);
+      if (access != null) {
+        await _tokenStorage.saveTokens(
+          accessToken: access,
+          refreshToken: refresh ?? '',
+        );
+      }
+      state = state.copyWith(
+        status: AuthStatus.authenticated,
+        user: user,
+        error: null,
+      );
+    } else {
+      state = state.copyWith(
+        error: response.error?.message ?? 'MFA verification failed',
+      );
+    }
+  }
+
+  Future<void> resendMfaCode() async {
+    final user = state.user;
+    if (user == null) return;
+    state = state.copyWith(error: null);
+    final response = await _authService.sendMfaCode(user.id);
+    if (!response.success) {
+      state = state.copyWith(
+        error: response.error?.message ?? 'Could not resend code',
+      );
+    }
+  }
+
+  Future<void> cancelMfa() async {
+    await _tokenStorage.clearTokens();
+    state = state.copyWith(
+      status: AuthStatus.unauthenticated,
+      user: null,
+      error: null,
+    );
   }
 
   Future<void> googleSignIn(String idToken) async {
@@ -113,17 +215,28 @@ class AuthNotifier extends StateNotifier<AuthState> {
     
     if (response.success && response.data != null) {
       final data = response.data!;
-      await _tokenStorage.saveTokens(
-        accessToken: data['access_token'],
-        refreshToken: data['refresh_token'],
-      );
-      
-      final user = AuthUser.fromJson(data['user']);
-      if (user.isMfaEnabled && data['mfa_required'] == true) {
-         state = state.copyWith(status: AuthStatus.awaitingMfa, user: user);
-      } else {
-         state = state.copyWith(status: AuthStatus.authenticated, user: user);
+      final access = _pickString(data, ['access_token', 'accessToken']);
+      final refresh = _pickString(data, ['refresh_token', 'refreshToken']);
+      if (access != null) {
+        await _tokenStorage.saveTokens(
+          accessToken: access,
+          refreshToken: refresh ?? '',
+        );
       }
+
+      final userMap = data['user'];
+      if (userMap is! Map) {
+        state = state.copyWith(error: 'Invalid sign-in response');
+        return;
+      }
+      final user = AuthUser.fromJson(Map<String, dynamic>.from(userMap));
+
+      // Google sign-in: skip email OTP — OAuth satisfies the second factor.
+      state = state.copyWith(
+        status: AuthStatus.authenticated,
+        user: user,
+        error: null,
+      );
     } else {
        state = state.copyWith(error: response.error?.message ?? 'Google Sign In failed');
     }

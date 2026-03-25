@@ -27,17 +27,87 @@ class AuthService {
     }
   }
 
-  Future<ApiResponse<Map<String, dynamic>>> verifyMfa(String code) async {
+  Future<ApiResponse<Map<String, dynamic>>> verifyMfa({
+    required String userId,
+    required String code,
+    required String tempAccessToken,
+    required String tempRefreshToken,
+  }) async {
     try {
       final response = await _dio.post('/auth/mfa/verify', data: {
+        'userId': userId,
         'code': code,
+        'tempSession': {
+          'accessToken': tempAccessToken,
+          'refreshToken': tempRefreshToken,
+        },
       });
-      return ApiResponse.fromJson(response.data, (json) => json as Map<String, dynamic>);
+      return ApiResponse.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => json as Map<String, dynamic>,
+      );
     } on DioException catch (e) {
       if (e.response != null) {
-         return ApiResponse.fromJson(e.response!.data as Map<String, dynamic>, (json) => json as Map<String, dynamic>);
+        return ApiResponse.fromJson(
+          e.response!.data as Map<String, dynamic>,
+          (json) => json as Map<String, dynamic>,
+        );
       }
-      return ApiResponse(success: false, error: ApiError(code: 'NETWORK_ERROR', message: e.message ?? 'Network error'));
+      return ApiResponse(
+        success: false,
+        error: ApiError(code: 'NETWORK_ERROR', message: e.message ?? 'Network error'),
+      );
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> sendMfaCode(String userId) async {
+    try {
+      final response = await _dio.post('/auth/mfa/send-code', data: {
+        'userId': userId,
+      });
+      return ApiResponse.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => json as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      if (e.response != null) {
+        return ApiResponse.fromJson(
+          e.response!.data as Map<String, dynamic>,
+          (json) => json as Map<String, dynamic>,
+        );
+      }
+      return ApiResponse(
+        success: false,
+        error: ApiError(code: 'NETWORK_ERROR', message: e.message ?? 'Network error'),
+      );
+    }
+  }
+
+  Future<ApiResponse<Map<String, dynamic>>> requestPasswordReset(
+    String email,
+  ) async {
+    try {
+      final response = await _dio.post('/auth/forgot-password', data: {
+        'email': email,
+      });
+      return ApiResponse.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => json as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      if (e.response != null) {
+        return ApiResponse.fromJson(
+          e.response!.data as Map<String, dynamic>,
+          (json) => json as Map<String, dynamic>,
+        );
+      }
+      return ApiResponse(
+        success: false,
+        error: ApiError(
+          code: 'NETWORK_ERROR',
+          message: e.message ?? 'Network error',
+        ),
+      );
     }
   }
 

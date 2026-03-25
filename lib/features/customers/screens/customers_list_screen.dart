@@ -31,6 +31,14 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
     return '${parts[0].substring(0, 1)}${parts[1].substring(0, 1)}'.toUpperCase();
   }
 
+  void _goBack(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/more');
+    }
+  }
+
   void _showCustomerSheet(DemoCustomer c) {
     showModalBottomSheet<void>(
       context: context,
@@ -96,17 +104,27 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
                   foregroundColor: theme.colorScheme.onSurfaceVariant,
                 ),
                 icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-                onPressed: () => context.pop(),
+                onPressed: () => _goBack(context),
               ),
-              const SizedBox(width: 12),
-              Text(
-                'Customers',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: AppTheme.primaryDark,
-                  fontWeight: FontWeight.w700,
+              const SizedBox(width: 8),
+              Image.asset(
+                'assets/images/logo_with_name.png',
+                height: 28,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const SizedBox(height: 28, width: 28),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Customers',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: AppTheme.primaryDark,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-              const Spacer(),
               IconButton(
                 icon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
                 onPressed: () {},
