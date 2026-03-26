@@ -742,14 +742,8 @@ class _QuickActionCards extends StatelessWidget {
         color: AppTheme.primaryDark,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 16,
-        // Taller than wide so icon + two text lines fit without overflow (was 1.15).
-        childAspectRatio: 0.92,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Material(
             color: Colors.white,
@@ -801,6 +795,7 @@ class _QuickActionCards extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 16),
           Material(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),

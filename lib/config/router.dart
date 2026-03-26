@@ -21,7 +21,16 @@ import '../features/dashboard/screens/more_menu_screen.dart';
 import '../features/analytics/screens/analytics_screen.dart';
 import '../features/notifications/screens/notifications_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
+import '../features/settings/screens/store_identity_screen.dart';
+import '../features/settings/screens/tax_settings_screen.dart';
+import '../features/settings/screens/payment_settings_screen.dart';
+import '../features/settings/screens/shipping_delivery_screen.dart';
+import '../features/settings/screens/manage_zones_screen.dart';
+import '../features/settings/screens/delivery_zone_editor_screen.dart';
 import '../features/content/screens/content_management_screen.dart';
+import '../features/content/screens/blog_post_editor_screen.dart';
+import '../features/content/screens/page_editor_screen.dart';
+import '../features/content/screens/hero_section_editor_screen.dart';
 import '../features/sales/screens/sales_editor_screen.dart';
 import '../features/customers/screens/customers_list_screen.dart';
 import '../features/onboarding/providers/auth_provider.dart';
@@ -99,12 +108,62 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SettingsScreen(),
       ),
       GoRoute(
+        path: '/store-identity',
+        builder: (context, state) => const StoreIdentityScreen(),
+      ),
+      GoRoute(
+        path: '/tax-settings',
+        builder: (context, state) => const TaxSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/payment-settings',
+        builder: (context, state) => const PaymentSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/shipping-delivery',
+        builder: (context, state) => const ShippingDeliveryScreen(),
+      ),
+      GoRoute(
+        path: '/shipping-zones',
+        builder: (context, state) => const ManageZonesScreen(),
+      ),
+      GoRoute(
+        path: '/shipping-zone-editor',
+        builder: (context, state) {
+          final extra = state.extra;
+          final args = extra is DeliveryZoneEditorArgs ? extra : null;
+          return DeliveryZoneEditorScreen(args: args);
+        },
+      ),
+      GoRoute(
         path: '/customers',
         builder: (context, state) => const CustomersListScreen(),
       ),
       GoRoute(
         path: '/content-management',
         builder: (context, state) => const ContentManagementScreen(),
+      ),
+      GoRoute(
+        path: '/blog-post/new',
+        builder: (context, state) => const BlogPostEditorScreen(),
+      ),
+      GoRoute(
+        path: '/blog-post/edit/:id',
+        builder: (context, state) {
+          final id = Uri.decodeComponent(state.pathParameters['id']!);
+          return BlogPostEditorScreen(postId: id);
+        },
+      ),
+      GoRoute(
+        path: '/page-editor/:slug',
+        builder: (context, state) {
+          final slug = Uri.decodeComponent(state.pathParameters['slug']!);
+          return PageEditorScreen(pageSlug: slug);
+        },
+      ),
+      GoRoute(
+        path: '/hero-section/edit',
+        builder: (context, state) => const HeroSectionEditorScreen(),
       ),
       GoRoute(
         path: '/sales-editor',

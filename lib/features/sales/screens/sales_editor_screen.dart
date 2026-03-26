@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 import '../../../config/theme.dart';
 
@@ -32,8 +33,10 @@ class _SalesEditorScreenState extends State<SalesEditorScreen> {
   late List<_SaleProduct> _products;
 
   final _saleName = TextEditingController(text: 'Summer Solstice Clearance');
-  final _startDate = TextEditingController(text: 'June 21, 2024');
-  final _endDate = TextEditingController(text: 'June 30, 2024');
+  final _startDateDisplay = TextEditingController();
+  final _endDateDisplay = TextEditingController();
+  DateTime _startDate = DateTime(2024, 6, 21);
+  DateTime _endDate = DateTime(2024, 6, 30);
   final _note = TextEditingController(
     text: 'Focusing on top sellers for the summer clearance event.',
   );
@@ -45,9 +48,17 @@ class _SalesEditorScreenState extends State<SalesEditorScreen> {
   static const _imgSneakers =
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCg9j4DS723vZU5EZSqm0rCQMfAlHp7eWXJsYQxSJOcGwE8VmA2x-DRtKxTfThhvcy8yy4PZUbsa5daRKC1iP9WuqCDHqUak94QTIgavReecYmdPz3-TsOC9dNNlrI5uP4KPmhe2khcRgdFnH5O_cRMzhiP62s8pFYfkjIZo_bwVO-noV1YOmUP3Xp0modw-IPc6HXyvL_WId893rs57e0dwmsf5Ke3gclK9CH44B0bLDFW5KzomcKpzHW5M_5ucC45UxiAkEk-anEG';
 
+  static final _dateFmt = DateFormat.yMMMMd();
+
+  void _syncDateFields() {
+    _startDateDisplay.text = _dateFmt.format(_startDate);
+    _endDateDisplay.text = _dateFmt.format(_endDate);
+  }
+
   @override
   void initState() {
     super.initState();
+    _syncDateFields();
     _products = [
       _SaleProduct(
         name: 'Minimalist Chrono Watch',
@@ -76,10 +87,29 @@ class _SalesEditorScreenState extends State<SalesEditorScreen> {
       p.salePriceCtrl.dispose();
     }
     _saleName.dispose();
-    _startDate.dispose();
-    _endDate.dispose();
+    _startDateDisplay.dispose();
+    _endDateDisplay.dispose();
     _note.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDate({required bool isStart}) async {
+    final initial = isStart ? _startDate : _endDate;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      if (isStart) {
+        _startDate = picked;
+      } else {
+        _endDate = picked;
+      }
+      _syncDateFields();
+    });
   }
 
   void _removeProduct(int index) {
@@ -129,40 +159,6 @@ class _SalesEditorScreenState extends State<SalesEditorScreen> {
       const SnackBar(content: Text('Sale saved (demo)')),
     );
     context.pop();
-  }
-
-  /// Same pattern as attribute editor: red circular outline + minus.
-  Widget _roundRedMinusButton({
-    required VoidCallback onPressed,
-    required String tooltip,
-  }) {
-    final error = Theme.of(context).colorScheme.error;
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: 44,
-            height: 44,
-            child: Center(
-              child: Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: error, width: 2),
-                ),
-                child: Icon(Icons.remove, color: error, size: 20, weight: 700),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   InputDecoration _fieldDeco(ThemeData theme, {String? hint, Widget? suffix}) {
@@ -224,7 +220,7 @@ class _SalesEditorScreenState extends State<SalesEditorScreen> {
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -274,18 +270,46 @@ class _SalesEditorScreenState extends State<SalesEditorScreen> {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: _dateField(theme, 'Start Date', _startDate, Icons.calendar_today_outlined)),
+                    Expanded(
+                      child: _dateField(
+                        theme,
+                        label: 'Start Date',
+                        controller: _startDateDisplay,
+                        icon: Icons.calendar_today_outlined,
+                        onPick: () => _pickDate(isStart: true),
+                      ),
+                    ),
                     const SizedBox(width: 16),
-                    Expanded(child: _dateField(theme, 'End Date', _endDate, Icons.calendar_month_outlined)),
+                    Expanded(
+                      child: _dateField(
+                        theme,
+                        label: 'End Date',
+                        controller: _endDateDisplay,
+                        icon: Icons.calendar_month_outlined,
+                        onPick: () => _pickDate(isStart: false),
+                      ),
+                    ),
                   ],
                 );
               }
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _dateField(theme, 'Start Date', _startDate, Icons.calendar_today_outlined),
+                  _dateField(
+                    theme,
+                    label: 'Start Date',
+                    controller: _startDateDisplay,
+                    icon: Icons.calendar_today_outlined,
+                    onPick: () => _pickDate(isStart: true),
+                  ),
                   const SizedBox(height: 16),
-                  _dateField(theme, 'End Date', _endDate, Icons.calendar_month_outlined),
+                  _dateField(
+                    theme,
+                    label: 'End Date',
+                    controller: _endDateDisplay,
+                    icon: Icons.calendar_month_outlined,
+                    onPick: () => _pickDate(isStart: false),
+                  ),
                 ],
               );
             },
@@ -356,46 +380,63 @@ class _SalesEditorScreenState extends State<SalesEditorScreen> {
               );
             },
           ),
-        ],
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _roundRedMinusButton(
-                tooltip: 'Delete sale',
-                onPressed: _confirmDeleteSale,
+          const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Step 2 coming soon (demo)')),
+                );
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.primaryDark,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Step 2 coming soon (demo)')),
-                    );
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.primaryDark,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Text(
-                    'Continue to step 2',
-                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+              child: Text(
+                'Continue to step 2',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton(
+            onPressed: _confirmDeleteSale,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: theme.colorScheme.error,
+              side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.15), width: 2),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.delete_outline_rounded, size: 20, color: theme.colorScheme.error),
+                const SizedBox(width: 8),
+                Text(
+                  'Delete sale',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  Widget _dateField(ThemeData theme, String label, TextEditingController c, IconData icon) {
+  Widget _dateField(
+    ThemeData theme, {
+    required String label,
+    required TextEditingController controller,
+    required IconData icon,
+    required VoidCallback onPick,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -409,13 +450,16 @@ class _SalesEditorScreenState extends State<SalesEditorScreen> {
         ),
         const SizedBox(height: 8),
         TextField(
-          controller: c,
+          controller: controller,
+          readOnly: true,
+          onTap: onPick,
           style: GoogleFonts.inter(fontWeight: FontWeight.w500),
           decoration: _fieldDeco(
             theme,
-            suffix: Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Icon(icon, color: theme.colorScheme.outline, size: 22),
+            suffix: IconButton(
+              icon: Icon(icon, color: theme.colorScheme.outline, size: 22),
+              onPressed: onPick,
+              tooltip: 'Choose date',
             ),
           ),
         ),
@@ -529,9 +573,13 @@ class _SalesEditorScreenState extends State<SalesEditorScreen> {
                   ],
                 ),
               ),
-              _roundRedMinusButton(
+              IconButton(
                 tooltip: 'Remove product',
                 onPressed: () => _removeProduct(i),
+                icon: Icon(
+                  Icons.delete_outline_rounded,
+                  color: theme.colorScheme.error.withValues(alpha: 0.55),
+                ),
               ),
             ],
           ),
