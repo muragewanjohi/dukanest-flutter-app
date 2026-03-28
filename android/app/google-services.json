@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "568994211198",
+    "project_id": "gen-lang-client-0584808245",
+    "storage_bucket": "gen-lang-client-0584808245.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:568994211198:android:42dc8bb01642d41b37ff2f",
+        "android_client_info": {
+          "package_name": "com.dukanest.dukanest_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUtOqgI8hFbnEtVTq8Vr1xWWLTaYoNHpI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

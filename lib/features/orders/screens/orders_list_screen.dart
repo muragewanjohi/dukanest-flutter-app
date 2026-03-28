@@ -1,69 +1,202 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
 
 /// Order Fulfillment — Stitch layout (metrics, chips, order cards, processing goal).
-class OrdersListScreen extends StatefulWidget {
+class OrdersListScreen extends ConsumerStatefulWidget {
   const OrdersListScreen({super.key});
 
   @override
-  State<OrdersListScreen> createState() => _OrdersListScreenState();
+  ConsumerState<OrdersListScreen> createState() => _OrdersListScreenState();
 }
 
-class _OrdersListScreenState extends State<OrdersListScreen> {
+class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
   int _filterIndex = 0;
+  int _currentPage = 1;
+  int _pageSize = 20;
+  int _totalPages = 1;
+  int _totalItems = 0;
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<_OrderListItem> _allOrders = const [];
+  bool _isLiveData = false;
+
+  static const _filters = ['All Orders', 'Pending', 'Paid', 'Shipped'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOrders();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
 
   static String _orderKeyFromId(String raw) {
     final match = RegExp(r'#([A-Z]+-\d+)').firstMatch(raw);
     return match?.group(1) ?? raw.replaceAll(RegExp(r'[^A-Z0-9-]'), '');
   }
 
+  String _normalizeStatus(String input) {
+    final lower = input.trim().toLowerCase();
+    if (lower.contains('pending')) return 'Pending';
+    if (lower.contains('paid') || lower.contains('payment')) return 'Paid';
+    if (lower.contains('ship') || lower.contains('fulfill') || lower.contains('deliver')) {
+      return 'Shipped';
+    }
+    return 'Pending';
+  }
+
+  String _formatCurrency(dynamic amount, String? currencyCode) {
+    if (amount is num) {
+      final code = (currencyCode == null || currencyCode.isEmpty) ? 'KES' : currencyCode;
+      return '$code ${amount.toStringAsFixed(2)}';
+    }
+    if (amount is String && amount.trim().isNotEmpty) return amount;
+    return 'KES 0.00';
+  }
+
+  String? _apiStatusFromFilter() {
+    final selectedFilter = _filters[_filterIndex];
+    return switch (selectedFilter) {
+      'All Orders' => null,
+      'Pending' => 'pending',
+      'Paid' => 'paid',
+      'Shipped' => 'shipped',
+      _ => null,
+    };
+  }
+
+  Future<void> _loadOrders({int? pageOverride}) async {
+    final pageToLoad = pageOverride ?? _currentPage;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final api = ref.read(apiClientProvider);
+      final response = await api.getOrders(
+        page: pageToLoad,
+        limit: _pageSize,
+        search: _searchController.text.trim(),
+        status: _apiStatusFromFilter(),
+      );
+
+      if (!response.success) {
+        throw StateError(response.error?.message ?? 'Failed to load orders');
+      }
+
+      final payload = response.data;
+      final items = payload is Map<String, dynamic>
+          ? payload['items'] ?? payload['orders'] ?? payload['data']
+          : payload;
+      if (items is! List) {
+        throw const FormatException('Invalid orders response');
+      }
+
+      final mapped = items.whereType<Map>().map((raw) {
+        final order = Map<String, dynamic>.from(raw);
+        final idValue = order['code'] ??
+            order['orderNumber'] ??
+            order['order_number'] ??
+            order['id'] ??
+            'UNKNOWN';
+        final idText = idValue.toString();
+        final idLine = idText.startsWith('#') ? 'ORDER $idText' : 'ORDER #$idText';
+        final status = _normalizeStatus((order['status'] ?? '').toString());
+        final currencyCode = (order['currencyCode'] ?? order['currency_code'])?.toString();
+        final totalText = _formatCurrency(order['total'] ?? order['totalAmount'] ?? order['amount'], currencyCode);
+        final quantity = order['itemCount'] ?? order['totalItems'] ?? order['itemsCount'];
+        final quantityText = quantity is num ? '${quantity.toInt()} Items' : 'Items';
+        final detail = '$quantityText • $totalText';
+        final customer = (order['customerName'] ??
+                order['customer_name'] ??
+                order['customer'] ??
+                order['email'] ??
+                'Customer')
+            .toString();
+        final dateText = (order['createdAt'] ??
+                order['created_at'] ??
+                order['updatedAt'] ??
+                order['updated_at'] ??
+                'Recent')
+            .toString();
+
+        return _OrderListItem(
+          idLine: idLine,
+          date: dateText,
+          customer: customer,
+          status: status,
+          detail: detail,
+        );
+      }).toList();
+
+      setState(() {
+        _allOrders = mapped;
+        _currentPage = response.pagination?.page ?? pageToLoad;
+        _pageSize = response.pagination?.limit ?? _pageSize;
+        _totalPages = response.pagination?.totalPages ?? 1;
+        _totalItems = response.pagination?.total ?? mapped.length;
+        _isLiveData = true;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLiveData = false;
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<_OrderListItem> get _visibleOrders {
+    return _allOrders;
+  }
+
+  void _onFilterChanged(int index) {
+    setState(() => _filterIndex = index);
+    _loadOrders(pageOverride: 1);
+  }
+
+  void _onSearchChanged(String _) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(
+      const Duration(milliseconds: 300),
+      () => _loadOrders(pageOverride: 1),
+    );
+  }
+
+  void _goPrevPage() {
+    if (_currentPage <= 1 || _isLoading) return;
+    _loadOrders(pageOverride: _currentPage - 1);
+  }
+
+  void _goNextPage() {
+    if (_currentPage >= _totalPages || _isLoading) return;
+    _loadOrders(pageOverride: _currentPage + 1);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final filters = ['All Orders', 'Pending', 'Paid', 'Shipped'];
-    final orders = <({
-      String idLine,
-      String date,
-      String customer,
-      String status,
-      String detail,
-    })>[
-      (
-        idLine: 'ORDER #DK-9821',
-        date: 'Oct 24, 10:45 AM',
-        customer: 'Sarah Jenkins',
-        status: 'Pending',
-        detail: '3 Items • \$142.00',
-      ),
-      (
-        idLine: 'ORDER #DK-9819',
-        date: 'Oct 24, 09:12 AM',
-        customer: 'Marcus Thorne',
-        status: 'Paid',
-        detail: '1 Item • \$89.50',
-      ),
-      (
-        idLine: 'ORDER #DK-9815',
-        date: 'Oct 23, 04:30 PM',
-        customer: 'Elena Rodriguez',
-        status: 'Shipped',
-        detail: '5 Items • \$320.15',
-      ),
-      (
-        idLine: 'ORDER #DK-9810',
-        date: 'Oct 23, 11:15 AM',
-        customer: 'David Kim',
-        status: 'Pending',
-        detail: '2 Items • \$45.00',
-      ),
-    ];
+    final orders = _visibleOrders;
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
       body: RefreshIndicator(
-        onRefresh: () async => Future<void>.delayed(const Duration(milliseconds: 600)),
+        onRefresh: _loadOrders,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
@@ -102,6 +235,8 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            _OrdersDataSourceBadge(isLiveData: _isLiveData),
+            const SizedBox(height: 12),
             const Row(
               children: [
                 Expanded(child: _MetricCardActiveToday(value: '24')),
@@ -114,14 +249,14 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
               height: 40,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: filters.length,
+                itemCount: _filters.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   final selected = _filterIndex == index;
                   return _FilterChip(
-                    label: filters[index],
+                    label: _filters[index],
                     selected: selected,
-                    onTap: () => setState(() => _filterIndex = index),
+                    onTap: () => _onFilterChanged(index),
                   );
                 },
               ),
@@ -129,7 +264,18 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
             const SizedBox(height: 12),
             SearchBar(
               hintText: 'Search orders...',
+              controller: _searchController,
+              onChanged: _onSearchChanged,
               leading: const Icon(Icons.search),
+              trailing: _isLoading
+                  ? const [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ]
+                  : null,
               elevation: WidgetStateProperty.all(0),
               backgroundColor: WidgetStateProperty.all(Colors.white),
               side: WidgetStateProperty.all(
@@ -140,21 +286,85 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
               ),
             ),
             const SizedBox(height: 14),
-            ...orders.map((order) {
-              final key = _orderKeyFromId(order.idLine);
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _OrderCard(
-                  idLine: order.idLine,
-                  date: order.date,
-                  customer: order.customer,
-                  status: order.status,
-                  detail: order.detail,
-                  accentLeft: order.status == 'Pending',
-                  onOpen: () => context.push('/orders/detail/${Uri.encodeComponent(key)}'),
+            if (_isLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_errorMessage != null)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              );
-            }),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Could not load orders',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _errorMessage!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _loadOrders,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              )
+            else if (orders.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'No orders found for the selected filter.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              )
+            else
+              ...orders.map((order) {
+                final key = _orderKeyFromId(order.idLine);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _OrderCard(
+                    idLine: order.idLine,
+                    date: order.date,
+                    customer: order.customer,
+                    status: order.status,
+                    detail: order.detail,
+                    accentLeft: order.status == 'Pending',
+                    onOpen: () => context.push('/orders/detail/${Uri.encodeComponent(key)}'),
+                  ),
+                );
+              }),
+            if (!_isLoading && _errorMessage == null) ...[
+              const SizedBox(height: 12),
+              _OrdersPaginationBar(
+                currentPage: _currentPage,
+                totalPages: _totalPages,
+                totalItems: _totalItems,
+                onPrev: _goPrevPage,
+                onNext: _goNextPage,
+                canPrev: _currentPage > 1,
+                canNext: _currentPage < _totalPages,
+              ),
+            ],
             const SizedBox(height: 8),
             const _ProcessingGoalCard(),
             const SizedBox(height: 12),
@@ -162,6 +372,111 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _OrderListItem {
+  const _OrderListItem({
+    required this.idLine,
+    required this.date,
+    required this.customer,
+    required this.status,
+    required this.detail,
+  });
+
+  final String idLine;
+  final String date;
+  final String customer;
+  final String status;
+  final String detail;
+}
+
+class _OrdersDataSourceBadge extends StatelessWidget {
+  const _OrdersDataSourceBadge({required this.isLiveData});
+
+  final bool isLiveData;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isLiveData ? const Color(0xFFD1FAE5) : const Color(0xFFFFF4E5);
+    final fg = isLiveData ? const Color(0xFF065F46) : const Color(0xFF9A3412);
+    final label = isLiveData ? 'LIVE ORDERS DATA' : 'FALLBACK / NO LIVE DATA';
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: fg.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isLiveData ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+              size: 14,
+              color: fg,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.7,
+              ).copyWith(color: fg),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OrdersPaginationBar extends StatelessWidget {
+  const _OrdersPaginationBar({
+    required this.currentPage,
+    required this.totalPages,
+    required this.totalItems,
+    required this.onPrev,
+    required this.onNext,
+    required this.canPrev,
+    required this.canNext,
+  });
+
+  final int currentPage;
+  final int totalPages;
+  final int totalItems;
+  final VoidCallback onPrev;
+  final VoidCallback onNext;
+  final bool canPrev;
+  final bool canNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Page $currentPage of $totalPages • $totalItems total',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        IconButton(
+          onPressed: canPrev ? onPrev : null,
+          icon: const Icon(Icons.chevron_left),
+        ),
+        IconButton(
+          onPressed: canNext ? onNext : null,
+          icon: const Icon(Icons.chevron_right),
+        ),
+      ],
     );
   }
 }

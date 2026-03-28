@@ -1,11 +1,30 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
 
 /// Home dashboard aligned with Stitch screen
 /// `projects/13184140852829986275/screens/a93fc25cee2c4ac98d30472dc7535058`
 /// (HTML + screenshot in `docs/backend-context/stitch-exports/`).
-class DashboardScreen extends StatelessWidget {
+final dashboardOverviewProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
+  try {
+    final api = ref.read(apiClientProvider);
+    final response = await api.getDashboardOverview();
+    if (!response.success || response.data == null) return null;
+    final payload = response.data;
+    if (payload is! Map<String, dynamic>) return null;
+    final data = payload['data'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(payload['data'] as Map)
+        : payload;
+    return data;
+  } catch (_) {
+    return null;
+  }
+});
+
+class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   static const _cardShadow = [
@@ -16,9 +35,71 @@ class DashboardScreen extends StatelessWidget {
     ),
   ];
 
+  String _toCurrency(dynamic v, {String currency = 'KES'}) {
+    if (v is num) return '$currency ${v.toStringAsFixed(2)}';
+    if (v is String && v.trim().isNotEmpty) return v;
+    return '$currency 0.00';
+  }
+
+  List<({String name, String subtitle})> _extractLowStockItems(Map<String, dynamic>? data) {
+    if (data == null) {
+      return const [
+        (name: 'Organic Coffee Beans', subtitle: 'Only 2 units left'),
+        (name: 'Almond Milk 1L', subtitle: 'Only 5 units left'),
+      ];
+    }
+    final candidates = data['lowStockItems'] ??
+        data['stockAlerts'] ??
+        data['lowStock'] ??
+        data['inventoryAlerts'];
+    if (candidates is! List) {
+      return const [
+        (name: 'Organic Coffee Beans', subtitle: 'Only 2 units left'),
+        (name: 'Almond Milk 1L', subtitle: 'Only 5 units left'),
+      ];
+    }
+    final mapped = candidates.whereType<Map>().map((raw) {
+      final item = Map<String, dynamic>.from(raw);
+      final name = (item['name'] ?? item['productName'] ?? 'Low stock item').toString();
+      final qty = item['stock'] ?? item['stockQuantity'] ?? item['quantity'] ?? item['available'];
+      final subtitle = qty is num ? 'Only ${qty.toInt()} units left' : 'Needs restock';
+      return (name: name, subtitle: subtitle);
+    }).toList();
+    if (mapped.isEmpty) {
+      return const [
+        (name: 'Organic Coffee Beans', subtitle: 'Only 2 units left'),
+        (name: 'Almond Milk 1L', subtitle: 'Only 5 units left'),
+      ];
+    }
+    return mapped.take(3).toList();
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final overview = ref.watch(dashboardOverviewProvider);
+    final data = overview.asData?.value;
+    final isLiveData = data != null;
+
+    final metrics = data?['metrics'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(data!['metrics'] as Map)
+        : <String, dynamic>{};
+
+    final pendingOrdersValue = (metrics['pendingOrders'] ??
+            metrics['pending_orders'] ??
+            metrics['activeOrders'] ??
+            24)
+        .toString();
+    final completedOrdersValue = (metrics['completedOrders'] ??
+            metrics['completed_orders'] ??
+            metrics['ordersLast30Days'] ??
+            182)
+        .toString();
+    final revenueValue = _toCurrency(
+      metrics['weeklyRevenue'] ?? metrics['revenue'] ?? 12450,
+      currency: (metrics['currencyCode'] ?? 'KES').toString(),
+    );
+    final lowStockItems = _extractLowStockItems(data);
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
@@ -71,17 +152,19 @@ class DashboardScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 32),
+          _OverviewDataSourceBadge(isLiveData: isLiveData),
+          const SizedBox(height: 12),
           _gettingStartedCard(context, theme),
           const SizedBox(height: 24),
-          _weeklyRevenueCard(context, theme),
+          _weeklyRevenueCard(context, theme, revenueValue: revenueValue),
           const SizedBox(height: 24),
-          _pendingOrdersCard(theme),
+          _pendingOrdersCard(theme, value: pendingOrdersValue),
           const SizedBox(height: 24),
-          _completedOrdersCard(theme),
+          _completedOrdersCard(theme, value: completedOrdersValue),
           const SizedBox(height: 24),
-          _stockAlertsCard(context, theme),
+          _stockAlertsCard(context, theme, items: lowStockItems),
           const SizedBox(height: 24),
-          _growCard(theme),
+          _growCard(context, theme),
           const SizedBox(height: 24),
         ],
       ),
@@ -159,7 +242,11 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _weeklyRevenueCard(BuildContext context, ThemeData theme) {
+  Widget _weeklyRevenueCard(
+    BuildContext context,
+    ThemeData theme, {
+    required String revenueValue,
+  }) {
     const chartHeight = 192.0; // Tailwind h-48
     const barGap = 4.0;
     const fractions = <double>[0.40, 0.55, 0.45, 0.70, 0.90, 0.60, 0.75];
@@ -242,7 +329,7 @@ class DashboardScreen extends StatelessWidget {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                '\$12,450.00',
+                revenueValue,
                 style: theme.textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppTheme.primaryDark,
@@ -263,7 +350,7 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _pendingOrdersCard(ThemeData theme) {
+  Widget _pendingOrdersCard(ThemeData theme, {required String value}) {
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.surfaceContainerLow,
@@ -292,7 +379,7 @@ class DashboardScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            '24',
+            value,
             style: theme.textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.w700,
               color: theme.colorScheme.onSurface,
@@ -311,7 +398,7 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _completedOrdersCard(ThemeData theme) {
+  Widget _completedOrdersCard(ThemeData theme, {required String value}) {
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.surfaceContainerLow,
@@ -337,7 +424,7 @@ class DashboardScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            '182',
+            value,
             style: theme.textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.w700,
               color: theme.colorScheme.onSurface,
@@ -356,7 +443,11 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _stockAlertsCard(BuildContext context, ThemeData theme) {
+  Widget _stockAlertsCard(
+    BuildContext context,
+    ThemeData theme, {
+    required List<({String name, String subtitle})> items,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.surfaceContainerLowest,
@@ -396,9 +487,14 @@ class DashboardScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 24),
-          _stockRow(context, theme, 'Organic Coffee Beans', 'Only 2 units left'),
-          const SizedBox(height: 16),
-          _stockRow(context, theme, 'Almond Milk 1L', 'Only 5 units left'),
+          ...items.asMap().entries.map((entry) {
+            final i = entry.key;
+            final item = entry.value;
+            return Padding(
+              padding: EdgeInsets.only(bottom: i == items.length - 1 ? 0 : 16),
+              child: _stockRow(context, theme, item.name, item.subtitle),
+            );
+          }),
         ],
       ),
     );
@@ -442,7 +538,7 @@ class DashboardScreen extends StatelessWidget {
             ),
           ),
           TextButton(
-            onPressed: () {},
+            onPressed: () => context.go('/products'),
             style: TextButton.styleFrom(
               foregroundColor: AppTheme.primary,
               padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -460,7 +556,7 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _growCard(ThemeData theme) {
+  Widget _growCard(BuildContext context, ThemeData theme) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Stack(
@@ -514,7 +610,7 @@ class DashboardScreen extends StatelessWidget {
                   runSpacing: 12,
                   children: [
                     FilledButton.icon(
-                      onPressed: () {},
+                      onPressed: () => context.push('/products/new'),
                       style: FilledButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: AppTheme.primaryDark,
@@ -528,7 +624,7 @@ class DashboardScreen extends StatelessWidget {
                       ),
                     ),
                     FilledButton(
-                      onPressed: () {},
+                      onPressed: () => context.go('/orders'),
                       style: FilledButton.styleFrom(
                         backgroundColor: Colors.white.withValues(alpha: 0.10),
                         foregroundColor: Colors.white,
@@ -546,6 +642,50 @@ class DashboardScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _OverviewDataSourceBadge extends StatelessWidget {
+  const _OverviewDataSourceBadge({required this.isLiveData});
+
+  final bool isLiveData;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isLiveData ? const Color(0xFFD1FAE5) : const Color(0xFFFFF4E5);
+    final fg = isLiveData ? const Color(0xFF065F46) : const Color(0xFF9A3412);
+    final label = isLiveData ? 'LIVE OVERVIEW DATA' : 'FALLBACK OVERVIEW DATA';
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: fg.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isLiveData ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+              size: 14,
+              color: fg,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.7,
+                color: fg,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

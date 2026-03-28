@@ -255,32 +255,38 @@ class _MfaScreenState extends ConsumerState<MfaScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                _digitField(context, 0),
-                                const SizedBox(width: 8),
-                                _digitField(context, 1),
-                                const SizedBox(width: 8),
-                                _digitField(context, 2),
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(horizontal: 6),
-                                  child: Container(
-                                    width: 8,
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.outlineVariant,
-                                      borderRadius: BorderRadius.circular(4),
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                const fixedSpacing = 8.0 * 4 + 20.0;
+                                final available = constraints.maxWidth - fixedSpacing;
+                                final fieldWidth = (available / 6).clamp(40.0, 48.0);
+                                return Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    _digitField(context, 0, width: fieldWidth),
+                                    const SizedBox(width: 8),
+                                    _digitField(context, 1, width: fieldWidth),
+                                    const SizedBox(width: 8),
+                                    _digitField(context, 2, width: fieldWidth),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                                      child: Container(
+                                        width: 8,
+                                        height: 4,
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.outlineVariant,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                                _digitField(context, 3),
-                                const SizedBox(width: 8),
-                                _digitField(context, 4),
-                                const SizedBox(width: 8),
-                                _digitField(context, 5),
-                              ],
+                                    _digitField(context, 3, width: fieldWidth),
+                                    const SizedBox(width: 8),
+                                    _digitField(context, 4, width: fieldWidth),
+                                    const SizedBox(width: 8),
+                                    _digitField(context, 5, width: fieldWidth),
+                                  ],
+                                );
+                              },
                             ),
                             if (authState.error != null) ...[
                               const SizedBox(height: 20),
@@ -481,10 +487,10 @@ class _MfaScreenState extends ConsumerState<MfaScreen> {
     );
   }
 
-  Widget _digitField(BuildContext context, int index) {
+  Widget _digitField(BuildContext context, int index, {double width = 48}) {
     final colorScheme = Theme.of(context).colorScheme;
     return SizedBox(
-      width: 48,
+      width: width,
       height: 56,
       child: Focus(
         onKeyEvent: (node, event) => _onKey(index, event),

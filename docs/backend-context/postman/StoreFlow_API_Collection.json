@@ -3915,6 +3915,78 @@
 					"response": []
 				},
 				{
+					"name": "Mobile Google Sign-In",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"idToken\": \"{{google_id_token}}\",\n  \"accessToken\": \"{{google_access_token}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/auth/google",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"auth",
+								"google"
+							]
+						},
+						"description": "Exchange Google OIDC id_token for Supabase session. Set google_id_token (and google_access_token if required by token) from your device or OAuth playground. Response matches Mobile Login (MFA + tempSession for tenant roles)."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Register (create store)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Test Mobile Store\",\n  \"subdomain\": \"{{tenant_subdomain}}\",\n  \"adminEmail\": \"{{mobile_email}}\",\n  \"adminPassword\": \"{{mobile_password}}\",\n  \"adminPhone\": \"+254712345678\",\n  \"adminPhoneCountry\": \"KE\",\n  \"authProvider\": \"email\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"auth",
+								"register"
+							]
+						},
+						"description": "Create tenant with mobile response envelope. Same JSON as POST /api/tenants/register. Use a fresh subdomain; then Mobile Login with same email/password."
+					},
+					"response": []
+				},
+				{
 					"name": "Mobile Refresh Token",
 					"event": [
 						{

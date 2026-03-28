@@ -47,7 +47,7 @@
 
 #### P0.1: Mobile API Namespace
 - [x] Create `/api/v1/mobile/*` route namespace
-- [x] Add mobile auth endpoints (`login`, `refresh`, `logout`, `mfa/*`, `forgot-password`)
+- [x] Add mobile auth endpoints (`login`, `google`, `refresh`, `logout`, `mfa/*`, `forgot-password`)
 - [x] Add mobile dashboard endpoints (`overview`, `products`, `orders`, `customers`, `inventory`, `sales`, `analytics`, `settings`)
 - [x] Add `POST /api/v1/mobile/dashboard/settings/delete-account` (Bearer; same soft-delete as web)
 - [x] Add mobile notifications endpoints (`list`, `register-device`, `preferences`)
@@ -213,7 +213,8 @@ Create a versioned API namespace at `/api/v1/mobile/` that wraps existing busine
 src/app/api/v1/mobile/
 ├── auth/
 │   ├── login/route.ts          # Returns JWT access + refresh tokens
-│   ├── register/route.ts       # Tenant registration from mobile
+│   ├── google/route.ts         # Google ID token → same MFA/tenant flow as login
+│   ├── register/route.ts       # Wraps POST /api/tenants/register → mobile envelope
 │   ├── customers/google/route.ts # Customer Google Sign-In / Sign-Up
 │   ├── refresh/route.ts        # Token refresh endpoint
 │   ├── logout/route.ts         # Invalidate tokens
@@ -675,6 +676,8 @@ dev_dependencies:
 5. **Register Screen** — Name, email, password, shop name, subdomain picker
 6. **Setup Shop** — Upload logo, choose theme, add first product (guided)
 
+**Create-shop API:** Prefer **`POST /api/v1/mobile/auth/register`** (same body as web `POST /api/tenants/register`, mobile `{ success, data }` envelope). Alternatives: call web **`POST /api/tenants/register`** directly. Always use **`GET /api/tenants/check-subdomain`** for live availability. Required fields include **`adminPhone`** / optional **`adminPhoneCountry`**. After **201**, call **`POST /api/v1/mobile/auth/login`** with the same credentials (then MFA if required). Full contract: **`docs/API_MULTI_STORE_CHANGES.md`**.
+
 **Google Sign-In requirements (Shop Owner app)**:
 - Add Google Sign-In on both **Login** and **Register** flows (Android + iOS)
 - Reuse existing Supabase Google OAuth project configuration already used by web
@@ -682,9 +685,9 @@ dev_dependencies:
 - Support MFA continuation for tenant roles after Google auth (same flow as email login)
 - Fallback auth option remains email/password to avoid account lockout
 
-**Recommended API additions for parity**:
-- `POST /api/v1/mobile/auth/google` (init/complete Google auth handshake)
-- Keep using existing `refresh`, `logout`, and `mfa/*` endpoints after Google login success
+**Google Sign-In (shop owner)**:
+- `POST /api/v1/mobile/auth/google` with `{ "idToken": "<Google OIDC id_token>", "accessToken"?: "<optional>" }` — same response shape as password login (`requiresMfa` + `tempSession` for tenants, or direct tokens for landlord). Flutter obtains `idToken` via `google_sign_in`, then calls this endpoint (no browser OAuth redirect).
+- Keep using `mfa/verify`, `refresh`, and `logout` after Google login the same as email login.
 
 **Auth state machine**:
 ```
@@ -697,7 +700,14 @@ AUTHENTICATED → (logout/token expired) → UNAUTHENTICATED
 
 ### P2.3: Core Dashboard Features (MVP)
 
-**Home Screen**:
+**Home screen — backend binding (Stitch / Flutter)**:
+
+- **Primary data:** `GET /api/v1/mobile/dashboard/overview` (Bearer token). Response `data` includes `metrics` (products, orders, customers, `revenue.monthlyPaid` for the current calendar month) and `recentOrders` (up to 5). Implement Stitch/design layouts against this JSON; Stitch exports are UI-only and do not call the API.
+- **Charts / period trends (if the design needs them):** `GET /api/v1/mobile/dashboard/analytics?days=30` (same auth).
+- **Deeper lists** when the user navigates from home: `GET .../dashboard/orders`, `.../products`, etc. (see `docs/API_MULTI_STORE_CHANGES.md` for pagination).
+- **Registration subdomain checks** (store creation): `GET /api/tenants/check-subdomain?subdomain=...` — documented in `docs/API_MULTI_STORE_CHANGES.md`.
+
+**Home Screen** (UX checklist — align fields with `overview` above):
 - Today's stats: Orders count, Revenue, New customers, Low stock items
 - Quick action buttons: View Orders, Add Product, Check Inventory
 - Recent orders list (last 5, tappable)
@@ -1222,6 +1232,8 @@ Launch                                                   ███████�
 ---
 
 ## Appendix A: Existing API Routes Reference
+
+**Shop-owner mobile (Flutter MVP)** — use `/api/v1/mobile/*` with Bearer auth: `auth/login`, `auth/google`, `auth/register`, `auth/*`, `dashboard/overview`, `dashboard/orders`, `dashboard/products`, `dashboard/customers`, `dashboard/inventory`, `dashboard/sales`, `dashboard/analytics`, `dashboard/settings`, `notifications/*`, `media/upload`, `mpesa/*`. Detail: Postman `StoreFlow_API_Collection.json` and `docs/API_MULTI_STORE_CHANGES.md`.
 
 The following existing API routes contain business logic that should be reused (not duplicated) in the mobile API layer:
 

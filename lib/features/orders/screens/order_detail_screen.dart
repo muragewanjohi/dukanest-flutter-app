@@ -2,17 +2,37 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
 
 /// Order detail — Stitch: "Order Details (Optimized Actions)"
 /// & local export `02-order-details/screen.html` (Quick Actions + Customer + Shipping + Notes + bottom bar).
 ///
 /// Note: Stitch project may show a newer screen id; layout follows the DukaNest Tenant App Plan export.
-class OrderDetailScreen extends StatelessWidget {
+final orderDetailProvider = FutureProvider.family<Map<String, dynamic>?, String>((
+  ref,
+  orderKey,
+) async {
+  try {
+    final api = ref.read(apiClientProvider);
+    final response = await api.getOrderDetail(orderKey);
+    if (!response.success || response.data == null) return null;
+    final payload = response.data;
+    if (payload is! Map<String, dynamic>) return null;
+    final raw = payload['order'] ?? payload['item'] ?? payload;
+    if (raw is! Map) return null;
+    return Map<String, dynamic>.from(raw);
+  } catch (_) {
+    return null;
+  }
+});
+
+class OrderDetailScreen extends ConsumerWidget {
   const OrderDetailScreen({
     super.key,
     required this.orderKey,
@@ -227,6 +247,111 @@ class OrderDetailScreen extends StatelessWidget {
     ],
   );
 
+  static String _pickString(Map<String, dynamic> map, List<String> keys, {String fallback = ''}) {
+    for (final key in keys) {
+      final value = map[key];
+      if (value is String && value.trim().isNotEmpty) return value;
+      if (value is num) return value.toString();
+    }
+    return fallback;
+  }
+
+  static String _formatMoney(dynamic value, {String currency = 'KES'}) {
+    if (value is num) return '$currency ${value.toStringAsFixed(2)}';
+    if (value is String && value.trim().isNotEmpty) return value;
+    return '$currency 0.00';
+  }
+
+  static _OrderDetailData _mapApiOrderToDetail(Map<String, dynamic> raw, String fallbackCode) {
+    final customerRaw = raw['customer'];
+    final customer = customerRaw is Map<String, dynamic> ? customerRaw : <String, dynamic>{};
+    final shippingRaw = raw['shippingAddress'] ?? raw['shipping_address'] ?? raw['shipping'];
+    final shipping = shippingRaw is Map<String, dynamic> ? shippingRaw : <String, dynamic>{};
+    final currency = _pickString(raw, ['currencyCode', 'currency_code'], fallback: 'KES');
+    final code = _pickString(raw, ['code', 'orderNumber', 'order_number', 'id'], fallback: fallbackCode);
+    final itemsRaw = raw['items'] ?? raw['lineItems'] ?? raw['orderItems'] ?? const [];
+    final itemList = itemsRaw is List ? itemsRaw : const [];
+    final lineItems = itemList.whereType<Map>().map((entry) {
+      final item = Map<String, dynamic>.from(entry);
+      final qty = item['quantity'] ?? item['qty'] ?? 1;
+      final variant = _pickString(item, ['variant', 'option', 'sku'], fallback: 'Standard');
+      final priceValue = item['total'] ?? item['price'] ?? item['unitPrice'] ?? 0;
+      return _LineItem(
+        name: _pickString(item, ['name', 'title'], fallback: 'Item'),
+        variantQty: '$variant • Qty: $qty',
+        price: _formatMoney(priceValue, currency: currency),
+        imageUrl: _pickString(item, ['image', 'imageUrl', 'thumbnail'], fallback: '').isEmpty
+            ? null
+            : _pickString(item, ['image', 'imageUrl', 'thumbnail']),
+      );
+    }).toList();
+
+    final status = _pickString(raw, ['status'], fallback: 'pending').toLowerCase();
+    final timeline = <_TimelineStep>[
+      const _TimelineStep(
+        title: 'Order Received',
+        subtitleLines: ['Order created'],
+        state: _StepState.done,
+      ),
+      _TimelineStep(
+        title: 'Payment Confirmed',
+        subtitleLines: ['Awaiting confirmation'],
+        state: status.contains('paid') || status.contains('processing')
+            ? _StepState.done
+            : _StepState.current,
+      ),
+      _TimelineStep(
+        title: 'Processing Order',
+        subtitleLines: ['Preparing shipment'],
+        state: status.contains('ship') || status.contains('deliver')
+            ? _StepState.done
+            : status.contains('processing')
+                ? _StepState.current
+                : _StepState.upcoming,
+      ),
+      _TimelineStep(
+        title: 'Shipped',
+        subtitleLines: ['Pending action'],
+        state: status.contains('ship') || status.contains('deliver')
+            ? _StepState.done
+            : _StepState.upcoming,
+      ),
+    ];
+
+    final subtotal = raw['subtotal'] ?? raw['subTotal'] ?? raw['totalBeforeTax'] ?? 0;
+    final shippingAmount = raw['shipping'] ?? raw['shippingAmount'] ?? 0;
+    final tax = raw['tax'] ?? raw['taxAmount'] ?? 0;
+    final total = raw['total'] ?? raw['grandTotal'] ?? subtotal;
+
+    final address = [
+      _pickString(shipping, ['name'], fallback: _pickString(customer, ['name'], fallback: 'Customer')),
+      _pickString(shipping, ['line1', 'address1', 'address'], fallback: ''),
+      _pickString(shipping, ['line2', 'address2'], fallback: ''),
+      [
+        _pickString(shipping, ['city'], fallback: ''),
+        _pickString(shipping, ['state'], fallback: ''),
+        _pickString(shipping, ['postalCode', 'zip'], fallback: ''),
+      ].where((e) => e.isNotEmpty).join(', '),
+      _pickString(shipping, ['country'], fallback: ''),
+    ].where((e) => e.isNotEmpty).join('\n');
+
+    return _OrderDetailData(
+      code: code,
+      itemsCategorySubtitle: '${lineItems.length} items',
+      premiumCustomer: false,
+      lineItems: lineItems,
+      subtotal: _formatMoney(subtotal, currency: currency),
+      shipping: _formatMoney(shippingAmount, currency: currency),
+      tax: _formatMoney(tax, currency: currency),
+      total: _formatMoney(total, currency: currency),
+      customerName: _pickString(customer, ['name', 'fullName'], fallback: 'Customer'),
+      customerEmail: _pickString(customer, ['email'], fallback: '—'),
+      customerPhone: _pickString(customer, ['phone', 'phoneNumber'], fallback: '—'),
+      shippingAddress: address.isEmpty ? '—' : address,
+      timeline: timeline,
+    );
+  }
+
   void _toast(BuildContext context, String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
@@ -242,9 +367,9 @@ class OrderDetailScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final data = _demo[orderKey] ??
+    final fallbackData = _demo[orderKey] ??
         _OrderDetailData(
           code: orderKey,
           itemsCategorySubtitle: 'Items',
@@ -260,6 +385,13 @@ class OrderDetailScreen extends StatelessWidget {
           shippingAddress: '—',
           timeline: const [],
         );
+    final liveOrder = ref.watch(orderDetailProvider(orderKey));
+    final isLiveData = liveOrder.asData?.value != null;
+    final data = liveOrder.when(
+      data: (raw) => raw == null ? fallbackData : _mapApiOrderToDetail(raw, orderKey),
+      loading: () => fallbackData,
+      error: (_, __) => fallbackData,
+    );
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
@@ -317,6 +449,8 @@ class OrderDetailScreen extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
               children: [
+                _DataSourceBadge(isLiveData: isLiveData),
+                const SizedBox(height: 12),
                 _itemsCard(context, data),
                 const SizedBox(height: 16),
                 _timelineCard(context, data),
@@ -949,6 +1083,51 @@ class OrderDetailScreen extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DataSourceBadge extends StatelessWidget {
+  const _DataSourceBadge({required this.isLiveData});
+
+  final bool isLiveData;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isLiveData ? const Color(0xFFD1FAE5) : const Color(0xFFFFF4E5);
+    final fg = isLiveData ? const Color(0xFF065F46) : const Color(0xFF9A3412);
+    final label = isLiveData ? 'LIVE ORDER DATA' : 'FALLBACK ORDER DATA';
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: fg.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isLiveData ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+              size: 14,
+              color: fg,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                color: fg,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.7,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -4,6 +4,8 @@ class TokenStorage {
   static const _storage = FlutterSecureStorage();
   static const _accessTokenKey = 'access_token';
   static const _refreshTokenKey = 'refresh_token';
+  /// Legacy key from multi-store experiment; still cleared on logout.
+  static const _legacySelectedTenantKey = 'selected_tenant_id';
 
   Future<void> saveTokens({required String accessToken, required String refreshToken}) async {
     await _storage.write(key: _accessTokenKey, value: accessToken);
@@ -21,5 +23,6 @@ class TokenStorage {
   Future<void> clearTokens() async {
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _refreshTokenKey);
+    await _storage.delete(key: _legacySelectedTenantKey);
   }
 }

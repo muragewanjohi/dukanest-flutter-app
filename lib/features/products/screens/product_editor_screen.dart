@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
 import '../data/attribute_value_format.dart';
 import '../data/attributes_repository.dart';
 
@@ -147,6 +149,10 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   int _photoCount = 1;
   final ScrollController _scrollController = ScrollController();
   final List<_VariantLine> _variantLines = [];
+  bool _isLiveData = false;
+  bool _isLoadingRemote = false;
+  bool _isSaving = false;
+  String? _dataSourceError;
 
   static String _valueLabel(ProductAttribute a, String raw) {
     return AttributeValueFormat.shortLabel(raw, a.displayType);
@@ -237,6 +243,81 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Variants updated from attribute combinations.')),
     );
+  }
+
+  String _asString(dynamic value, {String fallback = ''}) {
+    if (value is String && value.trim().isNotEmpty) return value;
+    if (value is num) return value.toString();
+    return fallback;
+  }
+
+  String _moneyToKes(dynamic value) {
+    if (value is num) return value.toStringAsFixed(0);
+    if (value is String && value.trim().isNotEmpty) return value;
+    return '';
+  }
+
+  Future<void> _loadLiveProductIfEditing() async {
+    final productId = widget.initialSku;
+    if (productId == null || productId.isEmpty) return;
+
+    setState(() {
+      _isLoadingRemote = true;
+      _dataSourceError = null;
+    });
+    try {
+      final container = ProviderScope.containerOf(context, listen: false);
+      final api = container.read(apiClientProvider);
+      final response = await api.getProductDetail(productId);
+      if (!response.success || response.data == null) {
+        throw StateError(response.error?.message ?? 'Failed to load product');
+      }
+
+      final payload = response.data;
+      final raw = payload is Map<String, dynamic>
+          ? (payload['product'] ?? payload['item'] ?? payload)
+          : null;
+      if (raw is! Map) {
+        throw const FormatException('Invalid product payload');
+      }
+      final p = Map<String, dynamic>.from(raw);
+
+      _name.text = _asString(p['name'], fallback: _name.text);
+      _description.text = _asString(
+        p['description'],
+        fallback: _description.text,
+      );
+      _regularPrice.text = _moneyToKes(
+        p['regularPrice'] ?? p['price'] ?? p['unitPrice'],
+      );
+      _salePrice.text = _moneyToKes(p['salePrice'] ?? p['discountPrice']);
+      _sku.text = _asString(p['sku'], fallback: _sku.text);
+      final stock = p['stock'] ?? p['stockQuantity'] ?? p['quantity'];
+      if (stock != null) _stock.text = stock.toString();
+
+      final category = _asString(
+        p['categoryName'] ?? p['category'],
+        fallback: _category,
+      );
+      if (_categories.contains(category)) {
+        _category = category;
+      }
+
+      if (mounted) {
+        setState(() {
+          _isLiveData = true;
+          _isLoadingRemote = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLiveData = false;
+          _isLoadingRemote = false;
+          _dataSourceError = e.toString();
+        });
+      }
+    }
   }
 
   Future<void> _openAddVariantSheet() async {
@@ -381,6 +462,62 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     }
   }
 
+  double _toDouble(String value) {
+    final normalized = value.replaceAll(',', '').trim();
+    return double.tryParse(normalized) ?? 0;
+  }
+
+  Future<void> _saveProduct() async {
+    if (_isSaving) return;
+    final name = _name.text.trim();
+    final sku = _sku.text.trim();
+    if (name.isEmpty || sku.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Product name and SKU are required')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      final container = ProviderScope.containerOf(context, listen: false);
+      final api = container.read(apiClientProvider);
+
+      final payload = <String, dynamic>{
+        'name': name,
+        'description': _description.text.trim(),
+        'sku': sku,
+        'regularPrice': _toDouble(_regularPrice.text),
+        'salePrice': _toDouble(_salePrice.text),
+        'stock': int.tryParse(_stock.text.trim()) ?? 0,
+        'category': _category,
+        'isActive': _visible,
+      };
+
+      final isNew = widget.initialSku == null;
+      final response = isNew
+          ? await api.createProduct(payload)
+          : await api.updateProduct(widget.initialSku!, payload);
+
+      if (!response.success) {
+        throw StateError(response.error?.message ?? 'Failed to save product');
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(isNew ? 'Product created' : 'Product updated')),
+      );
+      context.pop();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Save failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -404,6 +541,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
       }
     }
     _initVariantLines();
+    _loadLiveProductIfEditing();
   }
 
   String get _heroImageUrl {
@@ -454,9 +592,9 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: () => context.pop(),
+                onPressed: _isSaving ? null : _saveProduct,
                 child: Text(
-                  'Publish',
+                  _isSaving ? 'Saving...' : 'Publish',
                   style: theme.textTheme.titleSmall?.copyWith(
                     color: AppTheme.primary,
                     fontWeight: FontWeight.w700,
@@ -483,6 +621,12 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                ),
+                const SizedBox(height: 8),
+                _EditorDataSourceBadge(
+                  isLoading: _isLoadingRemote,
+                  isLiveData: _isLiveData,
+                  errorMessage: _dataSourceError,
                 ),
                 const SizedBox(height: 8),
                 SizedBox(
@@ -1283,6 +1427,77 @@ class _AddPhotoButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _EditorDataSourceBadge extends StatelessWidget {
+  const _EditorDataSourceBadge({
+    required this.isLoading,
+    required this.isLiveData,
+    required this.errorMessage,
+  });
+
+  final bool isLoading;
+  final bool isLiveData;
+  final String? errorMessage;
+
+  @override
+  Widget build(BuildContext context) {
+    final isFallback = !isLiveData;
+    final bg = isLiveData ? const Color(0xFFD1FAE5) : const Color(0xFFFFF4E5);
+    final fg = isLiveData ? const Color(0xFF065F46) : const Color(0xFF9A3412);
+    final label = isLoading
+        ? 'LOADING LIVE PRODUCT DATA...'
+        : isLiveData
+            ? 'LIVE PRODUCT DATA'
+            : 'FALLBACK PRODUCT DATA';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: fg.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isLoading
+                    ? Icons.sync
+                    : isLiveData
+                        ? Icons.cloud_done_outlined
+                        : Icons.cloud_off_outlined,
+                size: 14,
+                color: fg,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.7,
+                  color: fg,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (isFallback && errorMessage != null && errorMessage!.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            errorMessage!,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ],
+      ],
     );
   }
 }

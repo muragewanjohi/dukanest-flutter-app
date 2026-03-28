@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../../config/app_config.dart';
 import '../auth/token_storage.dart';
 import 'auth_interceptor.dart';
 import 'api_response.dart';
@@ -11,7 +12,7 @@ final dioProvider = Provider<Dio>((ref) {
   final tokenStorage = ref.watch(tokenStorageProvider);
   final dio = Dio(
     BaseOptions(
-      baseUrl: 'http://10.0.2.2:3000/api/v1/mobile',
+      baseUrl: AppConfig.apiBaseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 15),
       contentType: 'application/json',
@@ -19,14 +20,18 @@ final dioProvider = Provider<Dio>((ref) {
   );
 
   dio.interceptors.add(AuthInterceptor(tokenStorage, dio));
-  dio.interceptors.add(LogInterceptor(
-    request: true,
-    requestHeader: true,
-    requestBody: true,
-    responseHeader: true,
-    responseBody: true,
-    error: true,
-  ));
+  if (kDebugMode) {
+    dio.interceptors.add(
+      LogInterceptor(
+        request: true,
+        requestHeader: true,
+        requestBody: true,
+        responseHeader: true,
+        responseBody: true,
+        error: true,
+      ),
+    );
+  }
 
   return dio;
 });
@@ -53,8 +58,83 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> getProducts() async {
-    final response = await _dio.get('/dashboard/products');
+  Future<ApiResponse<dynamic>> getProducts({
+    int page = 1,
+    int limit = 20,
+    String search = '',
+    String? status,
+  }) async {
+    final query = <String, dynamic>{
+      'page': page,
+      'limit': limit,
+      'search': search,
+      if (status != null && status.isNotEmpty) 'status': status,
+    };
+    final response = await _dio.get('/dashboard/products', queryParameters: query);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getOrders({
+    int page = 1,
+    int limit = 20,
+    String search = '',
+    String? status,
+  }) async {
+    final query = <String, dynamic>{
+      'page': page,
+      'limit': limit,
+      'search': search,
+      if (status != null && status.isNotEmpty) 'status': status,
+    };
+    final response = await _dio.get('/dashboard/orders', queryParameters: query);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getDashboardOverview() async {
+    final response = await _dio.get('/dashboard/overview');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getOrderDetail(String orderId) async {
+    final response = await _dio.get('/dashboard/orders/$orderId');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getProductDetail(String productId) async {
+    final response = await _dio.get('/dashboard/products/$productId');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> createProduct(Map<String, dynamic> input) async {
+    final response = await _dio.post('/dashboard/products', data: input);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> updateProduct(String productId, Map<String, dynamic> input) async {
+    final response = await _dio.put('/dashboard/products/$productId', data: input);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getNotifications() async {
+    final response = await _dio.get('/notifications');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> registerDeviceToken({
+    required String token,
+    required String platform,
+    String? appVersion,
+    String? deviceName,
+  }) async {
+    final response = await _dio.post(
+      '/notifications/register-device',
+      data: {
+        'token': token,
+        'platform': platform,
+        if (appVersion != null) 'appVersion': appVersion,
+        if (deviceName != null) 'deviceName': deviceName,
+      },
+    );
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 }

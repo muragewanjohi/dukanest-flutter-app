@@ -48,7 +48,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoggingIn = state.matchedLocation == '/login';
       final isOnboarding = state.matchedLocation == '/onboarding';
       final isMfaPhase = state.matchedLocation == '/mfa';
-
       if (authState.status == AuthStatus.unauthenticated) {
         if (isLoggingIn ||
             isOnboarding ||

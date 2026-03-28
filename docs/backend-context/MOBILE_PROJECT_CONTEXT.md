@@ -35,7 +35,7 @@ Completed in web/backend:
 
 - Mobile API namespace and endpoints (`/api/v1/mobile/*`)
 - Mobile auth endpoints:
-  - `login`, `refresh`, `logout`, `mfa/status`, `mfa/send-code`, `mfa/verify`, `forgot-password`
+  - `login`, `google` (ID token exchange; same MFA flow as login), `refresh`, `logout`, `mfa/status`, `mfa/send-code`, `mfa/verify`, `forgot-password`
 - Mobile dashboard endpoints:
   - `overview`, `products`, `orders`, `customers`, `inventory`, `sales`, `analytics`, `settings`
   - `settings/delete-account` (POST, Bearer) — same soft-delete as web dashboard; body `{ "confirmation": "DELETE {subdomain}", "reason"?: string }`

@@ -1,21 +1,23 @@
 import 'package:dio/dio.dart';
+import 'dart:async';
 import '../auth/token_storage.dart';
 
 class AuthInterceptor extends Interceptor {
   final TokenStorage tokenStorage;
   final Dio dio;
   bool _isRefreshing = false;
+  Completer<void>? _refreshCompleter;
 
   AuthInterceptor(this.tokenStorage, this.dio);
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
     final accessToken = await tokenStorage.getAccessToken();
-    
+
     if (accessToken != null) {
       options.headers['Authorization'] = 'Bearer $accessToken';
     }
-    
+
     return handler.next(options);
   }
 
@@ -32,10 +34,22 @@ class AuthInterceptor extends Interceptor {
       }
 
       if (_isRefreshing) {
+        final completer = _refreshCompleter;
+        if (completer != null) {
+          await completer.future;
+          final latestAccessToken = await tokenStorage.getAccessToken();
+          if (latestAccessToken != null) {
+            final retryOptions = err.requestOptions;
+            retryOptions.headers['Authorization'] = 'Bearer $latestAccessToken';
+            final retryResponse = await dio.fetch(retryOptions);
+            return handler.resolve(retryResponse);
+          }
+        }
         return handler.next(err);
       }
       
       _isRefreshing = true;
+      _refreshCompleter = Completer<void>();
       try {
         final refreshToken = await tokenStorage.getRefreshToken();
         if (refreshToken == null) {
@@ -50,10 +64,13 @@ class AuthInterceptor extends Interceptor {
 
         if (refreshResult.data != null && refreshResult.data['success'] == true) {
           final dataMap = refreshResult.data['data'] as Map<String, dynamic>?;
-          if (dataMap != null && dataMap.containsKey('session')) {
-            final session = dataMap['session'];
-            final newToken = session['access_token'];
-            final newRefresh = session['refresh_token'];
+          final sessionRaw = dataMap?['session'];
+          final session = sessionRaw is Map<String, dynamic>
+              ? sessionRaw
+              : dataMap;
+          if (session != null) {
+            final newToken = session['access_token'] ?? session['accessToken'];
+            final newRefresh = session['refresh_token'] ?? session['refreshToken'];
             
             if (newToken != null && newRefresh != null) {
               await tokenStorage.saveTokens(
@@ -66,6 +83,8 @@ class AuthInterceptor extends Interceptor {
               retryOptions.headers['Authorization'] = 'Bearer $newToken';
               
               final retryResponse = await dio.fetch(retryOptions);
+              _refreshCompleter?.complete();
+              _refreshCompleter = null;
               _isRefreshing = false;
               return handler.resolve(retryResponse);
             }
@@ -74,8 +93,13 @@ class AuthInterceptor extends Interceptor {
       } catch (e) {
         // If the refresh protocol ultimately crashes, defensively scrub the credentials forcing a hard relogin
         await tokenStorage.clearTokens();
+      } finally {
+        if (!(_refreshCompleter?.isCompleted ?? true)) {
+          _refreshCompleter?.complete();
+        }
+        _refreshCompleter = null;
+        _isRefreshing = false;
       }
-      _isRefreshing = false;
     }
     return handler.next(err);
   }

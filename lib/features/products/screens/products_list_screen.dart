@@ -1,16 +1,39 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
 
 /// Product catalog — Stitch: "Product Catalog (with Quick Actions)"
 /// Project DukaNest Tenant App Plan, screen 62433aa938834d55bc36fd5d1a134124.
-class ProductsListScreen extends StatelessWidget {
+typedef ProductListItem = ({
+  String name,
+  String meta,
+  String status,
+  bool active,
+  String stock,
+  bool stockWarn,
+  String price,
+  String sku,
+  String imageUrl,
+  bool accentBar,
+});
+
+class ProductsListScreen extends ConsumerStatefulWidget {
   const ProductsListScreen({super.key});
+
+  @override
+  ConsumerState<ProductsListScreen> createState() => _ProductsListScreenState();
+}
+
+class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
 
   static const _kProfileAvatar =
       'https://lh3.googleusercontent.com/aida-public/AB6AXuC2_SJewaxT7aw4FFdp0d1msPDYEEeyZUPnzN20SAQVeXaMlmd9eM6R_dGaWWv6k4bTrdJNt3_lq3ybiwxjYxYTJVLrc2QjgWxGJ8mSqeO_EGOdsbVT5FwHySJ7nbDkz8K9JE-KqAkQbaTLoXTbcAijYaSYgnRYB3iZatmB19nP2XojVuVKIL2I2GWucM49O2JoV3LXDGruR-DzJWcAJGeGV8MFHW1fmr8IovzY-dQLZuyr9fuEVhlLNz54RENBGIVvGDbF0oQThfpo';
@@ -34,19 +57,7 @@ class ProductsListScreen extends StatelessWidget {
   static String _shareUrlFor(String sku) =>
       'https://dukanest.app/p/${Uri.encodeComponent(sku)}';
 
-  static List<
-      ({
-        String name,
-        String meta,
-        String status,
-        bool active,
-        String stock,
-        bool stockWarn,
-        String price,
-        String sku,
-        String imageUrl,
-        bool accentBar,
-      })> _demoProducts() => [
+  static List<ProductListItem> _fallbackProducts() => [
         (
           name: 'Velocity Nitro Runner',
           meta: 'Footwear • SKU: VN-2024-RD',
@@ -97,6 +108,135 @@ class ProductsListScreen extends StatelessWidget {
         ),
       ];
 
+  bool _isLoading = true;
+  bool _isLiveData = false;
+  String? _errorMessage;
+  List<ProductListItem> _products = const [];
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
+  int _currentPage = 1;
+  int _pageSize = 20;
+  int _totalPages = 1;
+  int _totalItems = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  String _formatCurrency(dynamic value, String? currencyCode) {
+    if (value is num) {
+      final code = (currencyCode == null || currencyCode.isEmpty) ? 'KES' : currencyCode;
+      return '$code ${value.toStringAsFixed(2)}';
+    }
+    if (value is String && value.trim().isNotEmpty) return value;
+    return 'KES 0.00';
+  }
+
+  Future<void> _loadProducts({int? pageOverride}) async {
+    final pageToLoad = pageOverride ?? _currentPage;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final api = ref.read(apiClientProvider);
+      final response = await api.getProducts(
+        page: pageToLoad,
+        limit: _pageSize,
+        search: _searchController.text.trim(),
+      );
+      if (!response.success || response.data == null) {
+        throw StateError(response.error?.message ?? 'Failed to load products');
+      }
+      final payload = response.data;
+      final items = payload is Map<String, dynamic>
+          ? payload['items'] ?? payload['products'] ?? payload['data']
+          : payload;
+      if (items is! List) {
+        throw const FormatException('Invalid products response');
+      }
+      final mapped = items.whereType<Map>().map((raw) {
+        final p = Map<String, dynamic>.from(raw);
+        final sku = (p['sku'] ?? p['code'] ?? p['id'] ?? 'UNKNOWN').toString();
+        final name = (p['name'] ?? p['title'] ?? 'Product').toString();
+        final category = (p['categoryName'] ?? p['category'] ?? 'General').toString();
+        final stockValue = p['stock'] ?? p['stockQuantity'] ?? p['quantity'] ?? 0;
+        final stockNum = stockValue is num ? stockValue.toInt() : int.tryParse(stockValue.toString()) ?? 0;
+        final stockWarn = stockNum > 0 && stockNum <= 5;
+        final statusRaw = (p['status'] ?? '').toString().toLowerCase();
+        final active = statusRaw.isEmpty
+            ? (p['isActive'] == true || p['active'] == true)
+            : statusRaw == 'active' || statusRaw == 'enabled';
+        final status = active ? 'Active' : 'Inactive';
+        final currencyCode = (p['currencyCode'] ?? p['currency_code'])?.toString();
+        final price = _formatCurrency(
+          p['salePrice'] ?? p['price'] ?? p['regularPrice'] ?? p['amount'],
+          currencyCode,
+        );
+        final imageUrl = (p['image'] ?? p['imageUrl'] ?? p['thumbnail'] ?? _kSneaker).toString();
+        return (
+          name: name,
+          meta: '$category • SKU: $sku',
+          status: status,
+          active: active,
+          stock: stockWarn ? 'Low ($stockNum)' : '$stockNum units',
+          stockWarn: stockWarn,
+          price: price,
+          sku: sku,
+          imageUrl: imageUrl,
+          accentBar: false,
+        );
+      }).toList();
+
+      setState(() {
+        _products = mapped;
+        _currentPage = response.pagination?.page ?? pageToLoad;
+        _pageSize = response.pagination?.limit ?? _pageSize;
+        _totalPages = response.pagination?.totalPages ?? 1;
+        _totalItems = response.pagination?.total ?? mapped.length;
+        _isLiveData = true;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _products = _fallbackProducts();
+        _currentPage = 1;
+        _totalPages = 1;
+        _totalItems = _products.length;
+        _isLiveData = false;
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _goPrevPage() {
+    if (_isLoading || _currentPage <= 1) return;
+    _loadProducts(pageOverride: _currentPage - 1);
+  }
+
+  void _goNextPage() {
+    if (_isLoading || _currentPage >= _totalPages) return;
+    _loadProducts(pageOverride: _currentPage + 1);
+  }
+
+  void _onSearchChanged(String _) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(
+      const Duration(milliseconds: 300),
+      () => _loadProducts(pageOverride: 1),
+    );
+  }
+
   static Future<void> _launchExternal(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
@@ -104,19 +244,7 @@ class ProductsListScreen extends StatelessWidget {
     }
   }
 
-  static void _showQuickActionsModal(
-    BuildContext context, ({
-      String name,
-      String meta,
-      String status,
-      bool active,
-      String stock,
-      bool stockWarn,
-      String price,
-      String sku,
-      String imageUrl,
-      bool accentBar,
-    }) product) {
+  static void _showQuickActionsModal(BuildContext context, ProductListItem product) {
     final rootContext = context;
     final shareUrl = _shareUrlFor(product.sku);
     final encodedUrl = Uri.encodeComponent(shareUrl);
@@ -326,7 +454,7 @@ class ProductsListScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final products = _demoProducts();
+    final products = _products;
     final fabBottom = MediaQuery.of(context).padding.bottom + 80;
 
     return Scaffold(
@@ -362,8 +490,10 @@ class ProductsListScreen extends StatelessWidget {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
+      body: RefreshIndicator(
+        onRefresh: _loadProducts,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
           final wide = constraints.maxWidth >= 720;
           return ListView(
             padding: EdgeInsets.fromLTRB(24, 8 + MediaQuery.of(context).padding.top, 24, 120),
@@ -472,12 +602,60 @@ class ProductsListScreen extends StatelessWidget {
                 ],
               ),
               if (!wide) const SizedBox(height: 24),
-              if (!wide) _FiltersRow(theme: theme),
+              if (!wide)
+                _FiltersRow(
+                  theme: theme,
+                  controller: _searchController,
+                  onSearchChanged: _onSearchChanged,
+                  isLoading: _isLoading,
+                ),
               if (wide) const SizedBox(height: 24),
-              if (wide) _FiltersRowWide(theme: theme),
+              if (wide)
+                _FiltersRowWide(
+                  theme: theme,
+                  controller: _searchController,
+                  onSearchChanged: _onSearchChanged,
+                  isLoading: _isLoading,
+                ),
               const SizedBox(height: 24),
+              _ProductsDataSourceBadge(isLiveData: _isLiveData),
+              const SizedBox(height: 12),
               _QuickActionCards(theme: theme),
               const SizedBox(height: 24),
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_errorMessage != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Using fallback product data. ${_errorMessage!}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                  ),
+                )
+              else if (products.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'No products found.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                )
+              else
               ...products.map(
                 (p) => Padding(
                   padding: const EdgeInsets.only(bottom: 16),
@@ -498,7 +676,7 @@ class ProductsListScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'Showing 1-4 of 32 products',
+                      'Page $_currentPage of $_totalPages • $_totalItems total',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
@@ -511,7 +689,7 @@ class ProductsListScreen extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _PageBtn(icon: Icons.chevron_left, onPressed: () {}),
+                      _PageBtn(icon: Icons.chevron_left, onPressed: _goPrevPage, enabled: _currentPage > 1),
                       const SizedBox(width: 8),
                       Container(
                         width: 40,
@@ -521,28 +699,44 @@ class ProductsListScreen extends StatelessWidget {
                           color: AppTheme.primary,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Text('1', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                        child: Text(
+                          '$_currentPage',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                        ),
                       ),
                       const SizedBox(width: 8),
-                      _PageBtn(label: '2', onPressed: () {}),
+                      _PageBtn(
+                        label: _currentPage < _totalPages ? '${_currentPage + 1}' : '-',
+                        onPressed: _goNextPage,
+                        enabled: _currentPage < _totalPages,
+                      ),
                       const SizedBox(width: 8),
-                      _PageBtn(icon: Icons.chevron_right, onPressed: () {}),
+                      _PageBtn(icon: Icons.chevron_right, onPressed: _goNextPage, enabled: _currentPage < _totalPages),
                     ],
                   ),
                 ],
               ),
             ],
           );
-        },
+          },
+        ),
       ),
     );
   }
 }
 
 class _FiltersRow extends StatelessWidget {
-  const _FiltersRow({required this.theme});
+  const _FiltersRow({
+    required this.theme,
+    required this.controller,
+    required this.onSearchChanged,
+    required this.isLoading,
+  });
 
   final ThemeData theme;
+  final TextEditingController controller;
+  final ValueChanged<String> onSearchChanged;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -570,6 +764,8 @@ class _FiltersRow extends StatelessWidget {
               ),
               Expanded(
                 child: TextField(
+                  controller: controller,
+                  onChanged: onSearchChanged,
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     color: AppTheme.onSurfaceVariant,
@@ -580,6 +776,16 @@ class _FiltersRow extends StatelessWidget {
                       fontSize: 14,
                       color: theme.colorScheme.outline,
                     ),
+                    suffixIcon: isLoading
+                        ? const Padding(
+                            padding: EdgeInsets.all(10),
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : null,
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -634,9 +840,17 @@ class _FiltersRow extends StatelessWidget {
 }
 
 class _FiltersRowWide extends StatelessWidget {
-  const _FiltersRowWide({required this.theme});
+  const _FiltersRowWide({
+    required this.theme,
+    required this.controller,
+    required this.onSearchChanged,
+    required this.isLoading,
+  });
 
   final ThemeData theme;
+  final TextEditingController controller;
+  final ValueChanged<String> onSearchChanged;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -666,10 +880,22 @@ class _FiltersRowWide extends StatelessWidget {
                 ),
                 Expanded(
                   child: TextField(
+                    controller: controller,
+                    onChanged: onSearchChanged,
                     style: GoogleFonts.inter(fontSize: 14, color: AppTheme.onSurfaceVariant),
                     decoration: InputDecoration(
                       hintText: 'Search products by name, SKU or category...',
                       hintStyle: GoogleFonts.inter(fontSize: 14, color: theme.colorScheme.outline),
+                      suffixIcon: isLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(10),
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : null,
                       border: InputBorder.none,
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -860,18 +1086,7 @@ class _CatalogProductCard extends StatelessWidget {
     required this.onOpenProduct,
   });
 
-  final ({
-    String name,
-    String meta,
-    String status,
-    bool active,
-    String stock,
-    bool stockWarn,
-    String price,
-    String sku,
-    String imageUrl,
-    bool accentBar,
-  }) product;
+  final ProductListItem product;
   final bool wide;
   final VoidCallback onOpenMenu;
   final VoidCallback onOpenProduct;
@@ -1048,6 +1263,50 @@ class _CatalogProductCard extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _ProductsDataSourceBadge extends StatelessWidget {
+  const _ProductsDataSourceBadge({required this.isLiveData});
+
+  final bool isLiveData;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isLiveData ? const Color(0xFFD1FAE5) : const Color(0xFFFFF4E5);
+    final fg = isLiveData ? const Color(0xFF065F46) : const Color(0xFF9A3412);
+    final label = isLiveData ? 'LIVE PRODUCTS DATA' : 'FALLBACK PRODUCTS DATA';
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: fg.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isLiveData ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+              size: 14,
+              color: fg,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.7,
+                color: fg,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1248,11 +1507,17 @@ class _SheetShareRow extends StatelessWidget {
 }
 
 class _PageBtn extends StatelessWidget {
-  const _PageBtn({this.icon, this.label, required this.onPressed});
+  const _PageBtn({
+    this.icon,
+    this.label,
+    required this.onPressed,
+    this.enabled = true,
+  });
 
   final IconData? icon;
   final String? label;
   final VoidCallback onPressed;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -1260,7 +1525,7 @@ class _PageBtn extends StatelessWidget {
       color: Theme.of(context).colorScheme.surfaceContainerLow,
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
-        onTap: onPressed,
+        onTap: enabled ? onPressed : null,
         borderRadius: BorderRadius.circular(10),
         child: SizedBox(
           width: 40,

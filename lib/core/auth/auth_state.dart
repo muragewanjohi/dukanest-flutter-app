@@ -48,11 +48,13 @@ class AuthState {
     AuthStatus? status,
     AuthUser? user,
     String? error,
+    bool clearUser = false,
+    bool clearError = false,
   }) {
     return AuthState(
       status: status ?? this.status,
-      user: user ?? this.user,
-      error: error,
+      user: clearUser ? null : (user ?? this.user),
+      error: clearError ? null : (error ?? this.error),
     );
   }
 }
