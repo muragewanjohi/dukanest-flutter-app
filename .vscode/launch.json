@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    
+    {
+      "name": "Flutter (debug)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "debug",
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=https://www.dukanest.com/api/v1/mobile",
+        "--dart-define=PUBLIC_API_BASE_URL=https://www.dukanest.com",
+        "--dart-define=GOOGLE_SERVER_CLIENT_ID=772287815251-eb8r1f4bqpudek9pubvnrm36tnv9js05.apps.googleusercontent.com",
+      ]
+    },
+    {
+      "name": "Flutter (release mode)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "release",
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=https://www.dukanest.com/api/v1/mobile",
+        "--dart-define=PUBLIC_API_BASE_URL=https://www.dukanest.com",
+        "--dart-define=GOOGLE_SERVER_CLIENT_ID=772287815251-eb8r1f4bqpudek9pubvnrm36tnv9js05.apps.googleusercontent.com",
+      ]
+    }
+  ]
+}

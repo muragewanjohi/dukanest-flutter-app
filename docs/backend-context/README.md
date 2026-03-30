@@ -13,6 +13,10 @@
 
 ### 🔌 **API & Integration**
 - **[API_DOCUMENTATION.md](./API_DOCUMENTATION.md)** - Complete API reference and endpoints
+- **[API_MULTI_STORE_CHANGES.md](./API_MULTI_STORE_CHANGES.md)** - Mobile store context, pagination, and registration contract
+- **[MOBILE_PROJECT_CONTEXT.md](./MOBILE_PROJECT_CONTEXT.md)** - Flutter shop-owner MVP and `/api/v1/mobile/*` overview
+- **[FLUTTER_TENANT_WEB_PARITY_CHECKLIST.md](./FLUTTER_TENANT_WEB_PARITY_CHECKLIST.md)** - QA checklist: tenant mobile vs web dashboard parity
+- **[GOOGLE_SIGNIN_TEST_TO_PRODUCTION_CHECKLIST.md](./GOOGLE_SIGNIN_TEST_TO_PRODUCTION_CHECKLIST.md)** - Release checklist for Google Sign-In (includes OAuth consent switch to Production)
 
 ### 🚀 **Deployment & Operations**
 - **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - Production deployment and hosting

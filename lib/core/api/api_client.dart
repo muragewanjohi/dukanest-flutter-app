@@ -6,8 +6,6 @@ import '../auth/token_storage.dart';
 import 'auth_interceptor.dart';
 import 'api_response.dart';
 
-final tokenStorageProvider = Provider<TokenStorage>((ref) => TokenStorage());
-
 final dioProvider = Provider<Dio>((ref) {
   final tokenStorage = ref.watch(tokenStorageProvider);
   final dio = Dio(

@@ -3,15 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../../../config/app_config.dart';
+import '../../../core/auth/google_sign_in_config.dart';
 import '../providers/auth_provider.dart';
-
-/// google_sign_in 7.x requires [GoogleSignIn.initialize] exactly once before other calls.
-Future<void>? _googleSignInInitFuture;
-
-Future<void> _ensureGoogleSignInInitialized() {
-  _googleSignInInitFuture ??= GoogleSignIn.instance.initialize();
-  return _googleSignInInitFuture!;
-}
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -45,9 +39,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleGoogleSignIn() async {
+    if (androidNeedsGoogleServerClientId() &&
+        AppConfig.googleServerClientId.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Add your Google Web client ID: '
+              'flutter run --dart-define=GOOGLE_SERVER_CLIENT_ID=xxxx.apps.googleusercontent.com '
+              '(same ID as in Supabase → Auth → Google).',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
-      await _ensureGoogleSignInInitialized();
+      await ensureGoogleSignInInitialized();
       final account = await GoogleSignIn.instance.authenticate(
         scopeHint: const ['email', 'profile'],
       );
