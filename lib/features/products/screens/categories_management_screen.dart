@@ -1,26 +1,28 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../../config/theme.dart';
 import '../data/categories_repository.dart';
+import '../providers/categories_list_provider.dart';
 
 /// Categories management — Stitch: "Categories Management"
 /// (DukaNest Tenant App Plan, screen c2b52d24effe48a88c49e3d533e62515).
 ///
 /// Routed at `/categories` (outside the dashboard shell — no bottom navigation).
-class CategoriesManagementScreen extends StatefulWidget {
+class CategoriesManagementScreen extends ConsumerStatefulWidget {
   const CategoriesManagementScreen({super.key});
 
   @override
-  State<CategoriesManagementScreen> createState() =>
+  ConsumerState<CategoriesManagementScreen> createState() =>
       _CategoriesManagementScreenState();
 }
 
-class _CategoriesManagementScreenState extends State<CategoriesManagementScreen> {
+class _CategoriesManagementScreenState extends ConsumerState<CategoriesManagementScreen> {
   final _searchController = TextEditingController();
   String _query = '';
 
@@ -45,15 +47,46 @@ class _CategoriesManagementScreenState extends State<CategoriesManagementScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final asyncCategories = ref.watch(categoriesListProvider);
 
-    return ValueListenableBuilder<List<CategoryEntry>>(
-      valueListenable: CategoriesRepository.items,
-      builder: (context, categories, _) {
+    return asyncCategories.when(
+      loading: () => Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: AppBar(
+          title: Text('Categories', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (err, _) => Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_rounded, color: colorScheme.outline),
+            onPressed: () => context.pop(),
+          ),
+          title: Text('Categories', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(err.toString(), textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => ref.invalidate(categoriesListProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      data: (categories) {
         final filtered = _query.isEmpty
             ? categories
-            : categories
-                .where((c) => c.name.toLowerCase().contains(_query))
-                .toList();
+            : categories.where((c) => c.name.toLowerCase().contains(_query)).toList();
 
         final fabBottom = MediaQuery.of(context).padding.bottom + 24;
 
@@ -105,7 +138,13 @@ class _CategoriesManagementScreenState extends State<CategoriesManagementScreen>
             ),
           ),
           floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-          body: CustomScrollView(
+          body: RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(categoriesListProvider);
+              await ref.read(categoriesListProvider.future);
+            },
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverAppBar(
                 pinned: true,
@@ -297,6 +336,7 @@ class _CategoriesManagementScreenState extends State<CategoriesManagementScreen>
                 ),
               ),
             ],
+          ),
           ),
         );
       },

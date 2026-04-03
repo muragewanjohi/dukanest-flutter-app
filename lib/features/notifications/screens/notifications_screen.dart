@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
-import '../../demo/demo_data.dart';
-import '../../demo/demo_mode_config.dart';
 
 final notificationsProvider = FutureProvider<List<_NotificationItem>>((ref) async {
   final api = ref.read(apiClientProvider);
@@ -11,8 +9,13 @@ final notificationsProvider = FutureProvider<List<_NotificationItem>>((ref) asyn
     throw StateError(response.error?.message ?? 'Unable to load notifications');
   }
 
-  final payload = response.data;
-  final data = payload is Map<String, dynamic> ? payload['items'] ?? payload['notifications'] : payload;
+  var payload = response.data;
+  if (payload is Map<String, dynamic> && payload['data'] != null) {
+    payload = payload['data'];
+  }
+  final data = payload is Map<String, dynamic>
+      ? (payload['items'] ?? payload['notifications'] ?? payload['list'])
+      : payload;
   if (data is! List) {
     throw const FormatException('Invalid notifications payload');
   }
@@ -59,26 +62,25 @@ class NotificationsScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) {
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: demoListLength(demoNotifications.length),
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final item = demoNotifications[index % demoNotifications.length];
-              return Card(
-                child: ListTile(
-                  leading: CircleAvatar(
-                    child: Icon(item.icon),
+        error: (e, st) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    e.toString(),
+                    textAlign: TextAlign.center,
                   ),
-                  title: Text(item.title),
-                  subtitle: Text('${item.message} • ${item.time}'),
-                  trailing: item.isUnread
-                      ? const Icon(Icons.circle, size: 10, color: Colors.redAccent)
-                      : null,
-                ),
-              );
-            },
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () => ref.invalidate(notificationsProvider),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
           );
         },
       ),

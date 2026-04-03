@@ -28,6 +28,14 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
   List<_OrderListItem> _allOrders = const [];
   bool _isLiveData = false;
 
+  /// Top-row metrics (from API `metrics` / `summary` when present, else derived).
+  int _metricActiveToday = 0;
+  int _metricPendingShipment = 0;
+
+  /// Processing goal: `processed` of `goalTotal` orders (API or derived for current list).
+  int _goalProcessed = 0;
+  int _goalTotal = 0;
+
   static const _filters = ['All Orders', 'Pending', 'Paid', 'Shipped'];
 
   @override
@@ -76,6 +84,134 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
       'Shipped' => 'shipped',
       _ => null,
     };
+  }
+
+  static int? _toIntOrNull(dynamic v) {
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v.trim());
+    return null;
+  }
+
+  static Map<String, dynamic>? _asStringKeyedMap(dynamic v) {
+    if (v is! Map) return null;
+    return Map<String, dynamic>.from(v);
+  }
+
+  /// Optional `data.metrics` / `data.summary` / etc. on `GET .../dashboard/orders`.
+  static Map<String, dynamic>? _pickMetricsBucket(Map<String, dynamic> payload) {
+    for (final key in ['metrics', 'summary', 'stats', 'ordersMetrics']) {
+      final m = _asStringKeyedMap(payload[key]);
+      if (m != null) return m;
+    }
+    return null;
+  }
+
+  static ({
+    int activeToday,
+    int pendingShipment,
+    int goalProcessed,
+    int goalTotal,
+  }) _metricsFromApiBucket(Map<String, dynamic> bucket, int listTotal, List<_OrderListItem> mapped) {
+    final activeToday = _toIntOrNull(
+          bucket['activeToday'] ??
+              bucket['active_today'] ??
+              bucket['todayOrders'] ??
+              bucket['today_orders'] ??
+              bucket['newToday'] ??
+              bucket['ordersToday'],
+        ) ??
+        0;
+    final pendingShipment = _toIntOrNull(
+          bucket['pendingShipment'] ??
+              bucket['pending_shipment'] ??
+              bucket['pendingFulfillment'] ??
+              bucket['pending_fulfillment'] ??
+              bucket['pending'] ??
+              bucket['awaitingShipment'],
+        ) ??
+        0;
+    var goalProcessed = _toIntOrNull(
+          bucket['processedToday'] ??
+              bucket['processed_today'] ??
+              bucket['shippedToday'] ??
+              bucket['completedToday'] ??
+              bucket['fulfilledToday'],
+        ) ??
+        0;
+    var goalTotal = _toIntOrNull(
+          bucket['dayTotal'] ??
+              bucket['day_total'] ??
+              bucket['todayTotal'] ??
+              bucket['processingGoalTotal'] ??
+              bucket['totalActiveToday'],
+        ) ??
+        0;
+    if (goalTotal <= 0) goalTotal = listTotal > 0 ? listTotal : activeToday;
+    if (goalTotal <= 0) goalTotal = mapped.length;
+    if (goalTotal > 0) {
+      goalProcessed = goalProcessed.clamp(0, goalTotal);
+    } else {
+      goalProcessed = 0;
+    }
+
+    return (
+      activeToday: activeToday,
+      pendingShipment: pendingShipment,
+      goalProcessed: goalProcessed,
+      goalTotal: goalTotal,
+    );
+  }
+
+  static bool _isCreatedTodayFromLabel(String dateText) {
+    final d = DateTime.tryParse(dateText);
+    if (d == null) return false;
+    final now = DateTime.now();
+    return d.year == now.year && d.month == now.month && d.day == now.day;
+  }
+
+  ({
+    int activeToday,
+    int pendingShipment,
+    int goalProcessed,
+    int goalTotal,
+  }) _resolveOrderMetrics(
+    Map<String, dynamic>? dataPayload,
+    List<_OrderListItem> mapped, {
+    required int totalItems,
+    required int totalPages,
+  }) {
+    if (dataPayload != null) {
+      final bucket = _pickMetricsBucket(dataPayload);
+      if (bucket != null) {
+        return _metricsFromApiBucket(bucket, totalItems, mapped);
+      }
+    }
+
+    final pendingOnPage = mapped.where((o) => o.status == 'Pending').length;
+    final nonPendingOnPage = mapped.where((o) => o.status != 'Pending').length;
+    final todayOnPage = mapped.where((o) => _isCreatedTodayFromLabel(o.date)).length;
+
+    final pendingShip = _filterIndex == 1 ? totalItems : pendingOnPage;
+    final active = todayOnPage > 0 ? todayOnPage : (_filterIndex == 0 ? totalItems : mapped.length);
+    final goalT = totalItems > 0 ? totalItems : mapped.length;
+
+    var goalP = 0;
+    if (goalT > 0) {
+      if (totalPages <= 1) {
+        goalP = nonPendingOnPage.clamp(0, goalT);
+      } else {
+        final n = mapped.length;
+        goalP = n > 0 ? ((nonPendingOnPage / n) * goalT).round().clamp(0, goalT) : 0;
+      }
+    }
+
+    return (
+      activeToday: active,
+      pendingShipment: pendingShip,
+      goalProcessed: goalP,
+      goalTotal: goalT,
+    );
   }
 
   Future<void> _loadOrders({int? pageOverride}) async {
@@ -143,12 +279,26 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
         );
       }).toList();
 
+      final dataPayload = payload is Map<String, dynamic> ? payload : null;
+      final totalPages = response.pagination?.totalPages ?? 1;
+      final totalItems = response.pagination?.total ?? mapped.length;
+      final metrics = _resolveOrderMetrics(
+        dataPayload,
+        mapped,
+        totalItems: totalItems,
+        totalPages: totalPages,
+      );
+
       setState(() {
         _allOrders = mapped;
         _currentPage = response.pagination?.page ?? pageToLoad;
         _pageSize = response.pagination?.limit ?? _pageSize;
-        _totalPages = response.pagination?.totalPages ?? 1;
-        _totalItems = response.pagination?.total ?? mapped.length;
+        _totalPages = totalPages;
+        _totalItems = totalItems;
+        _metricActiveToday = metrics.activeToday;
+        _metricPendingShipment = metrics.pendingShipment;
+        _goalProcessed = metrics.goalProcessed;
+        _goalTotal = metrics.goalTotal;
         _isLiveData = true;
         _isLoading = false;
       });
@@ -157,6 +307,10 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
         _errorMessage = e.toString();
         _isLiveData = false;
         _isLoading = false;
+        _metricActiveToday = 0;
+        _metricPendingShipment = 0;
+        _goalProcessed = 0;
+        _goalTotal = 0;
       });
     }
   }
@@ -237,11 +391,11 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
             const SizedBox(height: 16),
             _OrdersDataSourceBadge(isLiveData: _isLiveData),
             const SizedBox(height: 12),
-            const Row(
+            Row(
               children: [
-                Expanded(child: _MetricCardActiveToday(value: '24')),
-                SizedBox(width: 10),
-                Expanded(child: _MetricCardPendingShipment(value: '08')),
+                Expanded(child: _MetricCardActiveToday(value: '$_metricActiveToday')),
+                const SizedBox(width: 10),
+                Expanded(child: _MetricCardPendingShipment(value: '$_metricPendingShipment')),
               ],
             ),
             const SizedBox(height: 14),
@@ -366,7 +520,10 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
               ),
             ],
             const SizedBox(height: 8),
-            const _ProcessingGoalCard(),
+            _ProcessingGoalCard(
+              processed: _goalProcessed,
+              total: _goalTotal,
+            ),
             const SizedBox(height: 12),
             const _QuickActionsCard(),
           ],
@@ -767,11 +924,20 @@ class _ChevronButton extends StatelessWidget {
 }
 
 class _ProcessingGoalCard extends StatelessWidget {
-  const _ProcessingGoalCard();
+  const _ProcessingGoalCard({
+    required this.processed,
+    required this.total,
+  });
+
+  final int processed;
+  final int total;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final pct = total > 0 ? (100 * processed / total).round().clamp(0, 100) : 0;
+    final progress = total > 0 ? (processed / total).clamp(0.0, 1.0) : null;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -803,7 +969,7 @@ class _ProcessingGoalCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '75%',
+                '$pct%',
                 style: theme.textTheme.displaySmall?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
@@ -813,7 +979,7 @@ class _ProcessingGoalCard extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(999),
                 child: LinearProgressIndicator(
-                  value: 0.75,
+                  value: progress,
                   minHeight: 8,
                   backgroundColor: Colors.white.withValues(alpha: 0.2),
                   color: Colors.white,
@@ -821,7 +987,10 @@ class _ProcessingGoalCard extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'You\'ve processed 18 out of 24 orders today. Keep it up to maintain your "Express Seller" badge!',
+                total > 0
+                    ? 'You\'ve processed $processed out of $total orders in this view. '
+                        'Great work staying on top of fulfillment.'
+                    : 'No orders in this view yet. When new orders arrive, your progress will show here.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: Colors.white.withValues(alpha: 0.9),
                   fontWeight: FontWeight.w500,

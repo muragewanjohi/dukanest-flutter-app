@@ -49,9 +49,11 @@ class PushNotificationService {
       }
 
       final packageInfo = await PackageInfo.fromPlatform();
+      final deviceId = '${packageInfo.packageName}:$_platformName';
       final result = await _apiClient.registerDeviceToken(
         token: token,
         platform: _platformName,
+        deviceId: deviceId,
         appVersion: packageInfo.version,
         deviceName: _deviceName,
       );

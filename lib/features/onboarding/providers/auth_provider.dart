@@ -141,6 +141,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         role: 'owner',
         tenantId: 'demo-tenant-1',
         isMfaEnabled: false,
+        name: 'Demo Owner',
       ),
       clearError: true,
     );
@@ -178,9 +179,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
           refreshToken: refresh ?? '',
         );
       }
+      AuthUser? nextUser = user;
+      final userRaw = d['user'];
+      if (userRaw is Map) {
+        nextUser = AuthUser.fromJson(Map<String, dynamic>.from(userRaw));
+      }
       state = state.copyWith(
         status: AuthStatus.authenticated,
-        user: user,
+        user: nextUser,
         clearError: true,
       );
     } else {
@@ -211,7 +217,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     );
   }
 
-  Future<void> googleSignIn(String idToken) async {
+  Future<void> googleSignIn(String idToken, {String? accessToken}) async {
     if (kDemoMode) {
       state = state.copyWith(
         status: AuthStatus.authenticated,
@@ -221,6 +227,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           role: 'owner',
           tenantId: 'demo-tenant-1',
           isMfaEnabled: false,
+          name: 'Demo Owner',
         ),
         clearError: true,
       );
@@ -228,7 +235,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
 
     state = state.copyWith(clearError: true);
-    final response = await _authService.googleSignIn(idToken);
+    final response = await _authService.googleSignIn(
+      idToken,
+      accessToken: accessToken,
+    );
 
     if (response.success && response.data != null) {
       final data = response.data!;

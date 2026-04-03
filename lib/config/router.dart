@@ -43,11 +43,19 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/onboarding',
+    // Open to sign-in so new merchants (e.g. after store creation) are not sent
+    // through the marketing carousel on every launch.
+    initialLocation: '/login',
     redirect: (context, state) {
       final isLoggingIn = state.matchedLocation == '/login';
       final isOnboarding = state.matchedLocation == '/onboarding';
       final isMfaPhase = state.matchedLocation == '/mfa';
+
+      // While secure storage is still loading, avoid flashing the intro carousel.
+      if (authState.status == AuthStatus.initial && isOnboarding) {
+        return '/login';
+      }
+
       if (authState.status == AuthStatus.unauthenticated) {
         if (isLoggingIn ||
             isOnboarding ||
@@ -55,7 +63,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             state.matchedLocation == '/reset-password') {
           return null;
         }
-        return '/onboarding';
+        return '/login';
       }
 
       if (authState.status == AuthStatus.awaitingMfa && !isMfaPhase) {

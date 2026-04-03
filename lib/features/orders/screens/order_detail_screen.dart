@@ -356,6 +356,24 @@ class OrderDetailScreen extends ConsumerWidget {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  Future<void> _patchOrderStatus(BuildContext context, WidgetRef ref, String status) async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.patchOrder(orderKey, {'status': status});
+      if (!r.success) {
+        throw StateError(r.error?.message ?? 'Update failed');
+      }
+      ref.invalidate(orderDetailProvider(orderKey));
+      if (context.mounted) {
+        _toast(context, 'Order updated');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        _toast(context, 'Update failed: $e');
+      }
+    }
+  }
+
   Future<void> _openMap(BuildContext context, String address) async {
     final q = Uri.encodeComponent(address.replaceAll('\n', ' '));
     final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$q');
@@ -455,7 +473,7 @@ class OrderDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 _timelineCard(context, data),
                 const SizedBox(height: 16),
-                _quickActionsCard(context, data),
+                _quickActionsCard(context, ref, data),
                 const SizedBox(height: 16),
                 _customerCard(context, data),
                 const SizedBox(height: 16),
@@ -467,7 +485,7 @@ class OrderDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
-      bottomNavigationBar: _mobileBottomBar(context, data),
+      bottomNavigationBar: _mobileBottomBar(context, ref, data),
     );
   }
 
@@ -741,7 +759,7 @@ class OrderDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _quickActionsCard(BuildContext context, _OrderDetailData data) {
+  Widget _quickActionsCard(BuildContext context, WidgetRef ref, _OrderDetailData data) {
     final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
@@ -782,7 +800,7 @@ class OrderDetailScreen extends ConsumerWidget {
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
-                onTap: () => _toast(context, 'Mark as Shipped (demo)'),
+                onTap: () => _patchOrderStatus(context, ref, 'shipped'),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Row(
@@ -836,7 +854,7 @@ class OrderDetailScreen extends ConsumerWidget {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: () => _toast(context, 'Cancel order (demo)'),
+              onTap: () => _patchOrderStatus(context, ref, 'cancelled'),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Row(
@@ -1019,7 +1037,7 @@ class OrderDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget? _mobileBottomBar(BuildContext context, _OrderDetailData data) {
+  Widget? _mobileBottomBar(BuildContext context, WidgetRef ref, _OrderDetailData data) {
     final w = MediaQuery.sizeOf(context).width;
     if (w >= 840) return null;
 
@@ -1065,7 +1083,7 @@ class OrderDetailScreen extends ConsumerWidget {
                   ),
                   const Spacer(),
                   FilledButton(
-                    onPressed: () => _toast(context, 'Process Order (demo)'),
+                    onPressed: () => _patchOrderStatus(context, ref, 'processing'),
                     style: FilledButton.styleFrom(
                       backgroundColor: AppTheme.primaryDark,
                       foregroundColor: Colors.white,

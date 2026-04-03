@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 
 /// Shipping & delivery — Stitch: Shipping & Delivery (Mobile) (b1de30ad39f34a3ba10883af6a0de581).
-class ShippingDeliveryScreen extends StatefulWidget {
+class ShippingDeliveryScreen extends ConsumerStatefulWidget {
   const ShippingDeliveryScreen({super.key});
 
   @override
-  State<ShippingDeliveryScreen> createState() => _ShippingDeliveryScreenState();
+  ConsumerState<ShippingDeliveryScreen> createState() => _ShippingDeliveryScreenState();
 }
 
-class _ShippingDeliveryScreenState extends State<ShippingDeliveryScreen> {
+class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen> {
   bool _localDelivery = true;
   bool _nationwide = true;
   bool _storePickup = false;
@@ -30,6 +32,9 @@ class _ShippingDeliveryScreenState extends State<ShippingDeliveryScreen> {
   }
 
   void _save() {
+    ref
+        .read(dashboardLocalStepCompletionsProvider.notifier)
+        .markComplete(DashboardOnboardingStepKeys.shipping);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Shipping settings saved (demo)')),
     );

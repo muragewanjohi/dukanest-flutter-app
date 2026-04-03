@@ -1,22 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 
 /// Payment / M-Pesa configuration — Stitch: Payment Settings (d63f85c750fe4eb09247834fad7ca49f).
-class PaymentSettingsScreen extends StatefulWidget {
+class PaymentSettingsScreen extends ConsumerStatefulWidget {
   const PaymentSettingsScreen({super.key});
 
   @override
-  State<PaymentSettingsScreen> createState() => _PaymentSettingsScreenState();
+  ConsumerState<PaymentSettingsScreen> createState() => _PaymentSettingsScreenState();
 }
 
 enum _PayTiming { beforeDelivery, afterDelivery, either }
 
 enum _MpesaMethod { sendMoney, buyGoods, paybill, pochi }
 
-class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
+class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
   _PayTiming _timing = _PayTiming.afterDelivery;
   bool _cashEnabled = true;
   bool _mpesaEnabled = true;
@@ -39,6 +41,9 @@ class _PaymentSettingsScreenState extends State<PaymentSettingsScreen> {
   }
 
   void _save() {
+    ref
+        .read(dashboardLocalStepCompletionsProvider.notifier)
+        .markComplete(DashboardOnboardingStepKeys.payment);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Payment settings saved (demo)')),
     );

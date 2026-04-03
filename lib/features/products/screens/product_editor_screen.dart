@@ -22,28 +22,6 @@ class ProductEditorScreen extends StatefulWidget {
   State<ProductEditorScreen> createState() => _ProductEditorScreenState();
 }
 
-class _ProductDemo {
-  const _ProductDemo({
-    required this.name,
-    required this.sku,
-    required this.regularKes,
-    required this.saleKes,
-    required this.stock,
-    required this.category,
-    required this.description,
-    this.imageUrl,
-  });
-
-  final String name;
-  final String sku;
-  final String regularKes;
-  final String saleKes;
-  final String stock;
-  final String category;
-  final String description;
-  final String? imageUrl;
-}
-
 /// One sellable variant (option combination + SKU + stock).
 class _VariantLine {
   _VariantLine({
@@ -67,63 +45,11 @@ class _VariantLine {
 }
 
 class _ProductEditorScreenState extends State<ProductEditorScreen> {
-  static const _stitchHeroImage =
+  /// Placeholder when the API returns no image.
+  static const _placeholderHeroImage =
       'https://lh3.googleusercontent.com/aida-public/AB6AXuD0k9iZr9_nIhg0l_WEMnasUNYScknwKwxyz2tDE2DTOWu5ZjLFyLHn4iwm7yvZUiVJ3_EGxj8QXV5JWoCExk17vTO03OuVVJGaDkK_b0Fv1EAHEIlKvFNpsYWgZFqtHSF0ezvqM1SSXHgVfwXrY6179eYYhaQ4gDbkN7lDWGUB1GpP--UqZEvNwoXS8MMAks7fddRgCDlfcvf9Wa3tNIdYfYzkRLRsZK00uB9FDfNwzWvqho1lNAmecZ_XNi6q3N0sedPnTWk3bEUy';
 
-  static const _imgSneaker =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuBItpyh7rifhulInTnFVxDIGg-AgrcC3dNLPMXbdw1QqOBNP-rF6vjac2o8a4ZxGE5iuht_h7q0yXNKub5Rm-TNJ_PSiFKpMdA54Wxnfa1i6ASERO_Hdung32CBZZVqy-kINY0JOsfm1fsgaM42KaOeFldn7sPtE0UIivsZMyG1_B9eD2q7R4ytB8bAmQ3hXU7wEEXbTza-mIpaY1YIiEOARaf61fVunRr4wtJNDHF096AEFOjVZGl4VXJunIdlDvTFIaPahiBAc9GG';
-  static const _imgWatch =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuC0ei8XqCEmV8Zsq5Lv3E9w-dqx_f9FBaGX_NtmPyGDvsbqMO5w26wmb4DwQKtMNn8G7BAdrz1q74g1Kto-2e7h5rUwiAWhFrIZcQtztnqm9iI6X3D0Iv6TyjU_zPNWQxpotj7e5bndssIZsXOago1HETIinyDA3QAA2YT4O4P-6tBHmdeFPgrls1GNhErRK4XHE_KME8qkXjv4FsJCm7onxa0xF2uWrybLUks7O1yBZOFXePKNpP7frYkKFTZVtFXiFBKQ9rJ1NGiK';
-  static const _imgHeadphones =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuD9cWmwiE-_lsX7IB3rEswMD2xUB-QYYIvTSR8jPsKAnxUdlperQpbtwgC2fzrRrSLFT6gHVTY4d1mKcgcsfMWE68jvOEQLbhz-19GYfd3EygJ5wHRMf0x0TqfrkpCFQNEA2dGov2KgaKcVcyc8Zr-JRBVwidom5CIfH_w3DSg3R4xmMKL3z0L7TSgqzaGh8eP-xIHOLjc-bPvG_iKrshB9CCskI8ZZQlUzsVUJ5KYYi46dmmWgtiTjLnyy3SP4GUEf4SjCq2-XY0eT';
-  static const _imgAviators =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDuRZSDgVO8zLQfz9qgW7UgcfYppVXgR1YjV6lvUHp6lEtQrB3shE4GKMQecGWG-TG1t5CHFNEHhdR3eMTlqzXO0omYY2-4s4UZjJU2xjXJWud6xyyq7A41Q9jwgeYb2uiF27phDBDx1n2ZyoKax62T3Orl3-Ih5LuM4thz5K9QYR7AcQx84RnXhloSoWU8J3eJyGooJwggfD81exp9XUtokbVsipUDp8fHK9P5eqhCYjIYpjQqcfuBAnJBbtnD5CbXSn2hivnU3oT3';
-
-  static final Map<String, _ProductDemo> _demo = {
-    'VN-2024-RD': _ProductDemo(
-      name: 'Velocity Nitro Runner',
-      sku: 'VN-2024-RD',
-      regularKes: '15,200',
-      saleKes: '12,900',
-      stock: '124',
-      category: 'Fashion',
-      description:
-          'Lightweight performance runner with responsive cushioning and breathable mesh upper. Ideal for daily training.',
-      imageUrl: _imgSneaker,
-    ),
-    'MW-SL-01': _ProductDemo(
-      name: 'Minimalist Slate Watch',
-      sku: 'MW-SL-01',
-      regularKes: '9,800',
-      saleKes: '8,200',
-      stock: '42',
-      category: 'Fashion',
-      description: 'Slim profile, sapphire glass, and a precision quartz movement.',
-      imageUrl: _imgWatch,
-    ),
-    'SPW-BLK-99': _ProductDemo(
-      name: 'Studio Pro Wireless',
-      sku: 'SPW-BLK-99',
-      regularKes: '24,500',
-      saleKes: '21,000',
-      stock: '0',
-      category: 'Electronics',
-      description: 'Active noise cancellation and 30-hour battery life.',
-      imageUrl: _imgHeadphones,
-    ),
-    'GA-GLD-45': _ProductDemo(
-      name: 'Golden Aviators',
-      sku: 'GA-GLD-45',
-      regularKes: '5,400',
-      saleKes: '4,500',
-      stock: '5',
-      category: 'Fashion',
-      description: 'UV400 lenses with lightweight metal frame.',
-      imageUrl: _imgAviators,
-    ),
-  };
-
-  static const _categories = [
+  static const _defaultCategorySeeds = [
     'Bags & Accessories',
     'Electronics',
     'Fashion',
@@ -143,10 +69,13 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   late final TextEditingController _sku;
   late final TextEditingController _stock;
 
-  String _category = _categories[0];
+  late List<String> _categoryOptions;
+  late String _category;
   String? _campaign;
   bool _visible = true;
   int _photoCount = 1;
+  String? _loadedHeroImageUrl;
+  String? _productApiId;
   final ScrollController _scrollController = ScrollController();
   final List<_VariantLine> _variantLines = [];
   bool _isLiveData = false;
@@ -158,31 +87,18 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     return AttributeValueFormat.shortLabel(raw, a.displayType);
   }
 
-  void _initVariantLines() {
+  void _disposeVariantLines() {
+    for (final v in _variantLines) {
+      v.dispose();
+    }
     _variantLines.clear();
+  }
+
+  void _initVariantLines() {
+    _disposeVariantLines();
     final sku = widget.initialSku;
     final baseSku = _sku.text.trim().isEmpty ? (sku ?? 'SKU') : _sku.text.trim();
 
-    if (sku == 'VN-2024-RD') {
-      _variantLines.addAll([
-        _VariantLine(
-          options: {'Color': 'Red', 'Size': 'Small'},
-          initialSku: '$baseSku-RD-S',
-          initialStock: '40',
-        ),
-        _VariantLine(
-          options: {'Color': 'Red', 'Size': 'Medium'},
-          initialSku: '$baseSku-RD-M',
-          initialStock: '35',
-        ),
-        _VariantLine(
-          options: {'Color': 'Midnight Black', 'Size': 'L'},
-          initialSku: '$baseSku-MB-L',
-          initialStock: '49',
-        ),
-      ]);
-      return;
-    }
     if (sku != null && sku.isNotEmpty) {
       _variantLines.add(
         _VariantLine(
@@ -257,6 +173,57 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     return '';
   }
 
+  String? _primaryImageFromMap(Map<String, dynamic> p) {
+    final direct = p['image'] ?? p['imageUrl'] ?? p['featuredImage'] ?? p['thumbnail'];
+    if (direct is String && direct.trim().isNotEmpty) return direct.trim();
+    final imgs = p['images'] ?? p['media'];
+    if (imgs is List) {
+      for (final e in imgs) {
+        if (e is String && e.trim().isNotEmpty) return e.trim();
+        if (e is Map) {
+          final u = e['url'] ?? e['src'] ?? e['imageUrl'];
+          if (u is String && u.trim().isNotEmpty) return u.trim();
+        }
+      }
+    }
+    return null;
+  }
+
+  void _ensureCategoryOption(String category) {
+    final c = category.trim();
+    if (c.isEmpty) return;
+    if (!_categoryOptions.contains(c)) {
+      _categoryOptions = [c, ..._categoryOptions];
+    }
+  }
+
+  void _applyVariantsFromProduct(Map<String, dynamic> p) {
+    _disposeVariantLines();
+    final rawVariants = p['variants'] ?? p['productVariants'] ?? p['variantList'];
+    if (rawVariants is List && rawVariants.isNotEmpty) {
+      for (final item in rawVariants.whereType<Map>()) {
+        final m = Map<String, dynamic>.from(item);
+        final vSku = _asString(m['sku'] ?? m['code'], fallback: _sku.text.trim());
+        final stockRaw = m['stock'] ?? m['stockQuantity'] ?? m['quantity'];
+        final vStock = stockRaw == null ? '0' : stockRaw.toString();
+        var options = <String, String>{'Default': 'Standard'};
+        final opt = m['options'] ?? m['attributes'] ?? m['attributeValues'];
+        if (opt is Map) {
+          options = opt.map((k, v) => MapEntry(k.toString(), v.toString()));
+        }
+        _variantLines.add(
+          _VariantLine(
+            options: options,
+            initialSku: vSku.isEmpty ? 'SKU' : vSku,
+            initialStock: vStock,
+          ),
+        );
+      }
+      return;
+    }
+    _initVariantLines();
+  }
+
   Future<void> _loadLiveProductIfEditing() async {
     final productId = widget.initialSku;
     if (productId == null || productId.isEmpty) return;
@@ -282,26 +249,43 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
       }
       final p = Map<String, dynamic>.from(raw);
 
-      _name.text = _asString(p['name'], fallback: _name.text);
-      _description.text = _asString(
-        p['description'],
-        fallback: _description.text,
-      );
-      _regularPrice.text = _moneyToKes(
-        p['regularPrice'] ?? p['price'] ?? p['unitPrice'],
-      );
-      _salePrice.text = _moneyToKes(p['salePrice'] ?? p['discountPrice']);
-      _sku.text = _asString(p['sku'], fallback: _sku.text);
+      final idStr = p['id']?.toString().trim();
+      _productApiId = (idStr != null && idStr.isNotEmpty) ? idStr : null;
+
+      _name.text = _asString(p['name']);
+      _description.text = _asString(p['description']);
+      _regularPrice.text = _moneyToKes(p['regularPrice'] ?? p['price'] ?? p['unitPrice']);
+      final saleRaw = p['salePrice'] ?? p['discountPrice'];
+      _salePrice.text = saleRaw == null ? '' : _moneyToKes(saleRaw);
+      _sku.text = _asString(p['sku'] ?? p['code'], fallback: _sku.text);
       final stock = p['stock'] ?? p['stockQuantity'] ?? p['quantity'];
-      if (stock != null) _stock.text = stock.toString();
+      _stock.text = stock == null ? '' : stock.toString();
 
       final category = _asString(
         p['categoryName'] ?? p['category'],
         fallback: _category,
       );
-      if (_categories.contains(category)) {
-        _category = category;
+      _ensureCategoryOption(category);
+      _category = category;
+
+      final statusRaw = (p['status'] ?? '').toString().toLowerCase();
+      if (statusRaw.isNotEmpty) {
+        _visible = statusRaw == 'active' || statusRaw == 'enabled';
+      } else {
+        _visible = p['isActive'] == true || p['active'] == true;
       }
+
+      _loadedHeroImageUrl = _primaryImageFromMap(p);
+      final imgs = p['images'] ?? p['media'];
+      if (imgs is List && imgs.isNotEmpty) {
+        _photoCount = imgs.length.clamp(1, 5);
+      } else if (_loadedHeroImageUrl != null) {
+        _photoCount = 1;
+      } else {
+        _photoCount = 1;
+      }
+
+      _applyVariantsFromProduct(p);
 
       if (mounted) {
         setState(() {
@@ -495,9 +479,13 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
       };
 
       final isNew = widget.initialSku == null;
+      final updateKey = _productApiId ?? widget.initialSku;
+      if (!isNew && (updateKey == null || updateKey.isEmpty)) {
+        throw StateError('Missing product id for update. Reload the product and try again.');
+      }
       final response = isNew
           ? await api.createProduct(payload)
-          : await api.updateProduct(widget.initialSku!, payload);
+          : await api.updateProduct(updateKey!, payload);
 
       if (!response.success) {
         throw StateError(response.error?.message ?? 'Failed to save product');
@@ -522,32 +510,23 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   void initState() {
     super.initState();
     final isNew = widget.initialSku == null;
-    final p = widget.initialSku != null ? _demo[widget.initialSku!] : null;
-    _name = TextEditingController(text: p?.name ?? '');
-    _description = TextEditingController(
-      text: p?.description ??
-          (isNew
-              ? ''
-              : 'Handcrafted from top-grain Italian leather. Features a spacious interior with multiple organizational pockets and a dedicated 13-inch laptop sleeve.'),
-    );
-    _regularPrice = TextEditingController(text: p?.regularKes ?? (isNew ? '' : '4,500'));
-    _salePrice = TextEditingController(text: p?.saleKes ?? (isNew ? '' : '3,900'));
-    _sku = TextEditingController(text: p?.sku ?? (isNew ? '' : 'BG-BRN-01'));
-    _stock = TextEditingController(text: p?.stock ?? (isNew ? '' : '24'));
-    if (p?.category != null) {
-      _category = p!.category;
-      if (!_categories.contains(_category)) {
-        _category = _categories[0];
-      }
-    }
+    _categoryOptions = List<String>.from(_defaultCategorySeeds);
+    _category = _categoryOptions.first;
+    _name = TextEditingController();
+    _description = TextEditingController();
+    _regularPrice = TextEditingController();
+    _salePrice = TextEditingController();
+    _sku = TextEditingController(text: widget.initialSku ?? '');
+    _stock = TextEditingController();
+    _loadedHeroImageUrl = null;
+    _productApiId = null;
     _initVariantLines();
-    _loadLiveProductIfEditing();
+    if (!isNew) {
+      _loadLiveProductIfEditing();
+    }
   }
 
-  String get _heroImageUrl {
-    final p = widget.initialSku != null ? _demo[widget.initialSku!] : null;
-    return p?.imageUrl ?? _stitchHeroImage;
-  }
+  String get _heroImageUrl => _loadedHeroImageUrl ?? _placeholderHeroImage;
 
   @override
   void dispose() {
@@ -722,13 +701,14 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            value: _categories.contains(_category) ? _category : _categories[0],
+                            value:
+                                _categoryOptions.contains(_category) ? _category : _categoryOptions.first,
                             isExpanded: true,
                             icon: Icon(Icons.expand_more, color: theme.colorScheme.onSurfaceVariant),
-                            items: _categories
+                            items: _categoryOptions
                                 .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                                 .toList(),
-                            onChanged: (v) => setState(() => _category = v ?? _categories[0]),
+                            onChanged: (v) => setState(() => _category = v ?? _categoryOptions.first),
                           ),
                         ),
                       ),

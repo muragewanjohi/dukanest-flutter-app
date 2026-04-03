@@ -1,10 +1,10 @@
 # Mobile API: Store Context & Pagination
 
-This document describes the **current** mobile contract for DukaNest / StoreFlow. **Multi-store selection** (one login, many tenants) stays deferred until there is product demand.
+This document describes the **current** mobile contract for DukaNest / StoreFlow and defers **multi-store selection** until there is product demand.
 
-## Current scope: one store per tenant (no store picker)
+## Current scope: one store per user (no store picker)
 
-**Product decision:** The domain model is **one store per tenant**. A shop-owner account maps to a single tenant; the app does **not** show a store selector.
+**Product decision:** We treat each shop-owner account as managing **one tenant / one store**. The app does **not** show a store selector.
 
 - After login, tenant context comes from the authenticated user: Supabase `user_metadata.tenant_id` and/or the `tenants` row linked by `user_id` (see mobile auth).
 - Mobile dashboard endpoints scope data with that **`user.tenant_id`** from the Bearer session. **No `X-Tenant-Id` header is required** in this phase.
@@ -142,17 +142,34 @@ Response includes `Cache-Control: no-store`.
 
 ## Store registration: submit (mobile + web)
 
-There is **`no`** `POST /api/v1/mobile/auth/register` route. The native app uses the **same public API** as the marketing/register website.
+### Preferred for Flutter — mobile envelope
 
-### Endpoint
+`POST /api/v1/mobile/auth/register`
+
+| | |
+|--|--|
+| **Auth** | None (public) |
+| **Body** | Same JSON as `POST /api/tenants/register` (see table below) |
+| **Response** | `{ "success": true, "data": { "message", "tenant", "loginUrl?" } }` on **201**; `{ "success": false, "error": { "code", "message", "details?" } }` on errors (`VALIDATION_ERROR`, `CONFLICT`, etc.) |
+
+Server implementation delegates to the web register handler (`src/app/api/v1/mobile/auth/register/route.ts`).
+
+### Web / alternate — raw JSON
 
 `POST /api/tenants/register`
 
 | | |
 |--|--|
 | **Auth** | None (public) |
-| **Base URL** | Same host as `check-subdomain` (e.g. Vercel API root) |
-| **Response shape** | **Not** the `{ success, data, error }` mobile envelope—see below (web-style JSON) |
+| **Response shape** | Web-style JSON (top-level `success`, `tenant`, `message`—not the `data` wrapper) |
+
+### Web parity note (important)
+
+`POST /api/v1/mobile/auth/register` and `POST /api/tenants/register` use the **same registration logic** on the server.
+
+If a newly created store is empty (no products/categories/sales/blogs), this is typically a **request payload** issue, not a different endpoint issue.
+
+Starter/demo content generation depends on onboarding fields in the body (see **Starter content trigger checklist** below).
 
 ### Request body (core fields)
 
@@ -173,8 +190,41 @@ Validated by `registerTenantSchema` in `src/app/api/tenants/register/route.ts`:
 | `businessType`, `selling` | No | Onboarding |
 | `starterPackJobId` | No | If using async starter pack |
 | `includeDemoContent`, `includeDemoAttributes` | No | Booleans |
+| `supabaseAccessToken` | Optional (Google) | Existing Supabase access token for the same Google user (equivalent to Authorization Bearer token) |
+| `googleIdToken` | Optional (Google) | Google OIDC id_token; server can exchange via Supabase when no Supabase token is provided |
+| `googleAccessToken` | Optional (Google) | Companion access token for id_token flows that include `at_hash` |
 
-**Google-driven registration** on web merges additional server logic; for a minimal Flutter MVP, prefer **`authProvider: "email"`** with `adminPassword` unless you replicate the web Google + register flow.
+### Starter content trigger checklist (for non-empty new stores)
+
+To match the web onboarding behavior (AI/starter-pack flow), send these fields on registration:
+
+- `includeDemoContent: true`
+- `includeDemoAttributes: true` (recommended when demo content is on)
+- `businessType`: non-empty string
+- `selling`: non-empty string
+
+If those are missing/false, registration still succeeds, but store content seeding may be skipped and the store can start empty.
+
+#### Minimal example payload for Flutter (email sign-up)
+
+```json
+{
+  "name": "My Store",
+  "subdomain": "my-store",
+  "adminEmail": "owner@example.com",
+  "adminPassword": "your-strong-password",
+  "adminPhone": "+254700000000",
+  "adminPhoneCountry": "KE",
+  "businessType": "Fashion",
+  "selling": "Clothes and accessories",
+  "includeDemoContent": true,
+  "includeDemoAttributes": true
+}
+```
+
+For `authProvider: "google"`, server validates identity via either:
+- `Authorization: Bearer <supabase_access_token>` or `supabaseAccessToken`, or
+- `googleIdToken` (+ optional `googleAccessToken`) exchanged server-side through Supabase.
 
 ### Success (201)
 
@@ -199,9 +249,9 @@ Use the returned `tenant` as context for UI if needed; then sign the user in wit
 
 ### Flutter notes
 
-1. Call **`check-subdomain`** while the user types; call **`register`** once on submit.
-2. Implement a **second JSON parser** for this route (do not assume `data` wrapper like `/api/v1/mobile/*`).
-3. Ensure **HTTPS** and correct **CORS** if you ever call from a web build; native iOS/Android direct to API usually avoids browser CORS.
+1. Call **`check-subdomain`** while the user types; call **`POST /api/v1/mobile/auth/register`** (or web register) on submit.
+2. If you use the **mobile** register URL, parse the usual **`data`** envelope like other `/api/v1/mobile/*` routes.
+3. **CORS (Flutter Web):** In production set **`MOBILE_CORS_ORIGINS`** to your app origins (comma-separated). In **development** any `Origin` is reflected for mobile + registration paths. Native Android/iOS does not use CORS.
 
 ---
 
@@ -235,10 +285,28 @@ That work is **not** part of the current milestone. Revisit **`API_MULTI_STORE_C
 
 ---
 
-## Optional (still nice-to-have, not multi-store specific)
+## Session restore (single-store)
 
 ### `GET /api/v1/mobile/auth/me`
 
-Useful to restore session after app relaunch with user + **`tenant_id`** (single store). Does **not** require a `stores` list in the one-store model.
+| | |
+|--|--|
+| **Auth** | `Authorization: Bearer <accessToken>` |
+| **Roles** | Returns **`403`** if `tenant_admin` / `tenant_staff` but tenant context is missing; **`200`** with `tenant: null` for other roles (e.g. landlord). |
 
-`POST /api/v1/mobile/auth/google` is **not implemented** yet; track separately if/when Google Sign-In ships for mobile.
+**Success (`200`):** `{ "success": true, "data": { "user": { "id", "email", "role", "tenantId" }, "tenant": { "id", "name", "subdomain", "status", "domain" } | null } }`.
+
+Use after app relaunch to confirm the token and load **tenant** summary without a `stores[]` list. See [flutter_apis.md](./flutter_apis.md).
+
+### `POST /api/v1/mobile/auth/google` (shop-owner mobile)
+
+| | |
+|--|--|
+| **Auth** | None (public) |
+| **Body** | `{ "idToken": string, "accessToken"?: string }` — `idToken` is the Google OIDC JWT from native `google_sign_in`. Pass `accessToken` if the ID token includes `at_hash` (Supabase requirement). |
+| **Behavior** | `signInWithIdToken` via Supabase; then **same** tenant/role checks and **email OTP MFA** as `POST /api/v1/mobile/auth/login`. |
+| **Success** | Same JSON as mobile login: either `requiresMfa: true` + `tempSession`, or `requiresMfa: false` + `accessToken` / `refreshToken` (landlord). |
+
+**Flutter:** Configure the same Supabase project and Google provider as the web app. You may still use `signInWithIdToken` client-side only; this endpoint exists when you prefer server-side exchange and identical MFA behavior to password login.
+
+**Supabase dashboard:** Enable Google provider and use the same Web / iOS / Android OAuth client IDs as documented for Supabase.

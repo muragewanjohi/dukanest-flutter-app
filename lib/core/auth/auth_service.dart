@@ -111,11 +111,18 @@ class AuthService {
     }
   }
 
-  Future<ApiResponse<Map<String, dynamic>>> googleSignIn(String idToken) async {
+  Future<ApiResponse<Map<String, dynamic>>> googleSignIn(
+    String idToken, {
+    String? accessToken,
+  }) async {
     try {
-      final response = await _dio.post('/auth/google', data: {
-        'idToken': idToken,
-      });
+      final response = await _dio.post(
+        '/auth/google',
+        data: {
+          'idToken': idToken,
+          if (accessToken != null && accessToken.isNotEmpty) 'accessToken': accessToken,
+        },
+      );
       return ApiResponse.fromJson(response.data, (json) => json as Map<String, dynamic>);
     } on DioException catch (e) {
       if (e.response != null) {

@@ -14,6 +14,7 @@ import '../../../core/api/api_client.dart';
 /// Product catalog — Stitch: "Product Catalog (with Quick Actions)"
 /// Project DukaNest Tenant App Plan, screen 62433aa938834d55bc36fd5d1a134124.
 typedef ProductListItem = ({
+  String? id,
   String name,
   String meta,
   String status,
@@ -59,6 +60,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
 
   static List<ProductListItem> _fallbackProducts() => [
         (
+          id: null,
           name: 'Velocity Nitro Runner',
           meta: 'Footwear • SKU: VN-2024-RD',
           status: 'Active',
@@ -71,6 +73,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
           accentBar: true,
         ),
         (
+          id: null,
           name: 'Minimalist Slate Watch',
           meta: 'Accessories • SKU: MW-SL-01',
           status: 'Active',
@@ -83,6 +86,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
           accentBar: false,
         ),
         (
+          id: null,
           name: 'Studio Pro Wireless',
           meta: 'Electronics • SKU: SPW-BLK-99',
           status: 'Inactive',
@@ -95,6 +99,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
           accentBar: false,
         ),
         (
+          id: null,
           name: 'Golden Aviators',
           meta: 'Accessories • SKU: GA-GLD-45',
           status: 'Active',
@@ -166,6 +171,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
       }
       final mapped = items.whereType<Map>().map((raw) {
         final p = Map<String, dynamic>.from(raw);
+        final apiId = p['id']?.toString();
         final sku = (p['sku'] ?? p['code'] ?? p['id'] ?? 'UNKNOWN').toString();
         final name = (p['name'] ?? p['title'] ?? 'Product').toString();
         final category = (p['categoryName'] ?? p['category'] ?? 'General').toString();
@@ -184,6 +190,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
         );
         final imageUrl = (p['image'] ?? p['imageUrl'] ?? p['thumbnail'] ?? _kSneaker).toString();
         return (
+          id: apiId,
           name: name,
           meta: '$category • SKU: $sku',
           status: status,
@@ -244,7 +251,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
     }
   }
 
-  static void _showQuickActionsModal(BuildContext context, ProductListItem product) {
+  void _showQuickActionsModal(ProductListItem product) {
     final rootContext = context;
     final shareUrl = _shareUrlFor(product.sku);
     final encodedUrl = Uri.encodeComponent(shareUrl);
@@ -426,11 +433,28 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                             child: const Text('Cancel'),
                           ),
                           TextButton(
-                            onPressed: () {
+                            onPressed: () async {
                               Navigator.pop(ctx);
-                              ScaffoldMessenger.of(rootContext).showSnackBar(
-                                SnackBar(content: Text('Deleted (demo) — ${product.sku}')),
-                              );
+                              final delId = product.id ?? product.sku;
+                              try {
+                                final api = ref.read(apiClientProvider);
+                                final r = await api.deleteProduct(delId);
+                                if (!r.success) {
+                                  throw StateError(r.error?.message ?? 'Delete failed');
+                                }
+                                if (rootContext.mounted) {
+                                  ScaffoldMessenger.of(rootContext).showSnackBar(
+                                    SnackBar(content: Text('Deleted ${product.name}')),
+                                  );
+                                  await _loadProducts();
+                                }
+                              } catch (e) {
+                                if (rootContext.mounted) {
+                                  ScaffoldMessenger.of(rootContext).showSnackBar(
+                                    SnackBar(content: Text('Delete failed: $e')),
+                                  );
+                                }
+                              }
                             },
                             child: Text(
                               'Delete',
@@ -662,7 +686,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   child: _CatalogProductCard(
                     product: p,
                     wide: wide,
-                    onOpenMenu: () => _showQuickActionsModal(context, p),
+                    onOpenMenu: () => _showQuickActionsModal(p),
                     onOpenProduct: () => context.push(
                       '/products/edit/${Uri.encodeComponent(p.sku)}',
                     ),

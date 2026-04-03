@@ -1,16 +1,19 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
 import '../data/categories_repository.dart';
+import '../providers/categories_list_provider.dart';
 
 /// Add / edit category — Stitch: "Add/Edit Category (Updated Style)"
 /// (screen 823ea31c8803471096d68fdcc8d26e22).
-class CategoryEditorScreen extends StatefulWidget {
+class CategoryEditorScreen extends ConsumerStatefulWidget {
   const CategoryEditorScreen({super.key, this.categoryId});
 
   /// `null` → create new category (`/categories/new`).
@@ -19,10 +22,10 @@ class CategoryEditorScreen extends StatefulWidget {
   bool get isNew => categoryId == null;
 
   @override
-  State<CategoryEditorScreen> createState() => _CategoryEditorScreenState();
+  ConsumerState<CategoryEditorScreen> createState() => _CategoryEditorScreenState();
 }
 
-class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
+class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen> {
   final _nameController = TextEditingController();
   final _picker = ImagePicker();
 
@@ -30,19 +33,53 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
   bool _active = true;
   String? _imageUrl;
   String? _localImagePath;
+  bool _loadingRemote = false;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
     if (!widget.isNew) {
-      final e = CategoriesRepository.findById(widget.categoryId!);
-      if (e != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadExisting());
+    }
+  }
+
+  Future<void> _loadExisting() async {
+    setState(() => _loadingRemote = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.getCategory(widget.categoryId!);
+      if (!mounted) return;
+      if (!r.success || r.data == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(r.error?.message ?? 'Failed to load category')),
+        );
+        return;
+      }
+      var root = r.data;
+      if (root is Map<String, dynamic> && root['data'] is Map) {
+        root = root['data'] as Map<String, dynamic>;
+      }
+      final raw = root is Map<String, dynamic>
+          ? (root['category'] ?? root['item'] ?? root)
+          : null;
+      if (raw is! Map) return;
+      final e = categoryEntryFromApi(Map<String, dynamic>.from(raw));
+      setState(() {
         _nameController.text = e.name;
         _parentId = e.parentId;
         _active = e.active;
         _imageUrl = e.imageUrl;
         _localImagePath = e.localImagePath;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not load category: $e')),
+        );
       }
+    } finally {
+      if (mounted) setState(() => _loadingRemote = false);
     }
   }
 
@@ -68,8 +105,7 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
     });
   }
 
-  List<DropdownMenuItem<String?>> _parentItems() {
-    final entries = CategoriesRepository.items.value;
+  List<DropdownMenuItem<String?>> _parentItems(List<CategoryEntry> entries) {
     final excludeId = widget.categoryId;
     return [
       const DropdownMenuItem<String?>(
@@ -87,16 +123,20 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
     ];
   }
 
-  String _hierarchyHint() {
+  String _hierarchyHint(List<CategoryEntry> entries) {
     if (_parentId == null) {
       return 'Main Category';
     }
-    final p = CategoriesRepository.findById(_parentId!);
-    if (p == null) return 'Main Category';
-    return '${p.name} → ${_nameController.text.trim().isEmpty ? '…' : _nameController.text.trim()}';
+    try {
+      final p = entries.firstWhere((e) => e.id == _parentId);
+      return '${p.name} → ${_nameController.text.trim().isEmpty ? '…' : _nameController.text.trim()}';
+    } catch (_) {
+      return 'Main Category';
+    }
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (_saving) return;
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -105,42 +145,43 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
       return;
     }
 
-    if (widget.isNew) {
-      final id = CategoriesRepository.uniqueSlug(name);
-      CategoriesRepository.upsert(
-        CategoryEntry(
-          id: id,
-          name: name,
-          productCount: 0,
-          imageUrl: _imageUrl,
-          localImagePath: _localImagePath,
-          active: _active,
-          parentId: _parentId,
-        ),
-      );
-    } else {
-      final existing = CategoriesRepository.findById(widget.categoryId!);
-      if (existing == null) {
-        context.pop();
-        return;
+    setState(() => _saving = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final body = <String, dynamic>{
+        'name': name,
+        if (_parentId != null) 'parentId': _parentId,
+        'isActive': _active,
+      };
+      if (widget.isNew) {
+        final r = await api.createCategory(body);
+        if (!r.success) {
+          throw StateError(r.error?.message ?? 'Failed to create category');
+        }
+      } else {
+        final r = await api.updateCategory(widget.categoryId!, body);
+        if (!r.success) {
+          throw StateError(r.error?.message ?? 'Failed to update category');
+        }
       }
-      CategoriesRepository.upsert(
-        CategoryEntry(
-          id: existing.id,
-          name: name,
-          productCount: existing.productCount,
-          imageUrl: _imageUrl,
-          localImagePath: _localImagePath,
-          active: _active,
-          parentId: _parentId,
-        ),
-      );
+      ref.invalidate(categoriesListProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(widget.isNew ? 'Category created' : 'Category updated')),
+        );
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-    context.pop();
   }
 
-  void _confirmDelete() {
-    showDialog<void>(
+  Future<void> _confirmDelete() async {
+    final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete category?'),
@@ -148,21 +189,31 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
           'Products in this category may need to be reassigned.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           TextButton(
-            onPressed: () {
-              CategoriesRepository.remove(widget.categoryId!);
-              Navigator.pop(ctx);
-              context.pop();
-            },
+            onPressed: () => Navigator.pop(ctx, true),
             child: Text(
               'Delete',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+              style: TextStyle(color: Theme.of(ctx).colorScheme.error),
             ),
           ),
         ],
       ),
     );
+    if (ok != true || !mounted) return;
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.deleteCategory(widget.categoryId!);
+      if (!r.success) {
+        throw StateError(r.error?.message ?? 'Failed to delete');
+      }
+      ref.invalidate(categoriesListProvider);
+      if (mounted) context.pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
   }
 
   @override
@@ -170,12 +221,22 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final bottom = MediaQuery.of(context).padding.bottom;
+    final parentList = ref.watch(categoriesListProvider).valueOrNull ?? <CategoryEntry>[];
+    String? parentName;
+    if (_parentId != null) {
+      try {
+        parentName = parentList.firstWhere((e) => e.id == _parentId).name;
+      } catch (_) {
+        parentName = null;
+      }
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
       body: Column(
         children: [
           SizedBox(height: MediaQuery.of(context).padding.top),
+          if (_loadingRemote) const LinearProgressIndicator(minHeight: 2),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
@@ -259,7 +320,7 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
                         hint: Text('No parent', style: GoogleFonts.inter()),
                         isExpanded: true,
                         borderRadius: BorderRadius.circular(12),
-                        items: _parentItems(),
+                        items: _parentItems(parentList),
                         onChanged: (v) => setState(() => _parentId = v),
                       ),
                     ),
@@ -286,8 +347,8 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
                                 ? 'Currently: Main Category. Sub-categories appear nested like '
                                     'Electronics → Laptops in the storefront.'
                                 : 'Currently: Sub-category under '
-                                    '${CategoriesRepository.findById(_parentId!)?.name ?? 'parent'}. '
-                                    'Path preview: $_hierarchyHint().',
+                                    '${parentName ?? 'parent'}. '
+                                    'Path preview: ${_hierarchyHint(parentList)}.',
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               height: 1.45,
@@ -467,14 +528,16 @@ class _CategoryEditorScreenState extends State<CategoryEditorScreen> {
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    onTap: _save,
+                    onTap: _saving ? null : _save,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            widget.isNew ? 'Create Category' : 'Update Category',
+                            _saving
+                                ? 'Saving…'
+                                : (widget.isNew ? 'Create Category' : 'Update Category'),
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,

@@ -1,23 +1,25 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 
 /// Store Identity — Stitch: Store Identity (Refined) (e00fbf7d264a41b28406065a10d940de).
 /// Includes delete-account panel per product spec.
-class StoreIdentityScreen extends StatefulWidget {
+class StoreIdentityScreen extends ConsumerStatefulWidget {
   const StoreIdentityScreen({super.key});
 
   static const _keFlagUrl =
       'https://lh3.googleusercontent.com/aida-public/AB6AXuC2aTS8N0I0XazxD9RUrUxD3-5GEOmtvQnsyp1j9rktHX8Ux8DXjc5WevFm83W2PLJmsPXGukkAIbqGONp0BeQni0EgjGdqppFCxQsiV8OUkJzDFgSfTl1qJBMUd1clEtAil3hb_-UM19MCqB9pmr5a3o7Xsm8-d8of9Wj6H9Np3arrOhs9RHWSKvIiJwtNxe2WG-6GonPCqxCKCDkD_ptXtX3aoR1UB2cg5dGoEnmt447ybDF47DCQKfBTbzisUZmdQ9eORQDMUo5e';
 
   @override
-  State<StoreIdentityScreen> createState() => _StoreIdentityScreenState();
+  ConsumerState<StoreIdentityScreen> createState() => _StoreIdentityScreenState();
 }
 
-class _StoreIdentityScreenState extends State<StoreIdentityScreen> {
+class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
   final _storeName = TextEditingController();
   final _domain = TextEditingController();
   final _phoneLocal = TextEditingController();
@@ -31,6 +33,9 @@ class _StoreIdentityScreenState extends State<StoreIdentityScreen> {
 
   String _businessType = 'Retail';
   String _sellingCategory = 'Electronics & Gadgets';
+
+  /// Set when the user completes the logo flow (demo: tap upload area).
+  bool _logoUploaded = false;
 
   @override
   void dispose() {
@@ -69,6 +74,11 @@ class _StoreIdentityScreenState extends State<StoreIdentityScreen> {
   }
 
   void _save() {
+    if (_logoUploaded) {
+      ref
+          .read(dashboardLocalStepCompletionsProvider.notifier)
+          .markComplete(DashboardOnboardingStepKeys.logo);
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Changes saved (demo)')),
     );
@@ -211,9 +221,12 @@ class _StoreIdentityScreenState extends State<StoreIdentityScreen> {
               color: theme.colorScheme.surfaceContainer.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(16),
               child: InkWell(
-                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Logo upload (demo)')),
-                ),
+                onTap: () {
+                  setState(() => _logoUploaded = true);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Logo upload (demo)')),
+                  );
+                },
                 borderRadius: BorderRadius.circular(16),
                 child: CustomPaint(
                   painter: _DashedRectPainter(

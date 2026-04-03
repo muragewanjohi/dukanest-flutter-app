@@ -10,6 +10,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../config/app_config.dart';
 import '../../../core/auth/google_sign_in_config.dart';
+import '../../../core/auth/auth_state.dart';
+import '../../../core/auth/token_storage.dart';
 import '../data/business_types.dart';
 import '../providers/auth_provider.dart';
 
@@ -55,10 +57,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool? _isSubdomainAvailable;
   String? _subdomainMessage;
   bool _subdomainCheckFailed = false;
+  int _creationStageIndex = 0;
+  Timer? _creationStageTimer;
+
+  static const List<String> _creationStages = [
+    'Creating your store workspace...',
+    'Setting up storefront basics...',
+    'Applying your business profile...',
+    'Finalizing account and access...',
+  ];
 
   @override
   void dispose() {
     _subdomainDebounce?.cancel();
+    _creationStageTimer?.cancel();
     _storeNameController.dispose();
     _storeUrlController.dispose();
     _industryController.dispose();
@@ -93,15 +105,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       );
       final auth = account.authentication;
       if (!mounted) return;
+      final token = auth.idToken;
       setState(() {
-        _googleEmail = account.email;
-        _googleIdToken = auth.idToken;
+        _googleIdToken = token;
+        // Only show "connected" when we actually have a usable token.
+        _googleEmail = token == null ? null : account.email;
       });
-      if (auth.idToken == null && mounted) {
+      if (token == null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Google did not return an ID token. Check serverClientId / OAuth setup.',
+              'Google sign-in succeeded but no ID token was returned. Please try again.',
             ),
           ),
         );
@@ -141,6 +155,61 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final emailOk = _emailController.text.trim().isNotEmpty &&
         _passwordController.text.isNotEmpty;
     return googleOk || emailOk;
+  }
+
+  String _countryIsoFromSelection(String selected) {
+    if (selected.startsWith('Uganda')) return 'UG';
+    if (selected.startsWith('Tz')) return 'TZ';
+    return 'KE';
+  }
+
+  String _phoneDialCodeFromSelection(String selected) {
+    if (selected.startsWith('Uganda')) return '+256';
+    if (selected.startsWith('Tz')) return '+255';
+    return '+254';
+  }
+
+  String _storeUrlFromSubdomain(String subdomain) {
+    final host = Uri.tryParse(AppConfig.publicApiBaseUrl)?.host ?? 'dukanest.com';
+    final rootHost = host.startsWith('www.') ? host.substring(4) : host;
+    return 'https://$subdomain.$rootHost';
+  }
+
+  void _startCreationProgress() {
+    _creationStageTimer?.cancel();
+    _creationStageIndex = 0;
+    _creationStageTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_creationStageIndex < _creationStages.length - 1) {
+          _creationStageIndex += 1;
+        }
+      });
+    });
+  }
+
+  void _stopCreationProgress() {
+    _creationStageTimer?.cancel();
+    _creationStageTimer = null;
+  }
+
+  Future<bool> _attemptPostRegistrationSignIn({
+    required bool isGooglePath,
+    required String adminEmail,
+  }) async {
+    if (isGooglePath) {
+      if (_googleIdToken == null || _googleIdToken!.isEmpty) return false;
+      await ref.read(authProvider.notifier).googleSignIn(_googleIdToken!);
+    } else {
+      await ref.read(authProvider.notifier).login(
+            adminEmail,
+            _passwordController.text,
+          );
+    }
+
+    final auth = ref.read(authProvider);
+    return auth.status == AuthStatus.authenticated ||
+        auth.status == AuthStatus.awaitingMfa;
   }
 
   void _onStoreNameChanged(String value) {
@@ -266,7 +335,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     setState(() {
       _didAttemptSubmit = true;
       _authErrorMessage = null;
@@ -293,20 +362,174 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
 
+    final slug = _storeUrlController.text.trim();
+    final isGooglePath = _googleIdToken != null && _googleIdToken!.isNotEmpty;
+    final adminEmail = isGooglePath
+        ? (_googleEmail?.trim() ?? '')
+        : _emailController.text.trim();
+    final phoneDigits = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+    final countryIso = _countryIsoFromSelection(_selectedCountryCode);
+    final dialCode = _phoneDialCodeFromSelection(_selectedCountryCode);
+    final normalizedPhone = phoneDigits.startsWith('0')
+        ? '$dialCode${phoneDigits.substring(1)}'
+        : '$dialCode$phoneDigits';
+
     setState(() => _isLoading = true);
-    Future.delayed(const Duration(seconds: 2), () {
+    _startCreationProgress();
+    try {
+      final payload = <String, dynamic>{
+        'name': _storeNameController.text.trim(),
+        'subdomain': slug,
+        'adminEmail': adminEmail,
+        'adminPhone': normalizedPhone,
+        'adminPhoneCountry': countryIso,
+        'authProvider': isGooglePath ? 'google' : 'email',
+        'businessType': _selectedBusinessType,
+        'selling': _industryController.text.trim().isEmpty
+            ? _selectedBusinessType
+            : _industryController.text.trim(),
+        // Trigger onboarding starter/demo seed on backend.
+        'includeDemoContent': true,
+        'includeDemoAttributes': true,
+      };
+      if (!isGooglePath) {
+        payload['adminPassword'] = _passwordController.text;
+      } else {
+        // Backend implementations vary on field names for Google token exchange.
+        payload['idToken'] = _googleIdToken;
+        payload['googleIdToken'] = _googleIdToken;
+      }
+
+      final registerResp = await _publicDio.post(
+        '/api/tenants/register',
+        data: payload,
+        options: Options(
+          // Registration can enqueue starter/demo setup and take >10s.
+          receiveTimeout: const Duration(seconds: 90),
+          connectTimeout: const Duration(seconds: 20),
+          headers: isGooglePath
+              ? <String, dynamic>{
+                  'Authorization': 'Bearer $_googleIdToken',
+                  'X-Google-Auth-Token': _googleIdToken,
+                }
+              : null,
+        ),
+      );
+      if (kDebugMode) {
+        debugPrint(
+          '[register] register response -> status=${registerResp.statusCode} body=${registerResp.data}',
+        );
+      }
+
+      final ok = registerResp.statusCode == 201 ||
+          (registerResp.data is Map<String, dynamic> &&
+              registerResp.data['success'] == true);
+      if (!ok) {
+        throw DioException(
+          requestOptions: registerResp.requestOptions,
+          response: registerResp,
+          type: DioExceptionType.badResponse,
+          message: 'Registration failed',
+        );
+      }
+
+      if (registerResp.data is Map<String, dynamic>) {
+        final registerData = registerResp.data as Map<String, dynamic>;
+        final tenantRaw = registerData['tenant'];
+        if (tenantRaw is Map) {
+          final tenant = Map<String, dynamic>.from(tenantRaw);
+          final storeName = (tenant['name'] ?? _storeNameController.text.trim()).toString();
+          final storeSubdomain = (tenant['subdomain'] ?? slug).toString();
+          final storeUrl = _storeUrlFromSubdomain(storeSubdomain);
+          await ref.read(tokenStorageProvider).saveStoreIdentity(
+                name: storeName,
+                subdomain: storeSubdomain,
+                storeUrl: storeUrl,
+              );
+        }
+      }
+
+      await _attemptPostRegistrationSignIn(
+        isGooglePath: isGooglePath,
+        adminEmail: adminEmail,
+      );
+
       if (!mounted) return;
-      final slug = _storeUrlController.text.trim();
-      final fallbackEmail = '${slug.isEmpty ? 'owner' : slug}@dukanest.demo';
-      final emailForDemo = _googleEmail?.trim().isNotEmpty == true
-          ? _googleEmail!.trim()
-          : _emailController.text.trim().isNotEmpty
-              ? _emailController.text.trim()
-              : fallbackEmail;
-      ref.read(authProvider.notifier).loginWithDemoUser(email: emailForDemo);
-      setState(() => _isLoading = false);
-      context.go('/dashboard');
-    });
+      final auth = ref.read(authProvider);
+      if (auth.status == AuthStatus.authenticated ||
+          auth.status == AuthStatus.awaitingMfa) {
+        // Router redirect handles /dashboard or /mfa.
+        context.go('/dashboard');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Store created. Please sign in to continue.'),
+          ),
+        );
+        context.go('/login');
+      }
+    } on DioException catch (e) {
+      if (!mounted) return;
+      final body = e.response?.data;
+      final isTimeout = e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.sendTimeout;
+
+      if (isTimeout) {
+        try {
+          final signedIn = await _attemptPostRegistrationSignIn(
+            isGooglePath: isGooglePath,
+            adminEmail: adminEmail,
+          );
+          if (signedIn && mounted) {
+            context.go('/dashboard');
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Store creation took longer than expected, but your account is ready.',
+                ),
+              ),
+            );
+            return;
+          }
+        } catch (_) {
+          // Fall through to user-facing timeout guidance below.
+        }
+      }
+
+      if (kDebugMode) {
+        debugPrint(
+          '[register] register failed -> status=${e.response?.statusCode} body=$body message=${e.message}',
+        );
+      }
+      String message = 'Could not create store. Please try again.';
+      if (isTimeout) {
+        message =
+            'Store setup is taking longer than expected. Your store may already be created - please try signing in.';
+      }
+      if (body is Map<String, dynamic>) {
+        if (body['message'] is String && (body['message'] as String).isNotEmpty) {
+          message = body['message'] as String;
+        } else if (body['error'] is Map &&
+            (body['error'] as Map)['message'] is String) {
+          message = (body['error'] as Map)['message'] as String;
+        }
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Something went wrong while creating your store.'),
+        ),
+      );
+    } finally {
+      _stopCreationProgress();
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Widget _buildFieldLabel(String label, {String? hint}) {
@@ -371,19 +594,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         ),
       ),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 600),
-              child: Form(
-                key: _formKey,
-                autovalidateMode: _didAttemptSubmit
-                    ? AutovalidateMode.always
-                    : AutovalidateMode.disabled,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+        child: Stack(
+          children: [
+            Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: Form(
+                    key: _formKey,
+                    autovalidateMode: _didAttemptSubmit
+                        ? AutovalidateMode.always
+                        : AutovalidateMode.disabled,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
                     Center(
                       child: Image.asset(
                         'assets/images/logo_with_name.png',
@@ -818,11 +1043,63 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ),
                     ),
                     const SizedBox(height: 40),
-                  ],
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
+            if (_isLoading)
+              Positioned.fill(
+                child: AbsorbPointer(
+                  child: ColoredBox(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    child: Center(
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 24),
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surface,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.12),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            LinearProgressIndicator(
+                              minHeight: 6,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              _creationStages[_creationStageIndex],
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: colorScheme.secondary,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'This can take about 40-60 seconds.',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
