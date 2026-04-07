@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../onboarding/providers/auth_provider.dart';
 import '../../../config/theme.dart';
+import '../../../core/auth/token_storage.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -92,6 +93,22 @@ class SettingsScreen extends ConsumerWidget {
                 title: 'Country',
                 subtitle: 'Set your business country or region',
                 onTap: () => _demo(context, 'Country'),
+              ),
+              _rowDivider(theme),
+              _SettingsRow(
+                theme: theme,
+                icon: Icons.refresh_rounded,
+                title: 'Show refresh tips again',
+                subtitle: 'Re-enable swipe-to-refresh helper tips',
+                onTap: () async {
+                  final storage = ref.read(tokenStorageProvider);
+                  await storage.saveProductsListRefreshHintSeen(false);
+                  await storage.saveProductDetailRefreshHintSeen(false);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Refresh tips reset. They will appear again.')),
+                  );
+                },
               ),
             ],
           ),

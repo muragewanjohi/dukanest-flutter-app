@@ -8,8 +8,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/auth/token_storage.dart';
 
 /// Product catalog — Stitch: "Product Catalog (with Quick Actions)"
 /// Project DukaNest Tenant App Plan, screen 62433aa938834d55bc36fd5d1a134124.
@@ -35,9 +37,15 @@ class ProductsListScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
-
-  static const _kProfileAvatar =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuC2_SJewaxT7aw4FFdp0d1msPDYEEeyZUPnzN20SAQVeXaMlmd9eM6R_dGaWWv6k4bTrdJNt3_lq3ybiwxjYxYTJVLrc2QjgWxGJ8mSqeO_EGOdsbVT5FwHySJ7nbDkz8K9JE-KqAkQbaTLoXTbcAijYaSYgnRYB3iZatmB19nP2XojVuVKIL2I2GWucM49O2JoV3LXDGruR-DzJWcAJGeGV8MFHW1fmr8IovzY-dQLZuyr9fuEVhlLNz54RENBGIVvGDbF0oQThfpo';
+  static const Duration _productsCacheTtl = Duration(minutes: 5);
+  static final Map<String, ({
+    List<ProductListItem> products,
+    int page,
+    int pageSize,
+    int totalPages,
+    int totalItems,
+    DateTime savedAt,
+  })> _productsCache = {};
 
   static const _kSneaker =
       'https://lh3.googleusercontent.com/aida-public/AB6AXuBItpyh7rifhulInTnFVxDIGg-AgrcC3dNLPMXbdw1QqOBNP-rF6vjac2o8a4ZxGE5iuht_h7q0yXNKub5Rm-TNJ_PSiFKpMdA54Wxnfa1i6ASERO_Hdung32CBZZVqy-kINY0JOsfm1fsgaM42KaOeFldn7sPtE0UIivsZMyG1_B9eD2q7R4ytB8bAmQ3hXU7wEEXbTza-mIpaY1YIiEOARaf61fVunRr4wtJNDHF096AEFOjVZGl4VXJunIdlDvTFIaPahiBAc9GG';
@@ -123,11 +131,39 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
   int _pageSize = 20;
   int _totalPages = 1;
   int _totalItems = 0;
+  DateTime? _lastSyncedAt;
+  bool _hasSeenRefreshHint = false;
+
+  String _cacheKeyFor({required int page}) {
+    final q = _searchController.text.trim().toLowerCase();
+    return '$page|$_pageSize|$q';
+  }
+
+  void _invalidateProductsCache() {
+    _productsCache.clear();
+  }
+
+  String _lastUpdatedLabel() {
+    final at = _lastSyncedAt;
+    if (at == null) return 'Not synced yet';
+    final diff = DateTime.now().difference(at);
+    if (diff.inMinutes < 1) return 'Updated just now';
+    if (diff.inMinutes < 60) return 'Updated ${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return 'Updated ${diff.inHours}h ago';
+    return 'Updated ${diff.inDays}d ago';
+  }
 
   @override
   void initState() {
     super.initState();
+    _loadRefreshHintPref();
     _loadProducts();
+  }
+
+  Future<void> _loadRefreshHintPref() async {
+    final seen = await ref.read(tokenStorageProvider).getProductsListRefreshHintSeen();
+    if (!mounted) return;
+    setState(() => _hasSeenRefreshHint = seen);
   }
 
   @override
@@ -146,8 +182,88 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
     return 'KES 0.00';
   }
 
-  Future<void> _loadProducts({int? pageOverride}) async {
+  String _pickImageUrl(Map<String, dynamic> p) {
+    String normalize(dynamic raw) {
+      if (raw is! String) return '';
+      final s = raw.trim();
+      if (s.isEmpty) return '';
+      if (s.startsWith('http://') || s.startsWith('https://')) return s;
+      if (s.startsWith('//')) return 'https:$s';
+      final base = AppConfig.publicApiBaseUrl.replaceFirst(RegExp(r'/$'), '');
+      if (s.startsWith('/')) return '$base$s';
+      return '$base/$s';
+    }
+
+    String fromMap(Map<String, dynamic> m) {
+      final cands = [
+        m['url'],
+        m['src'],
+        m['imageUrl'],
+        m['image_url'],
+        m['thumbnail'],
+        m['thumbnail_url'],
+        m['publicUrl'],
+        m['public_url'],
+      ];
+      for (final c in cands) {
+        final n = normalize(c);
+        if (n.isNotEmpty) return n;
+      }
+      return '';
+    }
+
+    final direct = [
+      p['image'],
+      p['imageUrl'],
+      p['image_url'],
+      p['thumbnail'],
+      p['thumbnailUrl'],
+      p['thumbnail_url'],
+      p['featuredImage'],
+      p['featured_image'],
+    ];
+    for (final v in direct) {
+      if (v is Map) {
+        final nested = fromMap(Map<String, dynamic>.from(v));
+        if (nested.isNotEmpty) return nested;
+      }
+      final n = normalize(v);
+      if (n.isNotEmpty) return n;
+    }
+    final imgs = p['images'] ?? p['media'] ?? p['gallery'];
+    if (imgs is List) {
+      for (final e in imgs) {
+        final n = normalize(e);
+        if (n.isNotEmpty) return n;
+        if (e is Map) {
+          final nested = fromMap(Map<String, dynamic>.from(e));
+          if (nested.isNotEmpty) return nested;
+        }
+      }
+    }
+    return '';
+  }
+
+  Future<void> _loadProducts({int? pageOverride, bool forceRefresh = false}) async {
     final pageToLoad = pageOverride ?? _currentPage;
+    final cacheKey = _cacheKeyFor(page: pageToLoad);
+    if (!forceRefresh) {
+      final cached = _productsCache[cacheKey];
+      if (cached != null && DateTime.now().difference(cached.savedAt) < _productsCacheTtl) {
+        setState(() {
+          _products = cached.products;
+          _currentPage = cached.page;
+          _pageSize = cached.pageSize;
+          _totalPages = cached.totalPages;
+          _totalItems = cached.totalItems;
+          _isLiveData = true;
+          _isLoading = false;
+          _errorMessage = null;
+          _lastSyncedAt = cached.savedAt;
+        });
+        return;
+      }
+    }
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -188,7 +304,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
           p['salePrice'] ?? p['price'] ?? p['regularPrice'] ?? p['amount'],
           currencyCode,
         );
-        final imageUrl = (p['image'] ?? p['imageUrl'] ?? p['thumbnail'] ?? _kSneaker).toString();
+        final imageUrl = _pickImageUrl(p);
         return (
           id: apiId,
           name: name,
@@ -204,6 +320,15 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
         );
       }).toList();
 
+      _productsCache[cacheKey] = (
+        products: mapped,
+        page: response.pagination?.page ?? pageToLoad,
+        pageSize: response.pagination?.limit ?? _pageSize,
+        totalPages: response.pagination?.totalPages ?? 1,
+        totalItems: response.pagination?.total ?? mapped.length,
+        savedAt: DateTime.now(),
+      );
+
       setState(() {
         _products = mapped;
         _currentPage = response.pagination?.page ?? pageToLoad;
@@ -212,6 +337,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
         _totalItems = response.pagination?.total ?? mapped.length;
         _isLiveData = true;
         _isLoading = false;
+        _lastSyncedAt = DateTime.now();
       });
     } catch (e) {
       setState(() {
@@ -340,26 +466,53 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   label: 'Edit',
                   onTap: () {
                     Navigator.pop(sheetContext);
-                    rootContext.push(
-                      '/products/edit/${Uri.encodeComponent(product.sku)}',
-                    );
+                    final key = (product.id != null && product.id!.isNotEmpty)
+                        ? product.id!
+                        : product.sku;
+                    () async {
+                      await rootContext.push('/products/edit/${Uri.encodeComponent(key)}');
+                      if (!mounted) return;
+                      _invalidateProductsCache();
+                      await _loadProducts(pageOverride: _currentPage, forceRefresh: true);
+                    }();
                   },
                 ),
                 _SheetActionRow(
                   icon: Icons.block_rounded,
                   label: product.active ? 'Deactivate' : 'Activate',
                   showDividerBelow: true,
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(sheetContext);
-                    ScaffoldMessenger.of(rootContext).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          product.active
-                              ? 'Deactivate (demo) — ${product.name}'
-                              : 'Activate (demo) — ${product.name}',
-                        ),
-                      ),
-                    );
+                    final id = product.id;
+                    if (id == null || id.isEmpty) {
+                      if (rootContext.mounted) {
+                        ScaffoldMessenger.of(rootContext).showSnackBar(
+                          const SnackBar(content: Text('Missing product id — refresh the list.')),
+                        );
+                      }
+                      return;
+                    }
+                    try {
+                      final api = ref.read(apiClientProvider);
+                      final next = product.active ? 'inactive' : 'active';
+                      final r = await api.updateProduct(id, {'status': next});
+                      if (!r.success) {
+                        throw StateError(r.error?.message ?? 'Update failed');
+                      }
+                      if (rootContext.mounted) {
+                        _invalidateProductsCache();
+                        ScaffoldMessenger.of(rootContext).showSnackBar(
+                          SnackBar(content: Text('${product.active ? 'Deactivated' : 'Activated'} ${product.name}')),
+                        );
+                        await _loadProducts(pageOverride: _currentPage, forceRefresh: true);
+                      }
+                    } catch (e) {
+                      if (rootContext.mounted) {
+                        ScaffoldMessenger.of(rootContext).showSnackBar(
+                          SnackBar(content: Text('Status update failed: $e')),
+                        );
+                      }
+                    }
                   },
                 ),
                 _SheetShareRow(
@@ -443,10 +596,11 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                                   throw StateError(r.error?.message ?? 'Delete failed');
                                 }
                                 if (rootContext.mounted) {
+                                  _invalidateProductsCache();
                                   ScaffoldMessenger.of(rootContext).showSnackBar(
                                     SnackBar(content: Text('Deleted ${product.name}')),
                                   );
-                                  await _loadProducts();
+                                  await _loadProducts(forceRefresh: true);
                                 }
                               } catch (e) {
                                 if (rootContext.mounted) {
@@ -507,7 +661,12 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
             color: Colors.transparent,
             child: InkWell(
               customBorder: const CircleBorder(),
-              onTap: () => context.push('/products/new'),
+              onTap: () async {
+                await context.push('/products/new');
+                if (!mounted) return;
+                _invalidateProductsCache();
+                await _loadProducts(pageOverride: _currentPage, forceRefresh: true);
+              },
               child: const Icon(Icons.add, color: Colors.white, size: 32),
             ),
           ),
@@ -515,7 +674,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: RefreshIndicator(
-        onRefresh: _loadProducts,
+        onRefresh: () => _loadProducts(forceRefresh: true),
         child: LayoutBuilder(
           builder: (context, constraints) {
           final wide = constraints.maxWidth >= 720;
@@ -527,7 +686,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   CircleAvatar(
                     radius: 20,
                     backgroundColor: colorScheme.surfaceContainerHighest,
-                    backgroundImage: const NetworkImage(_kProfileAvatar),
+                    child: Icon(Icons.storefront_outlined, color: colorScheme.onSurfaceVariant),
                   ),
                   const SizedBox(width: 12),
                   Text(
@@ -540,6 +699,17 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                     ),
                   ),
                   const Spacer(),
+                  IconButton(
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      foregroundColor: AppTheme.primaryDark,
+                    ),
+                    icon: const Icon(Icons.refresh_rounded),
+                    tooltip: 'Refresh products',
+                    onPressed: _isLoading
+                        ? null
+                        : () => _loadProducts(pageOverride: _currentPage, forceRefresh: true),
+                  ),
                   IconButton(
                     style: IconButton.styleFrom(
                       backgroundColor: Colors.transparent,
@@ -601,7 +771,12 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                         color: Colors.transparent,
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
-                          onTap: () => context.push('/products/new'),
+                          onTap: () async {
+                            await context.push('/products/new');
+                            if (!mounted) return;
+                            _invalidateProductsCache();
+                            await _loadProducts(pageOverride: _currentPage, forceRefresh: true);
+                          },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
                             child: Row(
@@ -643,6 +818,48 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                 ),
               const SizedBox(height: 24),
               _ProductsDataSourceBadge(isLiveData: _isLiveData),
+              const SizedBox(height: 6),
+              Text(
+                '${_lastUpdatedLabel()} • Pull down to refresh',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (!_hasSeenRefreshHint) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.swipe_down_alt_rounded,
+                        size: 18,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Tip: swipe down anywhere on this page to refresh products.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          setState(() => _hasSeenRefreshHint = true);
+                          await ref.read(tokenStorageProvider).saveProductsListRefreshHintSeen(true);
+                        },
+                        child: const Text('Got it'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               _QuickActionCards(theme: theme),
               const SizedBox(height: 24),
@@ -687,9 +904,10 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                     product: p,
                     wide: wide,
                     onOpenMenu: () => _showQuickActionsModal(p),
-                    onOpenProduct: () => context.push(
-                      '/products/edit/${Uri.encodeComponent(p.sku)}',
-                    ),
+                    onOpenProduct: () {
+                      final key = (p.id != null && p.id!.isNotEmpty) ? p.id! : p.sku;
+                      context.push('/products/edit/${Uri.encodeComponent(key)}');
+                    },
                   ),
                 ),
               ),
@@ -1246,6 +1464,46 @@ class _CatalogProductCard extends StatelessWidget {
   }
 
   Widget _thumb(ThemeData theme, bool inactive) {
+    String fallbackUrl(String raw) {
+      try {
+        final u = Uri.parse(raw);
+        if (u.host == 'auth.dukanest.com' && u.path.startsWith('/storage/v1/object/public/')) {
+          final base = Uri.parse(AppConfig.publicApiBaseUrl);
+          return u
+              .replace(scheme: base.scheme, host: base.host, port: base.hasPort ? base.port : null)
+              .toString();
+        }
+      } catch (_) {}
+      return raw;
+    }
+
+    Widget placeholder({bool loading = false}) {
+      return Container(
+        width: 96,
+        height: 96,
+        color: theme.colorScheme.surfaceContainerLow,
+        child: loading
+            ? Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              )
+            : Icon(Icons.image_outlined, color: theme.colorScheme.outline),
+      );
+    }
+
+    if (product.imageUrl.trim().isEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: placeholder(loading: true),
+      );
+    }
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Stack(
@@ -1265,12 +1523,27 @@ class _CatalogProductCard extends StatelessWidget {
               width: 96,
               height: 96,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 96,
-                height: 96,
-                color: theme.colorScheme.surfaceContainerLow,
-                child: Icon(Icons.image_outlined, color: theme.colorScheme.outline),
-              ),
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return placeholder(loading: true);
+              },
+              errorBuilder: (_, __, ___) {
+                final alt = fallbackUrl(product.imageUrl);
+                if (alt != product.imageUrl) {
+                  return Image.network(
+                    alt,
+                    width: 96,
+                    height: 96,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, progress) {
+                      if (progress == null) return child;
+                      return placeholder(loading: true);
+                    },
+                    errorBuilder: (_, __, ___) => placeholder(),
+                  );
+                }
+                return placeholder();
+              },
             ),
           ),
           if (product.accentBar)

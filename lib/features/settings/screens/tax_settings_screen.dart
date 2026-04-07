@@ -1,22 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
+import '../providers/dashboard_settings_provider.dart';
 
 /// Tax Settings — Stitch: Tax Settings (Mobile) (cfb73a5c3d7646ef8c811e474c6c7b33).
-class TaxSettingsScreen extends StatefulWidget {
+class TaxSettingsScreen extends ConsumerStatefulWidget {
   const TaxSettingsScreen({super.key});
 
   @override
-  State<TaxSettingsScreen> createState() => _TaxSettingsScreenState();
+  ConsumerState<TaxSettingsScreen> createState() => _TaxSettingsScreenState();
 }
 
-class _TaxSettingsScreenState extends State<TaxSettingsScreen> {
+class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen> {
   bool _taxEnabled = true;
   final _defaultRate = TextEditingController(text: '0.00');
   bool _taxInclusive = true;
   String _calculationBase = 'Billing Address';
+  bool _hydrated = false;
+  bool _saving = false;
 
   @override
   void dispose() {
@@ -24,11 +29,81 @@ class _TaxSettingsScreenState extends State<TaxSettingsScreen> {
     super.dispose();
   }
 
-  void _save() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Tax settings saved (demo)')),
-    );
-    context.pop();
+  void _hydrateFrom(Map<String, dynamic>? root) {
+    final tax = settingsSection(root, 'tax') ?? {};
+    _taxEnabled = settingsPickBool(tax, ['enabled', 'tax_enabled', 'taxEnabled'], fallback: true);
+    final rate = settingsPick(tax, ['default_rate', 'defaultRate', 'rate', 'tax_rate', 'taxRate'], fallback: '0');
+    _defaultRate.text = rate.isEmpty ? '0' : rate;
+    _taxInclusive = settingsPickBool(tax, [
+      'inclusive',
+      'tax_inclusive',
+      'taxInclusive',
+      'prices_include_tax',
+      'pricesIncludeTax',
+    ], fallback: true);
+    _calculationBase = _displayTaxBasisFromApi(settingsPick(tax, [
+      'based_on',
+      'basedOn',
+      'calculate_tax_based_on',
+      'calculation_base',
+      'tax_basis',
+    ]));
+  }
+
+  static String _displayTaxBasisFromApi(String raw) {
+    final s = raw.toLowerCase().replaceAll(RegExp(r'[\s-]'), '_');
+    if (s.contains('shipping')) return 'Shipping Address';
+    if (s.contains('store')) return 'Store Location';
+    return 'Billing Address';
+  }
+
+  String _apiTaxBasis() {
+    switch (_calculationBase) {
+      case 'Shipping Address':
+        return 'shipping_address';
+      case 'Store Location':
+        return 'store_location';
+      default:
+        return 'billing_address';
+    }
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final rate = num.tryParse(_defaultRate.text.trim());
+      final body = <String, dynamic>{
+        'tax': {
+          'enabled': _taxEnabled,
+          'rate': rate ?? 0,
+          'inclusive': _taxInclusive,
+          'basedOn': _apiTaxBasis(),
+        },
+      };
+      final api = ref.read(apiClientProvider);
+      final r = await api.patchDashboardSettings(body);
+      if (!mounted) return;
+      if (!r.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(r.error?.message ?? 'Could not save tax settings')),
+        );
+        return;
+      }
+      ref.invalidate(dashboardSettingsProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tax settings saved')),
+      );
+      context.pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Save failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   InputDecoration _fieldDeco(ThemeData theme) {
@@ -43,7 +118,55 @@ class _TaxSettingsScreenState extends State<TaxSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final settingsAsync = ref.watch(dashboardSettingsProvider);
 
+    return settingsAsync.when(
+      loading: () => Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: AppBar(title: Text('Tax Settings', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600))),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (err, _) => Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_rounded, color: AppTheme.primaryDark, size: 26),
+            onPressed: () => context.pop(),
+          ),
+          title: Text('Tax Settings', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('$err', textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => ref.invalidate(dashboardSettingsProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      data: (root) {
+        if (!_hydrated) {
+          _hydrated = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _hydrateFrom(root);
+            setState(() {});
+          });
+        }
+        return _buildScaffold(theme);
+      },
+    );
+  }
+
+  Widget _buildScaffold(ThemeData theme) {
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(
@@ -335,23 +458,31 @@ class _TaxSettingsScreenState extends State<TaxSettingsScreen> {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: _save,
+                      onTap: _saving ? null : _save,
                       borderRadius: BorderRadius.circular(12),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              'Save Changes',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
-                                color: Colors.white,
+                            if (_saving)
+                              const SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            else ...[
+                              Text(
+                                'Save Changes',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 20),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 20),
+                            ],
                           ],
                         ),
                       ),

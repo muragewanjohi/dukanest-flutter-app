@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
+import '../providers/delivery_zones_provider.dart';
 
 /// Arguments when opening the editor from the manage-zones list (optional).
 class DeliveryZoneEditorArgs {
@@ -28,22 +31,23 @@ class DeliveryZoneEditorArgs {
 }
 
 /// Add / edit a delivery zone — Stitch: Add/Edit Delivery Zone (Mobile) (e7c632589b41441bb5bf8fa8e3f5a531).
-class DeliveryZoneEditorScreen extends StatefulWidget {
+class DeliveryZoneEditorScreen extends ConsumerStatefulWidget {
   const DeliveryZoneEditorScreen({super.key, this.args});
 
   final DeliveryZoneEditorArgs? args;
 
   @override
-  State<DeliveryZoneEditorScreen> createState() => _DeliveryZoneEditorScreenState();
+  ConsumerState<DeliveryZoneEditorScreen> createState() => _DeliveryZoneEditorScreenState();
 }
 
-class _DeliveryZoneEditorScreenState extends State<DeliveryZoneEditorScreen> {
+class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScreen> {
   late final TextEditingController _name;
   late final TextEditingController _fee;
   late final TextEditingController _freeOver;
   late final TextEditingController _handlingDays;
   late List<String> _areas;
   late bool _isDefault;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -70,9 +74,47 @@ class _DeliveryZoneEditorScreenState extends State<DeliveryZoneEditorScreen> {
 
   String get _appBarTitle => _isEditing ? 'Edit delivery zone' : 'Add delivery zone';
 
-  void _save() {
+  Map<String, dynamic> _buildZoneBody() {
+    final fee = num.tryParse(_fee.text.trim()) ?? 0;
+    final freeOver = num.tryParse(_freeOver.text.trim()) ?? 0;
+    final days = int.tryParse(_handlingDays.text.trim()) ?? 1;
+    return {
+      'name': _name.text.trim(),
+      'areas': _areas,
+      'fee': fee,
+      'freeShippingThreshold': freeOver,
+      'estimatedDays': days,
+      'isDefault': _isDefault,
+    };
+  }
+
+  Future<void> _save() async {
+    final name = _name.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a zone name')),
+      );
+      return;
+    }
+    if (_saving) return;
+    setState(() => _saving = true);
+    final api = ref.read(apiClientProvider);
+    final id = widget.args?.zoneKey;
+    final editing = id != null && id.isNotEmpty;
+    final body = _buildZoneBody();
+    final response =
+        editing ? await api.updateDeliveryZone(id, body) : await api.createDeliveryZone(body);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (!response.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(response.error?.message ?? 'Could not save zone')),
+      );
+      return;
+    }
+    ref.invalidate(deliveryZonesListProvider);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_isEditing ? 'Zone updated (demo)' : 'Zone created (demo)')),
+      SnackBar(content: Text(editing ? 'Zone updated' : 'Zone created')),
     );
     context.pop();
   }
@@ -458,19 +500,25 @@ class _DeliveryZoneEditorScreenState extends State<DeliveryZoneEditorScreen> {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: _save,
+                      onTap: _saving ? null : _save,
                       borderRadius: BorderRadius.circular(14),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         child: Center(
-                          child: Text(
-                            _isEditing ? 'Save zone' : 'Create zone',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                              color: Colors.white,
-                            ),
-                          ),
+                          child: _saving
+                              ? const SizedBox(
+                                  height: 22,
+                                  width: 22,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : Text(
+                                  _isEditing ? 'Save zone' : 'Create zone',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
                         ),
                       ),
                     ),

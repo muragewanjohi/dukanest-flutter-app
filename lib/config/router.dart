@@ -6,6 +6,7 @@ import '../features/onboarding/screens/onboarding_carousel_screen.dart';
 import '../features/onboarding/screens/login_screen.dart';
 import '../features/onboarding/screens/reset_password_screen.dart';
 import '../features/onboarding/screens/register_screen.dart';
+import '../features/onboarding/screens/session_restore_screen.dart';
 import '../features/onboarding/screens/mfa_screen.dart';
 import '../features/dashboard/screens/dashboard_shell.dart';
 import '../features/dashboard/screens/dashboard_screen.dart';
@@ -43,13 +44,30 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    // Open to sign-in so new merchants (e.g. after store creation) are not sent
-    // through the marketing carousel on every launch.
-    initialLocation: '/login',
+    initialLocation: '/splash',
     redirect: (context, state) {
       final isLoggingIn = state.matchedLocation == '/login';
       final isOnboarding = state.matchedLocation == '/onboarding';
       final isMfaPhase = state.matchedLocation == '/mfa';
+      final atSplash = state.matchedLocation == '/splash';
+
+      final isResolvingSession = authState.status == AuthStatus.initial ||
+          authState.status == AuthStatus.sessionRestoring;
+      if (isResolvingSession) {
+        return atSplash ? null : '/splash';
+      }
+      if (atSplash) {
+        switch (authState.status) {
+          case AuthStatus.authenticated:
+            return '/dashboard';
+          case AuthStatus.awaitingMfa:
+            return '/mfa';
+          case AuthStatus.unauthenticated:
+            return '/login';
+          default:
+            return '/login';
+        }
+      }
 
       // While secure storage is still loading, avoid flashing the intro carousel.
       if (authState.status == AuthStatus.initial && isOnboarding) {
@@ -86,6 +104,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SessionRestoreScreen(),
+      ),
       GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingCarouselScreen(),

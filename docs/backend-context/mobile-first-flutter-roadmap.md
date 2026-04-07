@@ -676,7 +676,7 @@ dev_dependencies:
 5. **Register Screen** — Name, email, password, shop name, subdomain picker
 6. **Setup Shop** — Upload logo, choose theme, add first product (guided)
 
-**Create-shop API:** Prefer **`POST /api/v1/mobile/auth/register`** (same body as web `POST /api/tenants/register`, mobile `{ success, data }` envelope). Alternatives: call web **`POST /api/tenants/register`** directly. Always use **`GET /api/tenants/check-subdomain`** for live availability. Required fields include **`adminPhone`** / optional **`adminPhoneCountry`**. After **201**, call **`POST /api/v1/mobile/auth/login`** with the same credentials (then MFA if required). Full contract: **`docs/API_MULTI_STORE_CHANGES.md`**.
+**Create-shop API:** Prefer **`POST /api/v1/mobile/auth/register`** (same body as web `POST /api/tenants/register`, mobile `{ success, data }` envelope). Alternatives: call web **`POST /api/tenants/register`** directly. Always use **`GET /api/tenants/check-subdomain`** for live availability. Required fields include **`adminPhone`** / optional **`adminPhoneCountry`**. After **201**: if you open the web dashboard, use **`data.loginUrl`** (tenant **`/dashboard/login`**; see **`docs/API_MULTI_STORE_CHANGES.md`** — *Post-registration redirect*). For in-app API access, call **`POST /api/v1/mobile/auth/login`** with the same credentials (then MFA if required).
 
 **Google Sign-In requirements (Shop Owner app)**:
 - Add Google Sign-In on both **Login** and **Register** flows (Android + iOS)

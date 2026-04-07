@@ -3,14 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/auth/token_storage.dart';
 import '../data/attribute_value_format.dart';
 import '../data/attributes_repository.dart';
+import '../providers/attributes_list_provider.dart';
 
 /// Add/Edit Product — Stitch: Add/Edit Product (with Variants)
 /// (screen 6a3e6b8d009b4574bb092c68b80dfcc0; variant module + attributes integration).
-class ProductEditorScreen extends StatefulWidget {
+class ProductEditorScreen extends ConsumerStatefulWidget {
   const ProductEditorScreen({
     super.key,
     this.initialSku,
@@ -19,7 +22,7 @@ class ProductEditorScreen extends StatefulWidget {
   final String? initialSku;
 
   @override
-  State<ProductEditorScreen> createState() => _ProductEditorScreenState();
+  ConsumerState<ProductEditorScreen> createState() => _ProductEditorScreenState();
 }
 
 /// One sellable variant (option combination + SKU + stock).
@@ -44,10 +47,12 @@ class _VariantLine {
   }
 }
 
-class _ProductEditorScreenState extends State<ProductEditorScreen> {
-  /// Placeholder when the API returns no image.
-  static const _placeholderHeroImage =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuD0k9iZr9_nIhg0l_WEMnasUNYScknwKwxyz2tDE2DTOWu5ZjLFyLHn4iwm7yvZUiVJ3_EGxj8QXV5JWoCExk17vTO03OuVVJGaDkK_b0Fv1EAHEIlKvFNpsYWgZFqtHSF0ezvqM1SSXHgVfwXrY6179eYYhaQ4gDbkN7lDWGUB1GpP--UqZEvNwoXS8MMAks7fddRgCDlfcvf9Wa3tNIdYfYzkRLRsZK00uB9FDfNwzWvqho1lNAmecZ_XNi6q3N0sedPnTWk3bEUy';
+class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
+  static const Duration _productCacheTtl = Duration(minutes: 5);
+  static final Map<String, ({Map<String, dynamic> product, DateTime savedAt})> _productDetailCache = {};
+
+  /// Leave empty if the API returns no image.
+  static const _placeholderHeroImage = '';
 
   static const _defaultCategorySeeds = [
     'Bags & Accessories',
@@ -73,7 +78,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   late String _category;
   String? _campaign;
   bool _visible = true;
-  int _photoCount = 1;
+  int _photoCount = 0;
   String? _loadedHeroImageUrl;
   String? _productApiId;
   final ScrollController _scrollController = ScrollController();
@@ -82,6 +87,9 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   bool _isLoadingRemote = false;
   bool _isSaving = false;
   String? _dataSourceError;
+  bool _loadAttributes = false;
+  DateTime? _lastSyncedAt;
+  bool _hasSeenRefreshHint = false;
 
   static String _valueLabel(ProductAttribute a, String raw) {
     return AttributeValueFormat.shortLabel(raw, a.displayType);
@@ -118,49 +126,6 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     return true;
   }
 
-  void _generateVariantsFromAttributes() {
-    final attrs = AttributesRepository.items.value;
-    if (attrs.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add attributes under Products → Manage Attributes first.')),
-      );
-      return;
-    }
-    if (attrs.any((a) => a.values.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Each attribute needs at least one option value.')),
-      );
-      return;
-    }
-    var combos = <Map<String, String>>[<String, String>{}];
-    for (final a in attrs) {
-      final next = <Map<String, String>>[];
-      for (final combo in combos) {
-        for (final raw in a.values) {
-          final label = _valueLabel(a, raw);
-          next.add({...combo, a.name: label});
-        }
-      }
-      combos = next;
-      if (combos.length > 72) break;
-    }
-    final base = _sku.text.trim().isEmpty ? 'VAR' : _sku.text.trim();
-    var n = 1;
-    for (final c in combos) {
-      if (_variantLines.any((l) => _optionsEqual(l.options, c))) continue;
-      _variantLines.add(_VariantLine(
-        options: c,
-        initialSku: '$base-${n.toString().padLeft(2, '0')}',
-        initialStock: '0',
-      ));
-      n++;
-    }
-    setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Variants updated from attribute combinations.')),
-    );
-  }
-
   String _asString(dynamic value, {String fallback = ''}) {
     if (value is String && value.trim().isNotEmpty) return value;
     if (value is num) return value.toString();
@@ -174,15 +139,40 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   }
 
   String? _primaryImageFromMap(Map<String, dynamic> p) {
-    final direct = p['image'] ?? p['imageUrl'] ?? p['featuredImage'] ?? p['thumbnail'];
-    if (direct is String && direct.trim().isNotEmpty) return direct.trim();
-    final imgs = p['images'] ?? p['media'];
+    String normalize(dynamic raw) {
+      if (raw is! String) return '';
+      final s = raw.trim();
+      if (s.isEmpty) return '';
+      if (s.startsWith('http://') || s.startsWith('https://')) return s;
+      if (s.startsWith('//')) return 'https:$s';
+      return '';
+    }
+
+    final direct = p['image'] ??
+        p['imageUrl'] ??
+        p['image_url'] ??
+        p['featuredImage'] ??
+        p['featured_image'] ??
+        p['thumbnail'] ??
+        p['thumbnail_url'];
+    final nDirect = normalize(direct);
+    if (nDirect.isNotEmpty) return nDirect;
+    final imgs = p['images'] ?? p['media'] ?? p['gallery'];
     if (imgs is List) {
       for (final e in imgs) {
-        if (e is String && e.trim().isNotEmpty) return e.trim();
+        final n = normalize(e);
+        if (n.isNotEmpty) return n;
         if (e is Map) {
-          final u = e['url'] ?? e['src'] ?? e['imageUrl'];
-          if (u is String && u.trim().isNotEmpty) return u.trim();
+          final m = Map<String, dynamic>.from(e);
+          final nested = normalize(
+            m['url'] ??
+                m['src'] ??
+                m['imageUrl'] ??
+                m['image_url'] ??
+                m['thumbnail'] ??
+                m['thumbnail_url'],
+          );
+          if (nested.isNotEmpty) return nested;
         }
       }
     }
@@ -199,17 +189,33 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
 
   void _applyVariantsFromProduct(Map<String, dynamic> p) {
     _disposeVariantLines();
-    final rawVariants = p['variants'] ?? p['productVariants'] ?? p['variantList'];
+    final rawVariants =
+        p['variants'] ?? p['productVariants'] ?? p['product_variants'] ?? p['variantList'];
     if (rawVariants is List && rawVariants.isNotEmpty) {
       for (final item in rawVariants.whereType<Map>()) {
         final m = Map<String, dynamic>.from(item);
         final vSku = _asString(m['sku'] ?? m['code'], fallback: _sku.text.trim());
-        final stockRaw = m['stock'] ?? m['stockQuantity'] ?? m['quantity'];
+        final stockRaw = m['stock'] ?? m['stockQuantity'] ?? m['stock_quantity'] ?? m['quantity'];
         final vStock = stockRaw == null ? '0' : stockRaw.toString();
         var options = <String, String>{'Default': 'Standard'};
-        final opt = m['options'] ?? m['attributes'] ?? m['attributeValues'];
+        final opt = m['options'] ??
+            m['attributes'] ??
+            m['attributeValues'] ??
+            m['attribute_values'] ??
+            m['option_values'];
         if (opt is Map) {
           options = opt.map((k, v) => MapEntry(k.toString(), v.toString()));
+        } else if (opt is List && opt.isNotEmpty) {
+          options = {};
+          for (final row in opt.whereType<Map>()) {
+            final r = Map<String, dynamic>.from(row);
+            final key = _asString(r['name'] ?? r['attribute_name'], fallback: 'Option');
+            final value = _asString(r['value'] ?? r['label'], fallback: '');
+            if (value.isNotEmpty) options[key] = value;
+          }
+          if (options.isEmpty) {
+            options = {'Default': 'Standard'};
+          }
         }
         _variantLines.add(
           _VariantLine(
@@ -224,73 +230,119 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     _initVariantLines();
   }
 
-  Future<void> _loadLiveProductIfEditing() async {
-    final productId = widget.initialSku;
-    if (productId == null || productId.isEmpty) return;
+  Map<String, dynamic>? _extractProductMap(dynamic payload) {
+    if (payload is! Map<String, dynamic>) return null;
+    final raw = payload['product'] ?? payload['item'] ?? payload['data'] ?? payload;
+    if (raw is! Map) return null;
+    return Map<String, dynamic>.from(raw);
+  }
+
+  Future<String> _resolveProductLookupKey(String inputKey) async {
+    final trimmed = inputKey.trim();
+    if (trimmed.isEmpty) return trimmed;
+    if (trimmed.contains('-')) {
+      final api = ref.read(apiClientProvider);
+      final list = await api.getProducts(page: 1, limit: 50, search: trimmed);
+      if (list.success && list.data is Map<String, dynamic>) {
+        final data = list.data as Map<String, dynamic>;
+        final items = data['items'] ?? data['products'] ?? data['data'];
+        if (items is List) {
+          for (final raw in items.whereType<Map>()) {
+            final m = Map<String, dynamic>.from(raw);
+            final sku = (m['sku'] ?? m['code'] ?? '').toString();
+            final id = (m['id'] ?? '').toString();
+            if (sku == trimmed && id.isNotEmpty) return id;
+          }
+        }
+      }
+    }
+    return trimmed;
+  }
+
+  void _applyProductData(Map<String, dynamic> p) {
+    final idStr = p['id']?.toString().trim();
+    _productApiId = (idStr != null && idStr.isNotEmpty) ? idStr : null;
+
+    _name.text = _asString(p['name']);
+    _description.text = _asString(p['description']);
+    _regularPrice.text =
+        _moneyToKes(p['regularPrice'] ?? p['regular_price'] ?? p['price'] ?? p['unitPrice']);
+    final saleRaw = p['salePrice'] ?? p['sale_price'] ?? p['discountPrice'] ?? p['discount_price'];
+    _salePrice.text = saleRaw == null ? '' : _moneyToKes(saleRaw);
+    _sku.text = _asString(p['sku'] ?? p['code'], fallback: _sku.text);
+    final stock = p['stock'] ?? p['stockQuantity'] ?? p['stock_quantity'] ?? p['quantity'];
+    _stock.text = stock == null ? '' : stock.toString();
+
+    final category = _asString(
+      p['categoryName'] ?? p['category'],
+      fallback: _category,
+    );
+    _ensureCategoryOption(category);
+    _category = category;
+
+    final statusRaw = (p['status'] ?? '').toString().toLowerCase();
+    if (statusRaw.isNotEmpty) {
+      _visible = statusRaw == 'active' || statusRaw == 'enabled';
+    } else {
+      _visible = p['isActive'] == true || p['active'] == true;
+    }
+
+    _loadedHeroImageUrl = _primaryImageFromMap(p);
+    final imgs = p['images'] ?? p['media'] ?? p['gallery'];
+      if (imgs is List && imgs.isNotEmpty) {
+      _photoCount = imgs.length.clamp(1, 5);
+    } else if (_loadedHeroImageUrl != null) {
+      _photoCount = 1;
+    } else {
+        _photoCount = 0;
+    }
+
+    _applyVariantsFromProduct(p);
+  }
+
+  Future<void> _loadLiveProductIfEditing({bool forceRefresh = false}) async {
+    final initialKey = widget.initialSku;
+    if (initialKey == null || initialKey.isEmpty) return;
+
+    if (!forceRefresh) {
+      final cached = _productDetailCache[initialKey];
+      if (cached != null && DateTime.now().difference(cached.savedAt) < _productCacheTtl) {
+        setState(() {
+          _applyProductData(cached.product);
+          _isLiveData = true;
+          _isLoadingRemote = false;
+          _dataSourceError = null;
+          _lastSyncedAt = cached.savedAt;
+        });
+        return;
+      }
+    }
 
     setState(() {
       _isLoadingRemote = true;
       _dataSourceError = null;
     });
     try {
-      final container = ProviderScope.containerOf(context, listen: false);
-      final api = container.read(apiClientProvider);
-      final response = await api.getProductDetail(productId);
+      final api = ref.read(apiClientProvider);
+      final lookupKey = await _resolveProductLookupKey(initialKey);
+      final response = await api.getProductDetail(lookupKey);
       if (!response.success || response.data == null) {
         throw StateError(response.error?.message ?? 'Failed to load product');
       }
 
-      final payload = response.data;
-      final raw = payload is Map<String, dynamic>
-          ? (payload['product'] ?? payload['item'] ?? payload)
-          : null;
-      if (raw is! Map) {
+      final p = _extractProductMap(response.data);
+      if (p == null) {
         throw const FormatException('Invalid product payload');
       }
-      final p = Map<String, dynamic>.from(raw);
 
-      final idStr = p['id']?.toString().trim();
-      _productApiId = (idStr != null && idStr.isNotEmpty) ? idStr : null;
-
-      _name.text = _asString(p['name']);
-      _description.text = _asString(p['description']);
-      _regularPrice.text = _moneyToKes(p['regularPrice'] ?? p['price'] ?? p['unitPrice']);
-      final saleRaw = p['salePrice'] ?? p['discountPrice'];
-      _salePrice.text = saleRaw == null ? '' : _moneyToKes(saleRaw);
-      _sku.text = _asString(p['sku'] ?? p['code'], fallback: _sku.text);
-      final stock = p['stock'] ?? p['stockQuantity'] ?? p['quantity'];
-      _stock.text = stock == null ? '' : stock.toString();
-
-      final category = _asString(
-        p['categoryName'] ?? p['category'],
-        fallback: _category,
-      );
-      _ensureCategoryOption(category);
-      _category = category;
-
-      final statusRaw = (p['status'] ?? '').toString().toLowerCase();
-      if (statusRaw.isNotEmpty) {
-        _visible = statusRaw == 'active' || statusRaw == 'enabled';
-      } else {
-        _visible = p['isActive'] == true || p['active'] == true;
-      }
-
-      _loadedHeroImageUrl = _primaryImageFromMap(p);
-      final imgs = p['images'] ?? p['media'];
-      if (imgs is List && imgs.isNotEmpty) {
-        _photoCount = imgs.length.clamp(1, 5);
-      } else if (_loadedHeroImageUrl != null) {
-        _photoCount = 1;
-      } else {
-        _photoCount = 1;
-      }
-
-      _applyVariantsFromProduct(p);
+      _productDetailCache[initialKey] = (product: p, savedAt: DateTime.now());
 
       if (mounted) {
         setState(() {
+          _applyProductData(p);
           _isLiveData = true;
           _isLoadingRemote = false;
+          _lastSyncedAt = DateTime.now();
         });
       }
     } catch (e) {
@@ -305,7 +357,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   }
 
   Future<void> _openAddVariantSheet() async {
-    final attrs = AttributesRepository.items.value;
+    final attrs = ref.read(dashboardAttributesProvider).valueOrNull ?? [];
     if (attrs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Create attributes first (Manage Attributes).')),
@@ -509,6 +561,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   @override
   void initState() {
     super.initState();
+    _loadRefreshHintPref();
     final isNew = widget.initialSku == null;
     _categoryOptions = List<String>.from(_defaultCategorySeeds);
     _category = _categoryOptions.first;
@@ -520,10 +573,17 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     _stock = TextEditingController();
     _loadedHeroImageUrl = null;
     _productApiId = null;
+    _loadAttributes = !isNew;
     _initVariantLines();
     if (!isNew) {
       _loadLiveProductIfEditing();
     }
+  }
+
+  Future<void> _loadRefreshHintPref() async {
+    final seen = await ref.read(tokenStorageProvider).getProductDetailRefreshHintSeen();
+    if (!mounted) return;
+    setState(() => _hasSeenRefreshHint = seen);
   }
 
   String get _heroImageUrl => _loadedHeroImageUrl ?? _placeholderHeroImage;
@@ -547,12 +607,26 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isNew = widget.initialSku == null;
+    String lastUpdatedLabel() {
+      final at = _lastSyncedAt;
+      if (at == null) return 'Not synced yet';
+      final diff = DateTime.now().difference(at);
+      if (diff.inMinutes < 1) return 'Updated just now';
+      if (diff.inMinutes < 60) return 'Updated ${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return 'Updated ${diff.inHours}h ago';
+      return 'Updated ${diff.inDays}d ago';
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      body: CustomScrollView(
-        controller: _scrollController,
-        slivers: [
+      body: RefreshIndicator(
+        onRefresh: () async {
+          if (isNew) return;
+          await _loadLiveProductIfEditing(forceRefresh: true);
+        },
+        child: CustomScrollView(
+          controller: _scrollController,
+          slivers: [
           SliverAppBar(
             pinned: true,
             elevation: 0,
@@ -570,6 +644,18 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
               ),
             ),
             actions: [
+              if (!isNew)
+                IconButton(
+                  tooltip: 'Refresh details',
+                  onPressed: _isLoadingRemote ? null : () => _loadLiveProductIfEditing(forceRefresh: true),
+                  icon: _isLoadingRemote
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh_rounded),
+                ),
               TextButton(
                 onPressed: _isSaving ? null : _saveProduct,
                 child: Text(
@@ -602,24 +688,69 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                _EditorDataSourceBadge(
-                  isLoading: _isLoadingRemote,
-                  isLiveData: _isLiveData,
-                  errorMessage: _dataSourceError,
-                ),
-                const SizedBox(height: 8),
+                if (!isNew) ...[
+                  _EditorDataSourceBadge(
+                    isLoading: _isLoadingRemote,
+                    isLiveData: _isLiveData,
+                    errorMessage: _dataSourceError,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${lastUpdatedLabel()} • Swipe down to refresh',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (!_hasSeenRefreshHint) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.swipe_down_alt_rounded, size: 18, color: theme.colorScheme.primary),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Pull down to fetch the latest product details.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              setState(() => _hasSeenRefreshHint = true);
+                              await ref.read(tokenStorageProvider).saveProductDetailRefreshHintSeen(true);
+                            },
+                            child: const Text('Got it'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                ],
                 SizedBox(
                   height: 132,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     children: [
-                      _MediaThumb(
-                        imageUrl: _heroImageUrl,
-                        onRemove: () {
-                          if (_photoCount > 1) setState(() => _photoCount--);
-                        },
-                      ),
-                      const SizedBox(width: 12),
+                      if (_heroImageUrl.trim().isNotEmpty) ...[
+                        _MediaThumb(
+                          imageUrl: _heroImageUrl,
+                          onRemove: () {
+                            setState(() {
+                              _loadedHeroImageUrl = null;
+                              if (_photoCount > 0) _photoCount--;
+                            });
+                          },
+                        ),
+                        const SizedBox(width: 12),
+                      ],
                       _AddPhotoButton(onTap: () {
                         if (_photoCount < 5) setState(() => _photoCount++);
                       }),
@@ -807,139 +938,166 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                ValueListenableBuilder<List<ProductAttribute>>(
-                  valueListenable: AttributesRepository.items,
-                  builder: (context, attrs, _) {
-                    return _CardShell(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
+                if (!_loadAttributes)
+                  _CardShell(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Product variants',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.primaryDark,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Load attributes when you are ready to configure variants.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed: () => setState(() => _loadAttributes = true),
+                          icon: const Icon(Icons.layers_outlined, size: 18),
+                          label: const Text('Load variant options'),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  ...switch (ref.watch(dashboardAttributesProvider)) {
+                    AsyncLoading<List<ProductAttribute>>() => [
+                        _CardShell(
+                          child: const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(24),
+                              child: CircularProgressIndicator(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    AsyncError(:final error) => [
+                        _CardShell(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Text('$error', style: theme.textTheme.bodySmall),
+                          ),
+                        ),
+                      ],
+                    AsyncData(:final value) => [
+                        _CardShell(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Expanded(
-                                child: Column(
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Product variants',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppTheme.primaryDark,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Each variant is a unique combination of your attributes, with its own SKU and stock.',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 12,
+                                            height: 1.35,
+                                            color: theme.colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primary.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      'Product variants',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppTheme.primaryDark,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Each variant is a unique combination of your attributes, with its own SKU and stock.',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        height: 1.35,
-                                        color: theme.colorScheme.onSurfaceVariant,
+                                    Icon(Icons.layers_outlined, color: AppTheme.primaryDark, size: 22),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        value.isEmpty
+                                            ? 'No attributes yet. Tap “Manage attributes” above to define options like Color or Size.'
+                                            : '${value.length} attribute(s) available — use them to build variants below.',
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          height: 1.4,
+                                          color: AppTheme.primaryDark,
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primary.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(Icons.layers_outlined, color: AppTheme.primaryDark, size: 22),
-                                const SizedBox(width: 10),
-                                Expanded(
+                              const SizedBox(height: 14),
+                              if (_variantLines.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
                                   child: Text(
-                                    attrs.isEmpty
-                                        ? 'No attributes yet. Tap “Manage attributes” above to define options like Color or Size.'
-                                        : '${attrs.length} attribute(s) available — use them to build variants below.',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      height: 1.4,
-                                      color: AppTheme.primaryDark,
+                                    'No variants yet. Add one manually.',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
                                     ),
                                   ),
+                                )
+                              else
+                                ..._variantLines.asMap().entries.map((e) {
+                                  final i = e.key;
+                                  final line = e.value;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: _VariantRowTile(
+                                      line: line,
+                                      onRemove: () {
+                                        setState(() {
+                                          line.dispose();
+                                          _variantLines.removeAt(i);
+                                        });
+                                      },
+                                    ),
+                                  );
+                                }),
+                              const SizedBox(height: 8),
+                              FilledButton.icon(
+                                onPressed: value.isEmpty ? null : _openAddVariantSheet,
+                                icon: const Icon(Icons.add, size: 20),
+                                label: Text(
+                                  'Add variant',
+                                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
                                 ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          if (_variantLines.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: Text(
-                                'No variants yet. Generate from attributes or add one manually.',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            )
-                          else
-                            ..._variantLines.asMap().entries.map((e) {
-                              final i = e.key;
-                              final line = e.value;
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: _VariantRowTile(
-                                  line: line,
-                                  onRemove: () {
-                                    setState(() {
-                                      line.dispose();
-                                      _variantLines.removeAt(i);
-                                    });
-                                  },
-                                ),
-                              );
-                            }),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: attrs.isEmpty ? null : _generateVariantsFromAttributes,
-                                  icon: const Icon(Icons.auto_awesome, size: 20),
-                                  label: Text(
-                                    'Generate from attributes',
-                                    style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppTheme.primaryDark,
-                                    side: BorderSide(color: AppTheme.primary.withValues(alpha: 0.35)),
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: FilledButton.icon(
-                                  onPressed: attrs.isEmpty ? null : _openAddVariantSheet,
-                                  icon: const Icon(Icons.add, size: 20),
-                                  label: Text(
-                                    'Add variant',
-                                    style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
-                                  ),
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: AppTheme.primaryDark,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppTheme.primaryDark,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 ),
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                    );
+                        ),
+                      ],
+                    _ => [
+                        _CardShell(child: const SizedBox.shrink()),
+                      ],
                   },
-                ),
                 const SizedBox(height: 16),
                 _CardShell(
                   child: Column(
@@ -1038,7 +1196,8 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
               ]),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1219,40 +1378,81 @@ class _MediaThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasImage = imageUrl.trim().isNotEmpty;
+    String fallbackUrl(String raw) {
+      try {
+        final u = Uri.parse(raw);
+        if (u.host == 'auth.dukanest.com' && u.path.startsWith('/storage/v1/object/public/')) {
+          final base = Uri.parse(AppConfig.publicApiBaseUrl);
+          return u.replace(
+            scheme: base.scheme,
+            host: base.host,
+            port: base.hasPort ? base.port : null,
+          ).toString();
+        }
+      } catch (_) {}
+      return raw;
+    }
+
     return Stack(
       clipBehavior: Clip.none,
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: Image.network(
-            imageUrl,
-            width: 128,
-            height: 128,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-              width: 128,
-              height: 128,
-              color: Theme.of(context).colorScheme.surfaceContainerLow,
-              child: const Icon(Icons.image_not_supported_outlined),
-            ),
-          ),
+          child: hasImage
+              ? Image.network(
+                  imageUrl,
+                  width: 128,
+                  height: 128,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) {
+                    final alt = fallbackUrl(imageUrl);
+                    if (alt != imageUrl) {
+                      return Image.network(
+                        alt,
+                        width: 128,
+                        height: 128,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 128,
+                          height: 128,
+                          color: Theme.of(context).colorScheme.surfaceContainerLow,
+                          child: const Icon(Icons.image_not_supported_outlined),
+                        ),
+                      );
+                    }
+                    return Container(
+                      width: 128,
+                      height: 128,
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                      child: const Icon(Icons.image_not_supported_outlined),
+                    );
+                  },
+                )
+              : Container(
+                  width: 128,
+                  height: 128,
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  child: const Icon(Icons.image_not_supported_outlined),
+                ),
         ),
-        Positioned(
-          top: 6,
-          right: 6,
-          child: Material(
-            color: Colors.white.withValues(alpha: 0.92),
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: onRemove,
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(Icons.close, size: 16, color: Theme.of(context).colorScheme.error),
+        if (hasImage)
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Material(
+              color: Colors.white.withValues(alpha: 0.92),
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: onRemove,
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(Icons.close, size: 16, color: Theme.of(context).colorScheme.error),
+                ),
               ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -1425,13 +1625,13 @@ class _EditorDataSourceBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isFallback = !isLiveData;
-    final bg = isLiveData ? const Color(0xFFD1FAE5) : const Color(0xFFFFF4E5);
-    final fg = isLiveData ? const Color(0xFF065F46) : const Color(0xFF9A3412);
+    final bg = isLiveData ? const Color(0xFFD1FAE5) : const Color(0xFFE6F2FF);
+    final fg = isLiveData ? const Color(0xFF065F46) : const Color(0xFF1E40AF);
     final label = isLoading
-        ? 'LOADING LIVE PRODUCT DATA...'
+        ? 'Syncing product details...'
         : isLiveData
-            ? 'LIVE PRODUCT DATA'
-            : 'FALLBACK PRODUCT DATA';
+            ? 'Product details are up to date'
+            : 'Showing saved details';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1460,8 +1660,7 @@ class _EditorDataSourceBadge extends StatelessWidget {
                 label,
                 style: TextStyle(
                   fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.7,
+                  fontWeight: FontWeight.w700,
                   color: fg,
                 ),
               ),

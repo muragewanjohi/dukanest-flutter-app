@@ -1,27 +1,37 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../providers/content_hub_provider.dart';
 
 /// Content Manager — Stitch: Content Management (Updated Nav & Sales)
 /// (c0999576f9e44e32945d93fb39de9be4). No duplicate bottom nav.
-class ContentManagementScreen extends StatelessWidget {
+class ContentManagementScreen extends ConsumerStatefulWidget {
   const ContentManagementScreen({super.key});
 
-  static const _imgProduce =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuB-RhbTwmQGO7UvdR2U6bjhTE0QV1j0bn_rjO7Zbff5AD0auumX1vOJ5DE8LEn_gLuje4RgOlekKTafcU4cEFIg8YbLekZAKyGPq3L3MDRm-0Gqjck0PbWRH6PQIdPcbdvMN-Ok0UdDRPHRW5-8M5d0BpWPKNXd_2nh3dAzxC78Rq_GlqnJgPCWsoNFgErS_-Iro9monw-9mKSyTADS99pcqYYNUa1qEnRBdQItJpJTAUjk7px1Da4YmTUozVm-59C68TsDAyItFwGx';
-  static const _imgPayments =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuA80fodEKI9Bj8t9_PWXNRVSio0X8LXbHmaQINWZi93GaEY3SJMXgx-r3xh10yi38nh6j3sCx4xJiM74YL2qG-icVpHJOWYgz8crbDtQhz0DQjN24Qv1tvtq91jouyjm1BjXVpS6XG-9U6rChK2piJBmdT1nSW5R9qHzXC8qQ1TQMHyVguvvxnvTE_ALCkzmq6eYkUMCugfmxm2RqPReygULyV7cP-V70qOtAWIusE4vxetts1-FLRRoTIr8k2iTdfdeQwLZ7Pu6rhY';
-  static const _imgLoyalty =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuClKuE-gQTnyop3ZW0H558UXJtiKoeQE0BvGO7WF7J5GfI_gAwBLphYC6QH6jZorgqDyop1FdRRU6nU8d86tZqhb64ykCqlCgRYRpvTO43J-G_cKjmlwbrn3PMq718hKHCT_XecwMCD4TMsvmI4ugABa_fACJXgOJQ-yIBqb4xXrfXdYiUtLayfiLf53ETo5t046pmpk20UxxhUph2Pr4u2hk_HJ5rQwv8DMmRyPdDlpHW1BZApTQhrWGnBobTw0NaGauyvDrK6Wyyt';
   static const _avatarUrl =
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAad6vSBUp7TJUfwx6q_Zu98Ov5kBoXEE6qBmxohdxS3Xvva7vzUbTd5Y8YRBWNFTGzudNbQtShKEQH6NuGII-SsspXdB7DKKsz4Pimfw-Jw5ZbD3mkR2xLXoBuY18sQ55Wah_7XurHfjAkge6D7u_3_X-u4e-H1jxPrAIqkvKr208JNSiW_mN2sX_JILyDCrOLz4QvdqqC50F7jj7CEJhMVpBASAs5cMEfzX-FmTtgGIOTgkONTsfB_g9bii7TyqizG0D5kkTunZt5';
 
   @override
+  ConsumerState<ContentManagementScreen> createState() => _ContentManagementScreenState();
+}
+
+class _ContentManagementScreenState extends ConsumerState<ContentManagementScreen> {
+  final _searchCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hubAsync = ref.watch(contentHubProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
@@ -54,7 +64,7 @@ class ContentManagementScreen extends StatelessWidget {
             child: CircleAvatar(
               radius: 20,
               backgroundColor: AppTheme.primary.withValues(alpha: 0.15),
-              backgroundImage: const CachedNetworkImageProvider(_avatarUrl),
+              backgroundImage: CachedNetworkImageProvider(ContentManagementScreen._avatarUrl),
             ),
           ),
         ],
@@ -63,127 +73,181 @@ class ContentManagementScreen extends StatelessWidget {
           child: Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35)),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-        children: [
-          _SearchAndActionsRow(theme: theme),
-          const SizedBox(height: 32),
-          Text(
-            'Recent Blog Posts',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.primaryDark,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: () {},
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.primary,
-                padding: EdgeInsets.zero,
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: Text('View All', style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14)),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _BlogCard(
-            imageUrl: _imgProduce,
-            status: 'PUBLISHED',
-            title: 'How to source the best organic produce for your store',
-            meta: 'Updated 2 days ago • 5 min read',
-            publishedStyle: true,
-            onEdit: () => context.push('/blog-post/edit/organic-produce'),
-          ),
-          _BlogCard(
-            imageUrl: _imgPayments,
-            status: 'DRAFT',
-            title: 'Modernizing your checkout: Why digital payments matter',
-            meta: 'Edited 5 hours ago',
-            publishedStyle: false,
-            onEdit: () => context.push('/blog-post/edit/checkout-digital'),
-          ),
-          _BlogCard(
-            imageUrl: _imgLoyalty,
-            status: 'PUBLISHED',
-            title: 'Customer loyalty programs that actually work',
-            meta: 'Updated 1 week ago • 8 min read',
-            publishedStyle: true,
-            accentBorder: true,
-            onEdit: () => context.push('/blog-post/edit/loyalty-programs'),
-          ),
-          const SizedBox(height: 28),
-          Row(
-            children: [
-              Text(
-                'Pages',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.primaryDark,
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: () {},
-                icon: Icon(Icons.add_circle, color: theme.colorScheme.primary),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            clipBehavior: Clip.antiAlias,
+      body: hubAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _PageRow(
-                  title: 'Home',
-                  updated: 'Last updated: Mar 1, 2024',
-                  onTap: () => context.push('/page-editor/home'),
+                Text('$e', textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => ref.invalidate(contentHubProvider),
+                  child: const Text('Retry'),
                 ),
-                Divider(height: 1, color: Colors.white.withValues(alpha: 0.35)),
-                _PageRow(title: 'About Us', updated: 'Last updated: Mar 12, 2024'),
-                Divider(height: 1, color: Colors.white.withValues(alpha: 0.35)),
-                _PageRow(title: 'Privacy Policy', updated: 'Last updated: Jan 05, 2024'),
-                Divider(height: 1, color: Colors.white.withValues(alpha: 0.35)),
-                _PageRow(title: 'Terms of Service', updated: 'Last updated: Feb 20, 2024'),
               ],
             ),
           ),
-          const SizedBox(height: 28),
-          Text(
-            'Active Sales',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.primaryDark,
+        ),
+        data: (snap) => ListView(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+          children: [
+            _SearchAndActionsRow(
+              theme: theme,
+              searchController: _searchCtrl,
+              onSearch: (q) => ref.read(contentHubSearchProvider.notifier).state = q,
             ),
-          ),
-          const SizedBox(height: 12),
-          _FeaturedSaleCard(
-            onEdit: () => context.push('/sales-editor'),
-          ),
-          const SizedBox(height: 12),
-          _OutlinedSaleCard(
-            onEdit: () => context.push('/sales-editor'),
-          ),
-        ],
+            const SizedBox(height: 32),
+            Text(
+              'Recent Blog Posts',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.primaryDark,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () => ref.invalidate(contentHubProvider),
+                style: TextButton.styleFrom(
+                  foregroundColor: theme.colorScheme.primary,
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text('Refresh', style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (snap.blogs.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'No blog posts yet.',
+                  style: GoogleFonts.inter(fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
+                ),
+              )
+            else
+              ...snap.blogs.map((b) {
+                final st = contentBlogStatusLabel(b);
+                final published = st == 'PUBLISHED';
+                return _BlogCard(
+                  imageUrl: contentBlogImageUrl(b),
+                  status: st,
+                  title: contentBlogTitle(b),
+                  meta: contentBlogMetaLine(b),
+                  publishedStyle: published,
+                  accentBorder: false,
+                  onEdit: () {
+                    final id = contentBlogId(b);
+                    if (id.isEmpty) return;
+                    context.push('/blog-post/edit/${Uri.encodeComponent(id)}');
+                  },
+                );
+              }),
+            const SizedBox(height: 28),
+            Row(
+              children: [
+                Text(
+                  'Pages',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryDark,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: () {},
+                  icon: Icon(Icons.add_circle, color: theme.colorScheme.primary),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: snap.pages.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        'No pages loaded.',
+                        style: GoogleFonts.inter(fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        for (var i = 0; i < snap.pages.length; i++) ...[
+                          if (i > 0) Divider(height: 1, color: Colors.white.withValues(alpha: 0.35)),
+                          Builder(
+                            builder: (context) {
+                              final p = snap.pages[i];
+                              final updated = contentPageUpdatedLine(p);
+                              return _PageRow(
+                                title: contentPageTitle(p),
+                                updated: updated.isEmpty ? '—' : updated,
+                                onTap: () => context.push(
+                                  '/page-editor/${Uri.encodeComponent(contentPageSlug(p))}',
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+            ),
+            const SizedBox(height: 28),
+            Text(
+              'Active Sales',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.primaryDark,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (snap.sales.isEmpty)
+              Text(
+                'No sales campaigns yet.',
+                style: GoogleFonts.inter(fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
+              )
+            else ...[
+              _FeaturedSaleCard(
+                title: contentSaleTitle(snap.sales.first),
+                onEdit: () => context.push('/sales-editor'),
+              ),
+              if (snap.sales.length > 1) ...[
+                const SizedBox(height: 12),
+                _OutlinedSaleCard(
+                  title: contentSaleTitle(snap.sales[1]),
+                  onEdit: () => context.push('/sales-editor'),
+                ),
+              ],
+            ],
+          ],
+        ),
       ),
     );
   }
 }
 
 class _SearchAndActionsRow extends StatelessWidget {
-  const _SearchAndActionsRow({required this.theme});
+  const _SearchAndActionsRow({
+    required this.theme,
+    required this.searchController,
+    required this.onSearch,
+  });
 
   final ThemeData theme;
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -191,8 +255,9 @@ class _SearchAndActionsRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         TextField(
+          controller: searchController,
           decoration: InputDecoration(
-            hintText: 'Search blog, pages, or banners...',
+            hintText: 'Search blogs & pages — press enter',
             hintStyle: GoogleFonts.inter(fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
             prefixIcon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
             filled: true,
@@ -200,7 +265,7 @@ class _SearchAndActionsRow extends StatelessWidget {
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
-          onChanged: (_) {},
+          onSubmitted: onSearch,
         ),
         const SizedBox(height: 12),
         Row(
@@ -319,15 +384,20 @@ class _BlogCard extends StatelessWidget {
                   child: SizedBox(
                     width: 96,
                     height: 96,
-                    child: CachedNetworkImage(
-                      imageUrl: imageUrl,
-                      fit: BoxFit.cover,
-                      placeholder: (_, __) => ColoredBox(color: theme.colorScheme.surfaceContainerLow),
-                      errorWidget: (_, __, ___) => ColoredBox(
-                        color: theme.colorScheme.surfaceContainerLow,
-                        child: Icon(Icons.article_outlined, color: theme.colorScheme.outline),
-                      ),
-                    ),
+                    child: imageUrl.trim().isEmpty
+                        ? ColoredBox(
+                            color: theme.colorScheme.surfaceContainerLow,
+                            child: Icon(Icons.article_outlined, color: theme.colorScheme.outline),
+                          )
+                        : CachedNetworkImage(
+                            imageUrl: imageUrl,
+                            fit: BoxFit.cover,
+                            placeholder: (_, __) => ColoredBox(color: theme.colorScheme.surfaceContainerLow),
+                            errorWidget: (_, __, ___) => ColoredBox(
+                              color: theme.colorScheme.surfaceContainerLow,
+                              child: Icon(Icons.article_outlined, color: theme.colorScheme.outline),
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -446,8 +516,9 @@ class _PageRow extends StatelessWidget {
 }
 
 class _FeaturedSaleCard extends StatelessWidget {
-  const _FeaturedSaleCard({required this.onEdit});
+  const _FeaturedSaleCard({required this.title, required this.onEdit});
 
+  final String title;
   final VoidCallback onEdit;
 
   @override
@@ -488,7 +559,7 @@ class _FeaturedSaleCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Summer Flash Sale: 20% Off Storewide',
+                title,
                 style: GoogleFonts.inter(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -515,8 +586,9 @@ class _FeaturedSaleCard extends StatelessWidget {
 }
 
 class _OutlinedSaleCard extends StatelessWidget {
-  const _OutlinedSaleCard({required this.onEdit});
+  const _OutlinedSaleCard({required this.title, required this.onEdit});
 
+  final String title;
   final VoidCallback onEdit;
 
   @override
@@ -560,7 +632,7 @@ class _OutlinedSaleCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Buy 2 Get 1 Free: Organic Greens',
+                  title,
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,

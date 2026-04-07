@@ -75,14 +75,15 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
     return 'KES 0.00';
   }
 
-  String? _apiStatusFromFilter() {
+  ({String? status, String? paymentStatus}) _apiFiltersFromSelection() {
     final selectedFilter = _filters[_filterIndex];
     return switch (selectedFilter) {
-      'All Orders' => null,
-      'Pending' => 'pending',
-      'Paid' => 'paid',
-      'Shipped' => 'shipped',
-      _ => null,
+      'All Orders' => (status: null, paymentStatus: null),
+      'Pending' => (status: 'pending', paymentStatus: null),
+      // "Paid" is a payment-state filter, not an order lifecycle status.
+      'Paid' => (status: null, paymentStatus: 'paid'),
+      'Shipped' => (status: 'shipped', paymentStatus: null),
+      _ => (status: null, paymentStatus: null),
     };
   }
 
@@ -223,11 +224,13 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
 
     try {
       final api = ref.read(apiClientProvider);
+      final filters = _apiFiltersFromSelection();
       final response = await api.getOrders(
         page: pageToLoad,
         limit: _pageSize,
         search: _searchController.text.trim(),
-        status: _apiStatusFromFilter(),
+        status: filters.status,
+        paymentStatus: filters.paymentStatus,
       );
 
       if (!response.success) {
@@ -936,7 +939,8 @@ class _ProcessingGoalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final pct = total > 0 ? (100 * processed / total).round().clamp(0, 100) : 0;
-    final progress = total > 0 ? (processed / total).clamp(0.0, 1.0) : null;
+    // Keep determinate at 0% when there's no data (no animated indeterminate bar).
+    final progress = total > 0 ? (processed / total).clamp(0.0, 1.0) : 0.0;
 
     return Container(
       width: double.infinity,

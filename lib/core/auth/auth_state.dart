@@ -1,5 +1,8 @@
 enum AuthStatus {
+  /// Secure storage + optional `/auth/me` not finished yet.
   initial,
+  /// Access token present; validating with `GET /auth/me`.
+  sessionRestoring,
   unauthenticated,
   checkingMfa,
   awaitingMfa,

@@ -12,6 +12,28 @@ class AuthService {
 
   AuthService(this._dio);
 
+  /// `GET /auth/me` — session restore (see API_MULTI_STORE_CHANGES / flutter_apis.md).
+  Future<ApiResponse<Map<String, dynamic>>> getAuthMe() async {
+    try {
+      final response = await _dio.get('/auth/me');
+      return ApiResponse.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => json as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final raw = e.response!.data;
+        if (raw is Map<String, dynamic>) {
+          return ApiResponse.fromJson(raw, (json) => json as Map<String, dynamic>);
+        }
+      }
+      return ApiResponse(
+        success: false,
+        error: ApiError(code: 'NETWORK_ERROR', message: e.message ?? 'Network error'),
+      );
+    }
+  }
+
   Future<ApiResponse<Map<String, dynamic>>> login(String email, String password) async {
     try {
       final response = await _dio.post('/auth/login', data: {

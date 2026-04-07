@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
+import '../providers/dashboard_settings_provider.dart';
 
 /// Payment / M-Pesa configuration — Stitch: Payment Settings (d63f85c750fe4eb09247834fad7ca49f).
 class PaymentSettingsScreen extends ConsumerStatefulWidget {
@@ -23,6 +25,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
   bool _cashEnabled = true;
   bool _mpesaEnabled = true;
   _MpesaMethod _mpesaMethod = _MpesaMethod.sendMoney;
+  bool _hydrated = false;
+  bool _saving = false;
 
   final _sendMoneyPhone = TextEditingController();
   final _tillNumber = TextEditingController();
@@ -40,14 +44,115 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
     super.dispose();
   }
 
-  void _save() {
-    ref
-        .read(dashboardLocalStepCompletionsProvider.notifier)
-        .markComplete(DashboardOnboardingStepKeys.payment);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Payment settings saved (demo)')),
+  void _hydrateFrom(Map<String, dynamic>? root) {
+    final p = settingsSection(root, 'payment') ?? {};
+    _cashEnabled = settingsPickBool(p, ['cash_enabled', 'cashEnabled', 'cod_enabled', 'cash'], fallback: true);
+    _mpesaEnabled = settingsPickBool(p, ['mpesa_enabled', 'mpesaEnabled', 'mpesa'], fallback: true);
+    _timing = _parsePayTiming(
+      settingsPick(p, ['payment_timing', 'paymentTiming', 'pay_timing', 'when_to_pay', 'whenToPay']),
     );
-    context.pop();
+    _mpesaMethod = _parseMpesa(
+      settingsPick(p, ['mpesa_method', 'mpesaMethod', 'mpesa_type', 'mpesaType', 'lipa_method']),
+    );
+    _sendMoneyPhone.text = settingsPick(p, [
+      'mpesa_phone',
+      'mpesaPhone',
+      'phone',
+      'send_money_phone',
+      'lipa_phone',
+    ]);
+    _tillNumber.text = settingsPick(p, ['till_number', 'tillNumber', 'till']);
+    _paybillNumber.text = settingsPick(p, ['paybill_number', 'paybillNumber', 'paybill']);
+    _accountNumber.text = settingsPick(p, ['account_number', 'accountNumber', 'paybill_account', 'paybillAccount']);
+    _pochiPhone.text = settingsPick(p, ['pochi_phone', 'pochiPhone', 'pochi']);
+  }
+
+  static _PayTiming _parsePayTiming(String raw) {
+    final s = raw.toLowerCase().replaceAll('-', '_');
+    if (s.contains('before')) return _PayTiming.beforeDelivery;
+    if (s.contains('either') || s.contains('choice') || s.contains('any')) return _PayTiming.either;
+    return _PayTiming.afterDelivery;
+  }
+
+  static _MpesaMethod _parseMpesa(String raw) {
+    final s = raw.toLowerCase();
+    if (s.contains('till') || s.contains('buy_goods')) return _MpesaMethod.buyGoods;
+    if (s.contains('paybill')) return _MpesaMethod.paybill;
+    if (s.contains('pochi')) return _MpesaMethod.pochi;
+    return _MpesaMethod.sendMoney;
+  }
+
+  String _apiTiming() {
+    switch (_timing) {
+      case _PayTiming.beforeDelivery:
+        return 'before_delivery';
+      case _PayTiming.either:
+        return 'either';
+      case _PayTiming.afterDelivery:
+        return 'after_delivery';
+    }
+  }
+
+  String _apiMpesaMethod() {
+    switch (_mpesaMethod) {
+      case _MpesaMethod.buyGoods:
+        return 'buy_goods';
+      case _MpesaMethod.paybill:
+        return 'paybill';
+      case _MpesaMethod.pochi:
+        return 'pochi';
+      case _MpesaMethod.sendMoney:
+        return 'send_money';
+    }
+  }
+
+  Future<void> _save() async {
+    if (!_cashEnabled && !_mpesaEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enable cash or M-Pesa before saving.')),
+      );
+      return;
+    }
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final body = <String, dynamic>{
+        'payment': {
+          'cashEnabled': _cashEnabled,
+          'mpesaEnabled': _mpesaEnabled,
+          'paymentTiming': _apiTiming(),
+          'mpesaMethod': _apiMpesaMethod(),
+          'mpesaPhone': _sendMoneyPhone.text.trim(),
+          'tillNumber': _tillNumber.text.trim(),
+          'paybillNumber': _paybillNumber.text.trim(),
+          'paybillAccount': _accountNumber.text.trim(),
+          'pochiPhone': _pochiPhone.text.trim(),
+        },
+      };
+      final api = ref.read(apiClientProvider);
+      final r = await api.patchDashboardSettings(body);
+      if (!mounted) return;
+      if (!r.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(r.error?.message ?? 'Could not save payment settings')),
+        );
+        return;
+      }
+      ref.invalidate(dashboardSettingsProvider);
+      ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(DashboardOnboardingStepKeys.payment);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Payment settings saved')),
+      );
+      context.pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Save failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   InputDecoration _inputDeco(ThemeData theme, {required String hint}) {
@@ -64,7 +169,55 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final settingsAsync = ref.watch(dashboardSettingsProvider);
 
+    return settingsAsync.when(
+      loading: () => Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: AppBar(title: Text('Payments', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600))),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (err, _) => Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded, size: 24),
+            onPressed: () => context.pop(),
+          ),
+          title: Text('Payments', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('$err', textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => ref.invalidate(dashboardSettingsProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      data: (root) {
+        if (!_hydrated) {
+          _hydrated = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _hydrateFrom(root);
+            setState(() {});
+          });
+        }
+        return _buildScaffold(theme);
+      },
+    );
+  }
+
+  Widget _buildScaffold(ThemeData theme) {
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(
@@ -143,8 +296,14 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
                 child: FilledButton.icon(
-                  onPressed: _save,
-                  icon: const Icon(Icons.save_outlined, size: 22),
+                  onPressed: _saving ? null : _save,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.save_outlined, size: 22),
                   label: Text('Save Changes', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 16)),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(double.infinity, 54),

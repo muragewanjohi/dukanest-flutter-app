@@ -1,24 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
 import '../data/attribute_value_format.dart';
 import '../data/attributes_repository.dart';
+import '../providers/attributes_list_provider.dart';
 
 /// Attributes management — Stitch: "Attributes Management"
 /// (screen eb47190bf4884e469a6c82bec4d137e3).
 ///
 /// Full-screen route `/attributes` (no dashboard bottom navigation).
-class AttributesManagementScreen extends StatefulWidget {
+class AttributesManagementScreen extends ConsumerStatefulWidget {
   const AttributesManagementScreen({super.key});
 
   @override
-  State<AttributesManagementScreen> createState() =>
+  ConsumerState<AttributesManagementScreen> createState() =>
       _AttributesManagementScreenState();
 }
 
-class _AttributesManagementScreenState extends State<AttributesManagementScreen> {
+class _AttributesManagementScreenState extends ConsumerState<AttributesManagementScreen> {
   bool _showSearch = false;
   final _searchController = TextEditingController();
   String _query = '';
@@ -73,8 +76,25 @@ class _AttributesManagementScreenState extends State<AttributesManagementScreen>
         ],
       ),
     );
-    if (ok == true) {
-      AttributesRepository.remove(a.id);
+    if (ok != true || !mounted) return;
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.deleteDashboardAttribute(a.id);
+      if (!r.success) {
+        throw StateError(r.error?.message ?? 'Delete failed');
+      }
+      ref.invalidate(dashboardAttributesProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Removed "${a.name}"')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not delete: $e')),
+        );
+      }
     }
   }
 
@@ -82,12 +102,29 @@ class _AttributesManagementScreenState extends State<AttributesManagementScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final asyncAttrs = ref.watch(dashboardAttributesProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      body: ValueListenableBuilder<List<ProductAttribute>>(
-        valueListenable: AttributesRepository.items,
-        builder: (context, attributes, _) {
+      body: asyncAttrs.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('$e', textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => ref.invalidate(dashboardAttributesProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        data: (attributes) {
           final filtered = _filter(attributes);
           return CustomScrollView(
             slivers: [

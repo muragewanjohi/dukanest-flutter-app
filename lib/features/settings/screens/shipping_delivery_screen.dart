@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
+import '../providers/dashboard_settings_provider.dart';
 
 /// Shipping & delivery — Stitch: Shipping & Delivery (Mobile) (b1de30ad39f34a3ba10883af6a0de581).
 class ShippingDeliveryScreen extends ConsumerStatefulWidget {
@@ -22,6 +24,8 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
   final _flatRate = TextEditingController(text: '250');
   final _freeOver = TextEditingController(text: '5000');
   final _handlingDays = TextEditingController(text: '1');
+  bool _hydrated = false;
+  bool _saving = false;
 
   @override
   void dispose() {
@@ -31,14 +35,69 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     super.dispose();
   }
 
-  void _save() {
-    ref
-        .read(dashboardLocalStepCompletionsProvider.notifier)
-        .markComplete(DashboardOnboardingStepKeys.shipping);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Shipping settings saved (demo)')),
-    );
-    context.pop();
+  void _hydrateFrom(Map<String, dynamic>? root) {
+    final s = settingsSection(root, 'shipping') ?? {};
+    _localDelivery = settingsPickBool(s, ['local_delivery', 'localDelivery'], fallback: true);
+    _nationwide = settingsPickBool(s, ['nationwide_shipping', 'nationwide', 'nationwideShipping'], fallback: true);
+    _storePickup = settingsPickBool(s, ['store_pickup', 'storePickup', 'pickup_enabled'], fallback: false);
+    _flatRate.text = settingsPick(s, ['flat_rate', 'flatRate', 'standard_flat_rate', 'default_shipping_fee'], fallback: '0');
+    _freeOver.text = settingsPick(s, [
+      'free_shipping_threshold',
+      'freeShippingThreshold',
+      'free_over',
+      'freeOver',
+    ], fallback: '0');
+    _handlingDays.text = settingsPick(s, [
+      'handling_days',
+      'handlingDays',
+      'estimated_days',
+      'estimatedDays',
+    ], fallback: '1');
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final flat = num.tryParse(_flatRate.text.trim()) ?? 0;
+      final free = num.tryParse(_freeOver.text.trim()) ?? 0;
+      final days = int.tryParse(_handlingDays.text.trim()) ?? 1;
+      final anyCoverage = _localDelivery || _nationwide || _storePickup;
+      final body = <String, dynamic>{
+        'shipping': {
+          'localDelivery': _localDelivery,
+          'nationwideShipping': _nationwide,
+          'storePickup': _storePickup,
+          'shippingEnabled': anyCoverage,
+          'flatRate': flat,
+          'freeShippingThreshold': free,
+          'handlingDays': days,
+        },
+      };
+      final api = ref.read(apiClientProvider);
+      final r = await api.patchDashboardSettings(body);
+      if (!mounted) return;
+      if (!r.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(r.error?.message ?? 'Could not save shipping settings')),
+        );
+        return;
+      }
+      ref.invalidate(dashboardSettingsProvider);
+      ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(DashboardOnboardingStepKeys.shipping);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Shipping settings saved')),
+      );
+      context.pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Save failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   InputDecoration _fieldDeco(ThemeData theme, {String? hint, Widget? prefixIcon}) {
@@ -55,7 +114,55 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final settingsAsync = ref.watch(dashboardSettingsProvider);
 
+    return settingsAsync.when(
+      loading: () => Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: AppBar(title: Text('Shipping & Delivery', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600))),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (err, _) => Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_rounded, color: AppTheme.primaryDark, size: 26),
+            onPressed: () => context.pop(),
+          ),
+          title: Text('Shipping & Delivery', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('$err', textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => ref.invalidate(dashboardSettingsProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      data: (root) {
+        if (!_hydrated) {
+          _hydrated = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _hydrateFrom(root);
+            setState(() {});
+          });
+        }
+        return _buildScaffold(theme);
+      },
+    );
+  }
+
+  Widget _buildScaffold(ThemeData theme) {
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(
@@ -256,19 +363,25 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: _save,
+                      onTap: _saving ? null : _save,
                       borderRadius: BorderRadius.circular(14),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         child: Center(
-                          child: Text(
-                            'Save Changes',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                              color: Colors.white,
-                            ),
-                          ),
+                          child: _saving
+                              ? const SizedBox(
+                                  height: 22,
+                                  width: 22,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : Text(
+                                  'Save Changes',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
                         ),
                       ),
                     ),

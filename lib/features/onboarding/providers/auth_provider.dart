@@ -1,8 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../config/app_config.dart';
+import '../../../config/app_mode.dart';
 import '../../../core/auth/auth_service.dart';
 import '../../../core/auth/auth_state.dart';
 import '../../../core/auth/token_storage.dart';
-import '../../../config/app_mode.dart';
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(
@@ -42,16 +43,112 @@ class AuthNotifier extends StateNotifier<AuthState> {
     _checkInitialAuth();
   }
 
-  Future<void> _checkInitialAuth() async {
-    final token = await _tokenStorage.getAccessToken();
-    if (token != null) {
-      // In a real app we'd decode JWT or fetch user profile here.
-      // For MVP we assume token valid if present.
-      // If 401 later, our interceptor will handle it or log user out.
-      state = state.copyWith(status: AuthStatus.authenticated);
-    } else {
-      state = state.copyWith(status: AuthStatus.unauthenticated);
+  String _storeUrlFromSubdomain(String subdomain) {
+    final host = Uri.tryParse(AppConfig.publicApiBaseUrl)?.host ?? 'dukanest.com';
+    final rootHost = host.startsWith('www.') ? host.substring(4) : host;
+    return 'https://$subdomain.$rootHost';
+  }
+
+  Future<void> _saveStoreIdentityFromTenantMap(Map<String, dynamic>? tenantMap) async {
+    if (tenantMap == null) return;
+    final name = _pickString(tenantMap, ['name', 'storeName']);
+    final subdomain = _pickString(tenantMap, ['subdomain', 'storeSubdomain']);
+    final storeUrl = _pickString(tenantMap, ['storeUrl', 'url']);
+    if (name == null || name.isEmpty) return;
+    if (subdomain != null && subdomain.isNotEmpty) {
+      await _tokenStorage.saveStoreIdentity(
+        name: name,
+        subdomain: subdomain,
+        storeUrl: _storeUrlFromSubdomain(subdomain),
+      );
+      return;
     }
+    if (storeUrl != null && storeUrl.isNotEmpty) {
+      await _tokenStorage.saveStoreIdentity(
+        name: name,
+        subdomain: '',
+        storeUrl: storeUrl,
+      );
+    }
+  }
+
+  Future<void> _hydrateStoreIdentityPostAuth(Map<String, dynamic> data) async {
+    final tenantRaw = data['tenant'] ?? data['store'];
+    if (tenantRaw is Map) {
+      await _saveStoreIdentityFromTenantMap(Map<String, dynamic>.from(tenantRaw));
+      return;
+    }
+    try {
+      final me = await _authService.getAuthMe();
+      if (!me.success || me.data == null) return;
+      final inner = me.data!;
+      final t = inner['tenant'] ?? inner['store'];
+      if (t is Map) {
+        await _saveStoreIdentityFromTenantMap(Map<String, dynamic>.from(t));
+      }
+    } catch (_) {
+      // Non-blocking; dashboard can still load without store identity.
+    }
+  }
+
+  Future<void> _checkInitialAuth() async {
+    if (kDemoMode) {
+      final token = await _tokenStorage.getAccessToken();
+      state = state.copyWith(
+        status: token != null ? AuthStatus.authenticated : AuthStatus.unauthenticated,
+      );
+      return;
+    }
+
+    final token = await _tokenStorage.getAccessToken();
+    if (token == null) {
+      state = state.copyWith(status: AuthStatus.unauthenticated);
+      return;
+    }
+
+    state = state.copyWith(status: AuthStatus.sessionRestoring);
+
+    try {
+      final response = await _authService.getAuthMe();
+      if (response.success && response.data != null) {
+        final inner = response.data!;
+        final userRaw = inner['user'];
+        if (userRaw is Map) {
+          final user = AuthUser.fromJson(Map<String, dynamic>.from(userRaw));
+          final tenantRaw = inner['tenant'];
+          if (tenantRaw is Map) {
+            final t = Map<String, dynamic>.from(tenantRaw);
+            final name = t['name']?.toString();
+            final subdomain = t['subdomain']?.toString();
+            if (name != null &&
+                name.isNotEmpty &&
+                subdomain != null &&
+                subdomain.isNotEmpty) {
+              await _tokenStorage.saveStoreIdentity(
+                name: name,
+                subdomain: subdomain,
+                storeUrl: _storeUrlFromSubdomain(subdomain),
+              );
+            }
+          }
+          state = state.copyWith(
+            status: AuthStatus.authenticated,
+            user: user,
+            clearError: true,
+          );
+          return;
+        }
+      }
+    } catch (_) {
+      // Malformed `/auth/me` payload or parse error — force sign-in.
+    }
+
+    await _tokenStorage.clearTokens();
+    state = state.copyWith(
+      status: AuthStatus.unauthenticated,
+      clearUser: true,
+      clearError: true,
+    );
   }
 
   Future<void> login(String email, String password) async {
@@ -119,6 +216,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
             refreshToken: refresh ?? '',
           );
         }
+        await _hydrateStoreIdentityPostAuth(data);
         state = state.copyWith(
           status: AuthStatus.authenticated,
           user: user,
@@ -242,16 +340,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     if (response.success && response.data != null) {
       final data = response.data!;
-      final tokens = _extractTokens(data);
-      final access = tokens.access;
-      final refresh = tokens.refresh;
-      if (access != null) {
-        await _tokenStorage.saveTokens(
-          accessToken: access,
-          refreshToken: refresh ?? '',
-        );
-      }
-
       final userMap = data['user'];
       if (userMap is! Map) {
         state = state.copyWith(error: 'Invalid sign-in response');
@@ -260,7 +348,34 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final mappedUser = Map<String, dynamic>.from(userMap);
       final user = AuthUser.fromJson(mappedUser);
 
-      // Google sign-in: skip email OTP — OAuth satisfies the second factor.
+      final tempSessionRaw = data['tempSession'] ?? data['session'];
+      Map<String, dynamic>? tempSession;
+      if (tempSessionRaw is Map) {
+        tempSession = Map<String, dynamic>.from(tempSessionRaw);
+      }
+      final tempAccess = tempSession != null
+          ? _pickString(tempSession, ['accessToken', 'access_token'])
+          : null;
+      final tempRefresh = tempSession != null
+          ? (_pickString(tempSession, ['refreshToken', 'refresh_token']) ?? '')
+          : null;
+
+      final tokens = _extractTokens(data);
+      final access = tokens.access;
+      final refresh = tokens.refresh;
+
+      if (tempAccess != null) {
+        await _tokenStorage.saveTokens(
+          accessToken: tempAccess,
+          refreshToken: tempRefresh ?? '',
+        );
+      } else if (access != null) {
+        await _tokenStorage.saveTokens(
+          accessToken: access,
+          refreshToken: refresh ?? '',
+        );
+      }
+      await _hydrateStoreIdentityPostAuth(data);
       state = state.copyWith(
         status: AuthStatus.authenticated,
         user: user,

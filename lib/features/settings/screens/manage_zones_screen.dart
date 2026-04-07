@@ -1,69 +1,59 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../providers/delivery_zones_provider.dart';
 import 'delivery_zone_editor_screen.dart';
 
 /// Manage shipping zones — Stitch: Manage Zones (Mobile) (14c6d52470234cb1bf3b502e4ebf4e22).
-class ManageZonesScreen extends StatelessWidget {
+class ManageZonesScreen extends ConsumerWidget {
   const ManageZonesScreen({super.key});
 
-  static const _zones = <({
-    String key,
-    String name,
-    String areasSummary,
-    List<String> areas,
-    String feeLabel,
-    String feeKes,
-    String freeOverKes,
-    String handlingDays,
-    bool isDefault,
-  })>[
-    (
-      key: 'nairobi',
-      name: 'Nairobi Metro',
-      areasSummary: 'Nairobi, Kiambu — 12 sub-areas',
-      areas: ['Nairobi', 'Kiambu', 'Westlands', 'Karen', 'Runda', 'Thika Road'],
-      feeLabel: 'KES 200',
-      feeKes: '200',
-      freeOverKes: '5000',
-      handlingDays: '1',
-      isDefault: true,
-    ),
-    (
-      key: 'coastal',
-      name: 'Coastal corridor',
-      areasSummary: 'Mombasa, Kilifi, Kwale',
-      areas: ['Mombasa', 'Kilifi', 'Kwale', 'Diani', 'Nyali'],
-      feeLabel: 'KES 450',
-      feeKes: '450',
-      freeOverKes: '0',
-      handlingDays: '2',
-      isDefault: false,
-    ),
-    (
-      key: 'western',
-      name: 'Western highlands',
-      areasSummary: 'Kisumu, Kakamega, Eldoret',
-      areas: ['Kisumu', 'Kakamega', 'Eldoret', 'Bungoma'],
-      feeLabel: 'KES 380',
-      feeKes: '380',
-      freeOverKes: '0',
-      handlingDays: '2',
-      isDefault: false,
-    ),
-  ];
-
-  void _openEditor(BuildContext context, {DeliveryZoneEditorArgs? args}) {
-    context.push('/shipping-zone-editor', extra: args);
+  Future<void> _openEditor(BuildContext context, WidgetRef ref, {DeliveryZoneEditorArgs? args}) async {
+    await context.push('/shipping-zone-editor', extra: args);
+    ref.invalidate(deliveryZonesListProvider);
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final zonesAsync = ref.watch(deliveryZonesListProvider);
 
-    return Scaffold(
+    return zonesAsync.when(
+      loading: () => Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: AppBar(title: Text('Manage Zones', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600))),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_rounded, color: AppTheme.primaryDark, size: 26),
+            onPressed: () => context.pop(),
+          ),
+          title: Text('Manage Zones', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('$e', textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => ref.invalidate(deliveryZonesListProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      data: (zones) => Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(
         elevation: 0,
@@ -85,7 +75,7 @@ class ManageZonesScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: Icon(Icons.add_rounded, color: AppTheme.primaryDark),
-            onPressed: () => _openEditor(context),
+            onPressed: () => _openEditor(context, ref),
           ),
         ],
       ),
@@ -127,110 +117,121 @@ class ManageZonesScreen extends StatelessWidget {
             onChanged: (_) {},
           ),
           const SizedBox(height: 20),
-          ..._zones.map((z) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Material(
-                  color: theme.colorScheme.surfaceContainerLowest,
-                  elevation: 0,
-                  borderRadius: BorderRadius.circular(16),
-                  child: InkWell(
-                    onTap: () => _openEditor(
-                      context,
-                      args: DeliveryZoneEditorArgs(
-                        zoneKey: z.key,
-                        initialName: z.name,
-                        initialAreas: List<String>.from(z.areas),
-                        initialFeeKes: z.feeKes,
-                        initialFreeOverKes: z.freeOverKes,
-                        initialHandlingDays: z.handlingDays,
-                        initialIsDefault: z.isDefault,
-                      ),
-                    ),
+          ...zones.map((z) {
+                final name = zoneName(z);
+                final areas = zoneAreasFromMap(z);
+                final fee = zoneFee(z);
+                final summary = areas.isEmpty
+                    ? 'No areas configured'
+                    : areas.length <= 3
+                        ? areas.join(', ')
+                        : '${areas.take(3).join(', ')}…';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Material(
+                    color: theme.colorScheme.surfaceContainerLowest,
+                    elevation: 0,
                     borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                    child: InkWell(
+                      onTap: () => _openEditor(
+                        context,
+                        ref,
+                        args: DeliveryZoneEditorArgs(
+                          zoneKey: zoneId(z),
+                          initialName: name,
+                          initialAreas: List<String>.from(areas),
+                          initialFeeKes: fee.toStringAsFixed(0),
+                          initialFreeOverKes: zoneFreeOver(z).toStringAsFixed(0),
+                          initialHandlingDays: zoneHandlingDays(z).toString(),
+                          initialIsDefault: zoneIsDefault(z),
+                        ),
                       ),
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHigh,
-                              borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                        ),
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHigh,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(Icons.map_outlined, color: AppTheme.primaryDark, size: 26),
                             ),
-                            child: Icon(Icons.map_outlined, color: AppTheme.primaryDark, size: 26),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        z.name,
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                          color: theme.colorScheme.onSurface,
-                                        ),
-                                      ),
-                                    ),
-                                    if (z.isDefault)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: theme.colorScheme.secondaryContainer,
-                                          borderRadius: BorderRadius.circular(999),
-                                        ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
                                         child: Text(
-                                          'DEFAULT',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w800,
-                                            color: theme.colorScheme.onSecondaryContainer,
+                                          name,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            color: theme.colorScheme.onSurface,
                                           ),
                                         ),
                                       ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  z.areasSummary,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    height: 1.35,
-                                    color: theme.colorScheme.onSurfaceVariant,
+                                      if (zoneIsDefault(z))
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.secondaryContainer,
+                                            borderRadius: BorderRadius.circular(999),
+                                          ),
+                                          child: Text(
+                                            'DEFAULT',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                              color: theme.colorScheme.onSecondaryContainer,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
                                   ),
-                                ),
-                                const SizedBox(height: 10),
-                                Text(
-                                  z.feeLabel,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: theme.colorScheme.primary,
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    summary,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      height: 1.35,
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'KES ${fee.toStringAsFixed(0)}',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          Icon(Icons.chevron_right_rounded, color: theme.colorScheme.outlineVariant),
-                        ],
+                            Icon(Icons.chevron_right_rounded, color: theme.colorScheme.outlineVariant),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              )),
+                );
+              }),
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            onPressed: () => _openEditor(context),
+            onPressed: () => _openEditor(context, ref),
             icon: Icon(Icons.add_rounded, color: AppTheme.primaryDark),
             label: Text(
               'Add shipping zone',
@@ -245,6 +246,7 @@ class ManageZonesScreen extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }

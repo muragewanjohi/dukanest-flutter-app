@@ -1,11 +1,16 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
+import '../../onboarding/providers/auth_provider.dart';
+import '../providers/dashboard_settings_provider.dart';
 
 /// Store Identity — Stitch: Store Identity (Refined) (e00fbf7d264a41b28406065a10d940de).
 /// Includes delete-account panel per product spec.
@@ -30,12 +35,28 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
   final _postal = TextEditingController();
   final _supportEmail = TextEditingController();
   final _description = TextEditingController();
+  final _picker = ImagePicker();
 
   String _businessType = 'Retail';
   String _sellingCategory = 'Electronics & Gadgets';
 
-  /// Set when the user completes the logo flow (demo: tap upload area).
-  bool _logoUploaded = false;
+  bool _hydrated = false;
+  bool _saving = false;
+  String? _serverSubdomain;
+  String? _logoImageUrl;
+
+  static const _businessTypeOptions = [
+    'Retail',
+    'Wholesale',
+    'Service Provider',
+    'Digital Goods',
+  ];
+  static const _sellingOptions = [
+    'Electronics & Gadgets',
+    'Fashion & Apparel',
+    'Home & Living',
+    'Food & Beverages',
+  ];
 
   @override
   void dispose() {
@@ -50,6 +71,209 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
     _supportEmail.dispose();
     _description.dispose();
     super.dispose();
+  }
+
+  void _hydrateFrom(Map<String, dynamic> data) {
+    final store = settingsSection(data, 'store') ?? {};
+    _storeName.text = settingsPick(store, ['name']);
+    final sub = settingsPick(store, ['subdomain']);
+    _serverSubdomain = sub.isEmpty ? null : sub;
+    _domain.text = sub;
+    var phone = settingsPick(store, ['phone', 'storePhone', 'store_phone']);
+    phone = phone.replaceAll(RegExp(r'\s'), '');
+    if (phone.startsWith('+254')) {
+      phone = phone.substring(4);
+    } else if (phone.startsWith('254')) {
+      phone = phone.substring(3);
+    }
+    _phoneLocal.text = phone.replaceAll(RegExp(r'\D'), '');
+    _address1.text = settingsPick(store, [
+      'line1',
+      'addressLine1',
+      'address_line_1',
+      'address',
+      'street',
+    ]);
+    _city.text = settingsPick(store, ['city']);
+    _state.text = settingsPick(store, ['state', 'province', 'region']);
+    _country.text = settingsPick(store, ['country']);
+    _postal.text = settingsPick(store, ['postalCode', 'postal_code', 'zip', 'zipCode']);
+    _supportEmail.text = settingsPick(store, ['contactEmail', 'contact_email', 'supportEmail']);
+    _description.text = settingsPick(store, ['description', 'tagline']);
+
+    _logoImageUrl = settingsPick(store, ['logoUrl', 'logo', 'storeLogo', 'logo_url'], fallback: '')
+        .isEmpty
+        ? null
+        : settingsPick(store, ['logoUrl', 'logo', 'storeLogo', 'logo_url']);
+
+    final bt = settingsPick(data, ['businessType', 'business_type']);
+    if (bt.isNotEmpty && _businessTypeOptions.contains(bt)) {
+      _businessType = bt;
+    } else if (bt.isNotEmpty) {
+      _businessType = bt;
+    }
+    final sell = settingsPick(data, ['selling', 'sellingCategory', 'selling_category']);
+    if (sell.isNotEmpty && _sellingOptions.contains(sell)) {
+      _sellingCategory = sell;
+    } else if (sell.isNotEmpty) {
+      _sellingCategory = sell;
+    }
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      if (_logoImageUrl != null && _logoImageUrl!.isNotEmpty) {
+        ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(
+              DashboardOnboardingStepKeys.logo,
+            );
+      }
+      final api = ref.read(apiClientProvider);
+      final storePatch = <String, dynamic>{
+        'name': _storeName.text.trim(),
+        if (_phoneLocal.text.trim().isNotEmpty)
+          'phone':
+              '+254${_phoneLocal.text.replaceAll(RegExp(r'\D'), '').replaceFirst(RegExp(r'^0+'), '')}',
+        'line1': _address1.text.trim(),
+        'city': _city.text.trim(),
+        'state': _state.text.trim(),
+        'country': _country.text.trim(),
+        'postalCode': _postal.text.trim(),
+        'contactEmail': _supportEmail.text.trim(),
+        'description': _description.text.trim(),
+      };
+      if (_logoImageUrl != null && _logoImageUrl!.isNotEmpty) {
+        storePatch['logoUrl'] = _logoImageUrl;
+      }
+      final body = <String, dynamic>{
+        'store': storePatch,
+        'businessType': _businessType,
+        'selling': _sellingCategory,
+      };
+      final r = await api.patchDashboardSettings(body);
+      if (!mounted) return;
+      if (!r.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(r.error?.message ?? 'Could not save')),
+        );
+        return;
+      }
+      ref.invalidate(dashboardSettingsProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Changes saved')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Save failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _pickAndUploadLogo() async {
+    final file = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 2048);
+    if (!mounted || file == null) return;
+    try {
+      final api = ref.read(apiClientProvider);
+      final form = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          file.path,
+          filename: file.path.replaceAll(r'\', '/').split('/').last,
+        ),
+      });
+      final r = await api.uploadMedia(form);
+      if (!mounted) return;
+      if (!r.success || r.data == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(r.error?.message ?? 'Upload failed')),
+        );
+        return;
+      }
+      final payload = r.data is Map<String, dynamic>
+          ? r.data as Map<String, dynamic>
+          : <String, dynamic>{};
+      final inner = unwrapSettingsData(payload) ?? payload;
+      var url = settingsPick(inner, [
+        'url',
+        'publicUrl',
+        'public_url',
+        'src',
+      ]);
+      url = url.trim();
+      if (url.isEmpty) {
+        final data = inner['data'];
+        if (data is Map) {
+          final m = Map<String, dynamic>.from(data);
+          final u = settingsPick(m, ['url', 'publicUrl', 'path']);
+          if (u.isNotEmpty) setState(() => _logoImageUrl = u);
+        }
+      } else {
+        setState(() => _logoImageUrl = url);
+      }
+      if (_logoImageUrl != null && _logoImageUrl!.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Logo uploaded — tap Save to apply')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete your account?'),
+        content: const Text(
+          'This will sign you out, disable your store, and schedule hard deletion after the retention period.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Delete', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final sub = (_serverSubdomain ?? _domain.text.trim()).trim();
+    if (sub.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Missing store subdomain — reload settings and try again.')),
+      );
+      return;
+    }
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.postDeleteAccount({
+        'confirmation': 'DELETE $sub',
+      });
+      if (!mounted) return;
+      if (!r.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(r.error?.message ?? 'Could not delete account')),
+        );
+        return;
+      }
+      await ref.read(authProvider.notifier).logout();
+      if (mounted) context.go('/login');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Request failed: $e')),
+        );
+      }
+    }
   }
 
   InputDecoration _fieldDeco(ThemeData theme, {String? hint}) {
@@ -73,45 +297,66 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
     );
   }
 
-  void _save() {
-    if (_logoUploaded) {
-      ref
-          .read(dashboardLocalStepCompletionsProvider.notifier)
-          .markComplete(DashboardOnboardingStepKeys.logo);
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Changes saved (demo)')),
-    );
-  }
-
-  Future<void> _confirmDeleteAccount() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete your account?'),
-        content: const Text(
-          'This will sign you out, disable your store, and schedule hard deletion after the retention period.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Delete', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
-          ),
-        ],
-      ),
-    );
-    if (ok == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Account deletion requested (demo)')),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final settingsAsync = ref.watch(dashboardSettingsProvider);
 
+    return settingsAsync.when(
+      loading: () => Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: AppBar(
+          title: Text(
+            'Store Identity',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 20),
+          ),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (err, _) => Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded, size: 24),
+            onPressed: () => context.pop(),
+          ),
+          title: Text(
+            'Store Identity',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 20),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('$err', textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => ref.invalidate(dashboardSettingsProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      data: (data) {
+        if (data != null && !_hydrated) {
+          _hydrated = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _hydrateFrom(data);
+            setState(() {});
+          });
+        }
+        return _buildMainScaffold(theme);
+      },
+    );
+  }
+
+  Widget _buildMainScaffold(ThemeData theme) {
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(
@@ -221,12 +466,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
               color: theme.colorScheme.surfaceContainer.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(16),
               child: InkWell(
-                onTap: () {
-                  setState(() => _logoUploaded = true);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Logo upload (demo)')),
-                  );
-                },
+                onTap: _pickAndUploadLogo,
                 borderRadius: BorderRadius.circular(16),
                 child: CustomPaint(
                   painter: _DashedRectPainter(
@@ -237,20 +477,40 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 32),
                     child: Column(
                       children: [
-                        Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.06),
-                                blurRadius: 8,
-                              ),
-                            ],
-                          ),
-                          child: Icon(Icons.upload_file_rounded, color: theme.colorScheme.primary, size: 32),
+                        ClipOval(
+                          child: _logoImageUrl != null && _logoImageUrl!.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: _logoImageUrl!,
+                                  width: 64,
+                                  height: 64,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, __, ___) => Container(
+                                    width: 64,
+                                    height: 64,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(Icons.store_rounded,
+                                        color: theme.colorScheme.primary, size: 32),
+                                  ),
+                                )
+                              : Container(
+                                  width: 64,
+                                  height: 64,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.06),
+                                        blurRadius: 8,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(Icons.upload_file_rounded,
+                                      color: theme.colorScheme.primary, size: 32),
+                                ),
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -277,20 +537,22 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _label(theme, 'Business Type'),
-                _dropdown(theme, value: _businessType, items: const [
-                  'Retail',
-                  'Wholesale',
-                  'Service Provider',
-                  'Digital Goods',
-                ], onChanged: (v) => setState(() => _businessType = v ?? 'Retail')),
+                _dropdown(
+                  theme,
+                  value: _businessTypeOptions.contains(_businessType) ? _businessType : _businessTypeOptions.first,
+                  items: _businessTypeOptions,
+                  onChanged: (v) => setState(() => _businessType = v ?? _businessTypeOptions.first),
+                ),
                 const SizedBox(height: 16),
                 _label(theme, 'What are you selling?'),
-                _dropdown(theme, value: _sellingCategory, items: const [
-                  'Electronics & Gadgets',
-                  'Fashion & Apparel',
-                  'Home & Living',
-                  'Food & Beverages',
-                ], onChanged: (v) => setState(() => _sellingCategory = v ?? 'Electronics & Gadgets')),
+                _dropdown(
+                  theme,
+                  value: _sellingOptions.contains(_sellingCategory)
+                      ? _sellingCategory
+                      : _sellingOptions.first,
+                  items: _sellingOptions,
+                  onChanged: (v) => setState(() => _sellingCategory = v ?? _sellingOptions.first),
+                ),
               ],
             ),
           ),
@@ -430,8 +692,14 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: FilledButton.icon(
-              onPressed: _save,
-              icon: const Icon(Icons.check_circle_outline_rounded, size: 22),
+              onPressed: _saving ? null : _save,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.check_circle_outline_rounded, size: 22),
               label: Text('Save Changes', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 16)),
               style: FilledButton.styleFrom(
                 backgroundColor: theme.colorScheme.primary,

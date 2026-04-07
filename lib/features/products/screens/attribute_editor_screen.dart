@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
+import '../../settings/providers/dashboard_settings_provider.dart';
 import '../data/attribute_value_format.dart';
 import '../data/attributes_repository.dart';
+import '../providers/attributes_list_provider.dart';
 
 /// Add / edit attribute — Stitch: "Add/Edit Attribute (Mobile) - Updated"
 /// (screen 9f4bb7a2717f46f0bb0fe3168f0873a3).
-class AttributeEditorScreen extends StatefulWidget {
+class AttributeEditorScreen extends ConsumerStatefulWidget {
   const AttributeEditorScreen({super.key, this.attributeId});
 
   /// `null` → create (`/attributes/new`).
@@ -19,7 +23,7 @@ class AttributeEditorScreen extends StatefulWidget {
   bool get isNew => attributeId == null;
 
   @override
-  State<AttributeEditorScreen> createState() => _AttributeEditorScreenState();
+  ConsumerState<AttributeEditorScreen> createState() => _AttributeEditorScreenState();
 }
 
 class _DraftColorRow {
@@ -41,7 +45,7 @@ class _DraftPlainRow {
   void dispose() => value.dispose();
 }
 
-class _AttributeEditorScreenState extends State<AttributeEditorScreen> {
+class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen> {
   final _nameController = TextEditingController();
   final _descController = TextEditingController();
 
@@ -49,22 +53,77 @@ class _AttributeEditorScreenState extends State<AttributeEditorScreen> {
   List<_DraftColorRow> _colorRows = [];
   List<_DraftPlainRow> _plainRows = [];
 
+  bool _loadingRemote = false;
+  bool _saving = false;
+  final Set<String> _remoteValueIds = {};
+
   @override
   void initState() {
     super.initState();
-    if (!widget.isNew) {
-      final e = AttributesRepository.findById(widget.attributeId!);
-      if (e != null) {
-        _nameController.text = e.name;
-        _descController.text = e.description;
-        _displayType = e.displayType;
-        _hydrateRowsFromStorage(e.values);
-      } else {
+    if (widget.isNew) {
+      _seedEmptyRows();
+    } else {
+      Future.microtask(_loadRemote);
+    }
+  }
+
+  Future<void> _loadRemote() async {
+    setState(() => _loadingRemote = true);
+    try {
+      final detail = await ref.read(dashboardAttributeDetailProvider(widget.attributeId!).future);
+      if (!mounted || detail == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not load attribute')),
+          );
+          _seedEmptyRows();
+        }
+        return;
+      }
+      final pa = productAttributeFromApi(detail);
+      _remoteValueIds
+        ..clear()
+        ..addAll(_collectValueIds(detail));
+      setState(() {
+        _nameController.text = pa.name;
+        _descController.text = pa.description;
+        _displayType = pa.displayType;
+        _hydrateRowsFromStorage(pa.values);
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not load attribute')),
+        );
         _seedEmptyRows();
       }
-    } else {
-      _seedEmptyRows();
+    } finally {
+      if (mounted) setState(() => _loadingRemote = false);
     }
+  }
+
+  Iterable<String> _collectValueIds(Map<String, dynamic> detail) sync* {
+    final vals = detail['values'] ?? detail['attributeValues'];
+    if (vals is! List) return;
+    for (final v in vals) {
+      if (v is Map && v['id'] != null) {
+        yield v['id'].toString();
+      }
+    }
+  }
+
+  Map<String, dynamic> _apiBodyForSerializedValue(String serialized) {
+    if (_displayType == AttributeDisplayType.color) {
+      final parsed = AttributeValueFormat.parse(serialized);
+      var label = parsed.$1;
+      final col = parsed.$2;
+      if (label.isEmpty) label = 'Option';
+      return {
+        'value': label,
+        if (col != null) 'color_code': AttributeValueFormat.encodeColor(label, col).split('|').last,
+      };
+    }
+    return {'value': AttributeValueFormat.toPlainEditorText(serialized)};
   }
 
   void _seedEmptyRows() {
@@ -208,7 +267,7 @@ class _AttributeEditorScreenState extends State<AttributeEditorScreen> {
     }
   }
 
-  void _save() {
+  Future<void> _save() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -224,29 +283,64 @@ class _AttributeEditorScreenState extends State<AttributeEditorScreen> {
       return;
     }
 
-    if (widget.isNew) {
-      AttributesRepository.upsert(
-        ProductAttribute(
-          id: AttributesRepository.uniqueId(name),
-          name: name,
-          description: _descController.text.trim(),
-          values: values,
-          displayType: _displayType,
-        ),
-      );
-    } else {
-      final e = AttributesRepository.findById(widget.attributeId!);
-      if (e == null) {
-        context.pop();
-        return;
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final slug = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'^-|-$'), '');
+      final safeSlug = slug.isEmpty ? 'attribute' : slug;
+
+      if (widget.isNew) {
+        final cr = await api.createDashboardAttribute({
+          'name': name,
+          'type': apiTypeFromDisplay(_displayType),
+          'slug': safeSlug,
+          if (_descController.text.trim().isNotEmpty) 'description': _descController.text.trim(),
+        });
+        if (!cr.success) throw StateError(cr.error?.message ?? 'Create failed');
+        final root = unwrapSettingsData(cr.data) ?? cr.data;
+        final attrMap = root is Map<String, dynamic>
+            ? Map<String, dynamic>.from(root['attribute'] ?? root['item'] ?? root)
+            : <String, dynamic>{};
+        final newId = attrMap['id']?.toString() ?? '';
+        if (newId.isEmpty) throw StateError('Missing attribute id');
+        for (final v in values) {
+          final vr = await api.createAttributeValue(newId, _apiBodyForSerializedValue(v));
+          if (!vr.success) throw StateError(vr.error?.message ?? 'Value create failed');
+        }
+      } else {
+        final id = widget.attributeId!;
+        final ur = await api.updateDashboardAttribute(id, {
+          'name': name,
+          'type': apiTypeFromDisplay(_displayType),
+          if (_descController.text.trim().isNotEmpty) 'description': _descController.text.trim(),
+        });
+        if (!ur.success) throw StateError(ur.error?.message ?? 'Update failed');
+        for (final vid in _remoteValueIds) {
+          await api.deleteAttributeValue(id, vid);
+        }
+        _remoteValueIds.clear();
+        for (final v in values) {
+          final vr = await api.createAttributeValue(id, _apiBodyForSerializedValue(v));
+          if (!vr.success) throw StateError(vr.error?.message ?? 'Value create failed');
+        }
       }
-      e.name = name;
-      e.description = _descController.text.trim();
-      e.values = values;
-      e.displayType = _displayType;
-      AttributesRepository.upsert(e);
+      ref.invalidate(dashboardAttributesProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Attribute saved')),
+        );
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Save failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-    context.pop();
   }
 
   Future<void> _confirmDeleteAttribute() async {
@@ -268,9 +362,24 @@ class _AttributeEditorScreenState extends State<AttributeEditorScreen> {
         ],
       ),
     );
-    if (ok == true && mounted) {
-      AttributesRepository.remove(id);
-      context.pop();
+    if (ok != true || !mounted) return;
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.deleteDashboardAttribute(id);
+      if (!r.success) throw StateError(r.error?.message ?? 'Delete failed');
+      ref.invalidate(dashboardAttributesProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Attribute removed')),
+        );
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Delete failed: $e')),
+        );
+      }
     }
   }
 
@@ -311,6 +420,16 @@ class _AttributeEditorScreenState extends State<AttributeEditorScreen> {
   @override
   Widget build(BuildContext context) {
     final isColor = _displayType == AttributeDisplayType.color;
+
+    if (_loadingRemote) {
+      return Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: AppBar(
+          title: Text('Attribute', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
@@ -430,7 +549,7 @@ class _AttributeEditorScreenState extends State<AttributeEditorScreen> {
               ],
               Expanded(
                 child: FilledButton(
-                  onPressed: _save,
+                  onPressed: _saving ? null : _save,
                   style: FilledButton.styleFrom(
                     backgroundColor: AppTheme.primaryDark,
                     foregroundColor: Colors.white,

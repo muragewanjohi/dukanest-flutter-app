@@ -698,7 +698,8 @@ class DashboardScreen extends ConsumerWidget {
               color: theme.colorScheme.onSurface,
             ),
           ),
-          if (displayStoreName != null && displayStoreName.trim().isNotEmpty) ...[
+          if ((displayStoreName != null && displayStoreName.trim().isNotEmpty) ||
+              (storeUrl != null && storeUrl.trim().isNotEmpty)) ...[
             const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -707,19 +708,46 @@ class DashboardScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        displayStoreName,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.primaryDark,
-                        ),
-                      ),
-                      if (storeUrl != null && storeUrl.trim().isNotEmpty)
+                      if (displayStoreName != null && displayStoreName.trim().isNotEmpty)
                         Text(
-                          storeUrl,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                          displayStoreName,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.primaryDark,
                           ),
+                        ),
+                      if (storeUrl != null && storeUrl.trim().isNotEmpty)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                storeUrl,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              tooltip: 'Copy store URL',
+                              onPressed: () {
+                                final u = storeUrl.trim();
+                                Clipboard.setData(ClipboardData(text: u)).then((_) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Store URL copied')),
+                                  );
+                                });
+                              },
+                              icon: const Icon(Icons.copy_rounded, size: 18),
+                              style: IconButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                foregroundColor: AppTheme.primaryDark,
+                              ),
+                            ),
+                          ],
                         ),
                     ],
                   ),

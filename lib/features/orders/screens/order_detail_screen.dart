@@ -45,208 +45,6 @@ class OrderDetailScreen extends ConsumerWidget {
   static const Color _premiumBadgeBg = Color(0xFFDFE0FF);
   static const Color _surfaceContainerHigh = Color(0xFFE9E8E8);
 
-  static const _imgHeadphones =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAWjGc1hlvrvqIYLxM-3WNXMY7Zq7TqvAde4K7gacZMDAeXITtnj4MWSGBm1KFfjxAJwmGVVeFHm2VXNbANZXSY-Sb4jxmqWIVdrn5MqnA8TyHdffh2bPcD8fijxveCaByWeJpsUzVAwCtTMr_lSDYjQPEfUIygYmL4Z6frHzoGYdNqTyGUKKfQHEoks0A4hKvfW8q5GHDVbxbQZkJfU0Obei8Z7DGRAFDJNz0jCGhORwzauZ_D1O6bXUtTzuuw40nkDJRt1y4CZ_ew';
-  static const _imgAdapter =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCLcm_TCAM1RGqqFuJYS9Lo09Hsz6K_QtMGCCxkjx6gTmzqZvBy2kFHrmPEwSFuuKMd2hL6O4M0DP34f5IGuq2fpVuzUmhdJlShLhcsTe2g7mkFuK0UlEVc_9cOznWI1Aa_qVnluY-GPX3_8tLINesvRYMXHke4hc_KSRjg4ET87zmwrC7VmVIgpZV1jh-t0O8oE_Ppdeskrv_EjV6jiRYoeD4hbJiKtOgEfsQvXOFliEhMTr_cbpvoJ54hRa_F2F7rYjzchlgy650j';
-  static const _imgCable =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuBQfD813MMZVHTnns8Rq2PpP0G-LqUG-JYb_b0AFgU5LhhPpvKEY_WjE0d6HwIa9DmrFJUOf-YiLBDf56UHX8OR7V5nmE8s6oPx_5xN3I4Rlfvf6KNrLHoa5E4EzAatLNKh8qlsBWwZuVhwexonPv5tgHtCuJ2qaRPIbhMz_Kvw0IVgmfBqtTJjqdcMVZpdJhkTbmJAW5mv-xhaHAN-jpA6wttPMo6MJEvF27JMcSbagepP5bRZx8dEiedqwVkdu2dCAVbwLZdL-alI';
-
-  static final Map<String, _OrderDetailData> _demo = {
-    'DK-9821': _stitchDefaultDetail,
-    'DK-9819': _OrderDetailData(
-      code: 'DK-9819',
-      itemsCategorySubtitle: '1 item from Watches',
-      premiumCustomer: false,
-      lineItems: const [
-        _LineItem(
-          name: 'Minimalist Slate Watch',
-          variantQty: 'Graphite • Qty: 1',
-          price: '\$89.50',
-          thumbColor: Color(0xFF4A5568),
-        ),
-      ],
-      subtotal: '\$89.50',
-      shipping: '\$8.00',
-      tax: '\$7.80',
-      total: '\$105.30',
-      customerName: 'Alex Rivera',
-      customerEmail: 'a.rivera@example.com',
-      customerPhone: '+1 (555) 334-2201',
-      shippingAddress:
-          'Alex Rivera\n88 Cedar Lane\nPortland, OR 97201\nUnited States',
-      timeline: [
-        const _TimelineStep(
-          title: 'Order Received',
-          subtitleLines: ['Oct 24, 2025 • 9:05 AM'],
-          state: _StepState.done,
-        ),
-        const _TimelineStep(
-          title: 'Payment Confirmed',
-          subtitleLines: ['Oct 24, 2025 • 9:06 AM', 'via Stripe'],
-          state: _StepState.done,
-        ),
-        const _TimelineStep(
-          title: 'Processing Order',
-          subtitleLines: ['Oct 24, 2025 • 9:10 AM'],
-          state: _StepState.current,
-        ),
-        const _TimelineStep(
-          title: 'Shipped',
-          subtitleLines: ['Pending action'],
-          state: _StepState.upcoming,
-        ),
-      ],
-    ),
-    'DK-9815': _OrderDetailData(
-      code: 'DK-9815',
-      itemsCategorySubtitle: '2 items from Audio',
-      premiumCustomer: true,
-      lineItems: const [
-        _LineItem(
-          name: 'Studio Pro Wireless',
-          variantQty: 'Matte Black • Qty: 2',
-          price: '\$398.00',
-          thumbColor: Color(0xFF2D3748),
-        ),
-      ],
-      subtotal: '\$398.00',
-      shipping: '\$0.00',
-      tax: '\$31.84',
-      total: '\$429.84',
-      customerName: 'Priya Shah',
-      customerEmail: 'priya.shah@example.com',
-      customerPhone: '+1 (555) 771-0092',
-      shippingAddress: 'Priya Shah\n221B Baker Ave\nSeattle, WA 98101\nUnited States',
-      timeline: [
-        const _TimelineStep(
-          title: 'Order Received',
-          subtitleLines: ['Oct 23, 2025 • 4:28 PM'],
-          state: _StepState.done,
-        ),
-        const _TimelineStep(
-          title: 'Payment Confirmed',
-          subtitleLines: ['Oct 23, 2025 • 4:29 PM', 'via Stripe'],
-          state: _StepState.done,
-        ),
-        const _TimelineStep(
-          title: 'Processing Order',
-          subtitleLines: ['Oct 23, 2025 • 4:35 PM'],
-          state: _StepState.done,
-        ),
-        const _TimelineStep(
-          title: 'Shipped',
-          subtitleLines: ['Oct 23, 2025 • 6:12 PM', 'FedEx • Tracking sent'],
-          state: _StepState.done,
-        ),
-      ],
-    ),
-    'DK-9810': _OrderDetailData(
-      code: 'DK-9810',
-      itemsCategorySubtitle: '1 item from Accessories',
-      premiumCustomer: false,
-      lineItems: const [
-        _LineItem(
-          name: 'Golden Aviators',
-          variantQty: 'Amber • Qty: 2',
-          price: '\$45.00',
-          thumbColor: Color(0xFFB7791F),
-        ),
-      ],
-      subtotal: '\$45.00',
-      shipping: '\$5.99',
-      tax: '\$4.08',
-      total: '\$55.07',
-      customerName: 'Chris Ortiz',
-      customerEmail: 'c.ortiz@example.com',
-      customerPhone: '+1 (555) 448-7712',
-      shippingAddress:
-          'Chris Ortiz\n400 Market St\nSan Francisco, CA 94105\nUnited States',
-      timeline: [
-        const _TimelineStep(
-          title: 'Order Received',
-          subtitleLines: ['Oct 23, 2025 • 11:12 AM'],
-          state: _StepState.done,
-        ),
-        const _TimelineStep(
-          title: 'Payment Confirmed',
-          subtitleLines: ['Pending'],
-          state: _StepState.current,
-        ),
-        const _TimelineStep(
-          title: 'Processing Order',
-          subtitleLines: ['Pending action'],
-          state: _StepState.upcoming,
-        ),
-        const _TimelineStep(
-          title: 'Shipped',
-          subtitleLines: ['Pending action'],
-          state: _StepState.upcoming,
-        ),
-      ],
-    ),
-  };
-
-  static const _OrderDetailData _stitchDefaultDetail = _OrderDetailData(
-    code: 'DK-9821',
-    itemsCategorySubtitle: '3 items from Electronics & Accessories',
-    premiumCustomer: true,
-    lineItems: [
-      _LineItem(
-        name: 'Pro Wireless Headphones',
-        variantQty: 'Midnight Blue • Qty: 1',
-        price: '\$299.00',
-        imageUrl: _imgHeadphones,
-        thumbColor: Color(0xFF2B4C7E),
-      ),
-      _LineItem(
-        name: 'Fast Charge 45W Adapter',
-        variantQty: 'USB-C • Qty: 2',
-        price: '\$78.00',
-        imageUrl: _imgAdapter,
-        thumbColor: Color(0xFF718096),
-      ),
-      _LineItem(
-        name: 'Braided Cable 2.0m',
-        variantQty: 'Space Grey • Qty: 1',
-        price: '\$19.00',
-        imageUrl: _imgCable,
-        thumbColor: Color(0xFFE2E8F0),
-      ),
-    ],
-    subtotal: '\$396.00',
-    shipping: '\$12.00',
-    tax: '\$31.68',
-    total: '\$439.68',
-    customerName: 'Sarah Jenkins',
-    customerEmail: 's.jenkins@example.com',
-    customerPhone: '+1 (555) 902-4412',
-    shippingAddress:
-        'Sarah Jenkins\n4820 North Parkway Blvd\nSuite 1204\nAustin, TX 78701\nUnited States',
-    timeline: [
-      _TimelineStep(
-        title: 'Order Received',
-        subtitleLines: ['Oct 24, 2025 • 9:41 AM'],
-        state: _StepState.done,
-      ),
-      _TimelineStep(
-        title: 'Payment Confirmed',
-        subtitleLines: ['Oct 24, 2025 • 9:45 AM', 'via Stripe'],
-        state: _StepState.done,
-      ),
-      _TimelineStep(
-        title: 'Processing Order',
-        subtitleLines: ['Started Oct 24, 2025 • 11:20 AM'],
-        state: _StepState.current,
-      ),
-      _TimelineStep(
-        title: 'Shipped',
-        subtitleLines: ['Pending action'],
-        state: _StepState.upcoming,
-      ),
-    ],
-  );
-
   static String _pickString(Map<String, dynamic> map, List<String> keys, {String fallback = ''}) {
     for (final key in keys) {
       final value = map[key];
@@ -387,30 +185,88 @@ class OrderDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final fallbackData = _demo[orderKey] ??
-        _OrderDetailData(
-          code: orderKey,
-          itemsCategorySubtitle: 'Items',
-          premiumCustomer: false,
-          lineItems: const [],
-          subtotal: '\$0.00',
-          shipping: '\$0.00',
-          tax: '\$0.00',
-          total: '\$0.00',
-          customerName: '—',
-          customerEmail: '—',
-          customerPhone: '—',
-          shippingAddress: '—',
-          timeline: const [],
-        );
     final liveOrder = ref.watch(orderDetailProvider(orderKey));
-    final isLiveData = liveOrder.asData?.value != null;
-    final data = liveOrder.when(
-      data: (raw) => raw == null ? fallbackData : _mapApiOrderToDetail(raw, orderKey),
-      loading: () => fallbackData,
-      error: (_, __) => fallbackData,
-    );
 
+    return liveOrder.when(
+      loading: () => Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: AppBar(
+          title: Text('Order #$orderKey'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (err, _) => Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: AppBar(
+          title: Text('Order #$orderKey'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('$err', textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => ref.invalidate(orderDetailProvider(orderKey)),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      data: (raw) {
+        if (raw == null) {
+          return Scaffold(
+            backgroundColor: AppTheme.surface,
+            appBar: AppBar(
+              title: Text('Order #$orderKey'),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                onPressed: () => context.pop(),
+              ),
+            ),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('Order could not be loaded.'),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: () => ref.invalidate(orderDetailProvider(orderKey)),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+        final data = _mapApiOrderToDetail(raw, orderKey);
+        return _buildOrderScaffold(context, ref, theme, data, true);
+      },
+    );
+  }
+
+  Widget _buildOrderScaffold(
+    BuildContext context,
+    WidgetRef ref,
+    ThemeData theme,
+    _OrderDetailData data,
+    bool isLiveData,
+  ) {
     return Scaffold(
       backgroundColor: AppTheme.surface,
       body: Column(

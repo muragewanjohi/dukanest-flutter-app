@@ -10,6 +10,8 @@ class TokenStorage {
   static const _storeNameKey = 'store_name';
   static const _storeSubdomainKey = 'store_subdomain';
   static const _storeUrlKey = 'store_url';
+  static const _productsListRefreshHintSeenKey = 'products_list_refresh_hint_seen';
+  static const _productDetailRefreshHintSeenKey = 'product_detail_refresh_hint_seen';
   /// Legacy key from multi-store experiment; still cleared on logout.
   static const _legacySelectedTenantKey = 'selected_tenant_id';
 
@@ -50,5 +52,21 @@ class TokenStorage {
     final subdomain = await _storage.read(key: _storeSubdomainKey);
     final storeUrl = await _storage.read(key: _storeUrlKey);
     return (name: name, subdomain: subdomain, storeUrl: storeUrl);
+  }
+
+  Future<void> saveProductsListRefreshHintSeen(bool seen) async {
+    await _storage.write(key: _productsListRefreshHintSeenKey, value: seen ? '1' : '0');
+  }
+
+  Future<bool> getProductsListRefreshHintSeen() async {
+    return (await _storage.read(key: _productsListRefreshHintSeenKey)) == '1';
+  }
+
+  Future<void> saveProductDetailRefreshHintSeen(bool seen) async {
+    await _storage.write(key: _productDetailRefreshHintSeenKey, value: seen ? '1' : '0');
+  }
+
+  Future<bool> getProductDetailRefreshHintSeen() async {
+    return (await _storage.read(key: _productDetailRefreshHintSeenKey)) == '1';
   }
 }
