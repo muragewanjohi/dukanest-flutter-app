@@ -103,7 +103,7 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen> {
   }
 
   Iterable<String> _collectValueIds(Map<String, dynamic> detail) sync* {
-    final vals = detail['values'] ?? detail['attributeValues'];
+    final vals = detail['values'] ?? detail['attributeValues'] ?? detail['attribute_values'];
     if (vals is! List) return;
     for (final v in vals) {
       if (v is Map && v['id'] != null) {
@@ -425,7 +425,7 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen> {
       return Scaffold(
         backgroundColor: AppTheme.surface,
         appBar: AppBar(
-          title: Text('Attribute', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+          title: const Text('Attribute'),
         ),
         body: const Center(child: CircularProgressIndicator()),
       );
@@ -438,17 +438,10 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: AppTheme.primaryDark),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          widget.isNew ? 'Add attribute' : 'Edit attribute',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: AppTheme.primaryDark,
-          ),
-        ),
+        title: Text(widget.isNew ? 'Add attribute' : 'Edit attribute'),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),

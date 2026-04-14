@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../providers/pending_orders_count_provider.dart';
 
 /// Order detail — Stitch: "Order Details (Optimized Actions)"
 /// & local export `02-order-details/screen.html` (Quick Actions + Customer + Shipping + Notes + bottom bar).
@@ -20,13 +21,40 @@ final orderDetailProvider = FutureProvider.family<Map<String, dynamic>?, String>
 ) async {
   try {
     final api = ref.read(apiClientProvider);
-    final response = await api.getOrderDetail(orderKey);
-    if (!response.success || response.data == null) return null;
-    final payload = response.data;
-    if (payload is! Map<String, dynamic>) return null;
-    final raw = payload['order'] ?? payload['item'] ?? payload;
-    if (raw is! Map) return null;
-    return Map<String, dynamic>.from(raw);
+    Map<String, dynamic>? parseDetailPayload(dynamic data) {
+      if (data is! Map<String, dynamic>) return null;
+      final raw = data['order'] ?? data['item'] ?? data;
+      if (raw is! Map) return null;
+      return Map<String, dynamic>.from(raw);
+    }
+
+    final directResponse = await api.getOrderDetail(orderKey);
+    if (directResponse.success && directResponse.data != null) {
+      final direct = parseDetailPayload(directResponse.data);
+      if (direct != null) return direct;
+    }
+
+    // Fallback: resolve by order code through list search, then fetch detail by id.
+    final lookupResponse = await api.getOrders(
+      page: 1,
+      limit: 1,
+      search: orderKey,
+    );
+    if (!lookupResponse.success || lookupResponse.data == null) return null;
+    final lookupPayload = lookupResponse.data;
+    final list = lookupPayload is Map<String, dynamic>
+        ? (lookupPayload['items'] ?? lookupPayload['orders'] ?? lookupPayload['data'])
+        : lookupPayload;
+    if (list is! List || list.isEmpty) return null;
+    final first = list.first;
+    if (first is! Map) return null;
+    final firstMap = Map<String, dynamic>.from(first);
+    final resolvedId = (firstMap['id'] ?? '').toString().trim();
+    if (resolvedId.isEmpty) return null;
+
+    final resolvedResponse = await api.getOrderDetail(resolvedId);
+    if (!resolvedResponse.success || resolvedResponse.data == null) return null;
+    return parseDetailPayload(resolvedResponse.data);
   } catch (_) {
     return null;
   }
@@ -78,6 +106,7 @@ class OrderDetailScreen extends ConsumerWidget {
         name: _pickString(item, ['name', 'title'], fallback: 'Item'),
         variantQty: '$variant • Qty: $qty',
         price: _formatMoney(priceValue, currency: currency),
+        thumbColor: const Color(0xFF718096),
         imageUrl: _pickString(item, ['image', 'imageUrl', 'thumbnail'], fallback: '').isEmpty
             ? null
             : _pickString(item, ['image', 'imageUrl', 'thumbnail']),
@@ -186,6 +215,11 @@ class OrderDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final liveOrder = ref.watch(orderDetailProvider(orderKey));
+    final pendingOrdersCount = ref.watch(pendingOrdersCountProvider).maybeWhen(
+          data: (count) => count,
+          orElse: () => 0,
+        );
+    final badgeLabel = pendingOrdersCount > 99 ? '99+' : '$pendingOrdersCount';
 
     return liveOrder.when(
       loading: () => Scaffold(
@@ -193,7 +227,7 @@ class OrderDetailScreen extends ConsumerWidget {
         appBar: AppBar(
           title: Text('Order #$orderKey'),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            icon: const Icon(Icons.arrow_back_rounded),
             onPressed: () => context.pop(),
           ),
         ),
@@ -204,7 +238,7 @@ class OrderDetailScreen extends ConsumerWidget {
         appBar: AppBar(
           title: Text('Order #$orderKey'),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            icon: const Icon(Icons.arrow_back_rounded),
             onPressed: () => context.pop(),
           ),
         ),
@@ -232,7 +266,7 @@ class OrderDetailScreen extends ConsumerWidget {
             appBar: AppBar(
               title: Text('Order #$orderKey'),
               leading: IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                icon: const Icon(Icons.arrow_back_rounded),
                 onPressed: () => context.pop(),
               ),
             ),
@@ -255,7 +289,15 @@ class OrderDetailScreen extends ConsumerWidget {
           );
         }
         final data = _mapApiOrderToDetail(raw, orderKey);
-        return _buildOrderScaffold(context, ref, theme, data, true);
+        return _buildOrderScaffold(
+          context,
+          ref,
+          theme,
+          data,
+          true,
+          pendingOrdersCount,
+          badgeLabel,
+        );
       },
     );
   }
@@ -266,6 +308,8 @@ class OrderDetailScreen extends ConsumerWidget {
     ThemeData theme,
     _OrderDetailData data,
     bool isLiveData,
+    int pendingOrdersCount,
+    String badgeLabel,
   ) {
     return Scaffold(
       backgroundColor: AppTheme.surface,
@@ -274,26 +318,30 @@ class OrderDetailScreen extends ConsumerWidget {
         children: [
           SafeArea(
             bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(4, 8, 8, 12),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-                    onPressed: () => context.pop(),
-                    color: _navyTitle,
-                  ),
-                  Expanded(
-                    child: Text(
-                      'Order #${data.code}',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.plusJakartaSans(
-                        color: _navyTitle,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 20,
+            child: SizedBox(
+              height: kToolbarHeight,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(0, 0, 8, 0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      onPressed: () => context.pop(),
+                      color: _navyTitle,
+                    ),
+                    Expanded(
+                      child: Text(
+                        'Order #${data.code}',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.plusJakartaSans(
+                          color: _navyTitle,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                          letterSpacing: -0.2,
+                          height: 1.25,
+                        ),
                       ),
                     ),
-                  ),
                   ClipOval(
                     child: Image.network(
                       'https://lh3.googleusercontent.com/aida-public/AB6AXuBYNcARSFNN-b8ct1FSGr2g6zoPRV3QUjw5sb16F4jJlamo225muiun234Zz8Upd_RN5cmauNcUJtDBBdX5JMGivANpvGVeZZYdSSFaqriBfrlNSynd6QlbhN0SOE_lLUAESXrz3vaAdPyAtlgZX8vSM9uY0dOw7L6EDgNwOATYzmyZvhXuRcGu9wCqN9Bwbuc2PsIRrfa3XiWPRHzbiLTIROU0MjrVwVfgAe5dNg8kYJttC_aSM6XSPRvXNSlxPeb2UwMU83Kmkp78',
@@ -311,11 +359,16 @@ class OrderDetailScreen extends ConsumerWidget {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.notifications_none_rounded,
-                        color: theme.colorScheme.onSurfaceVariant),
+                    icon: Badge(
+                      isLabelVisible: pendingOrdersCount > 0,
+                      label: Text(badgeLabel),
+                      child: Icon(Icons.notifications_none_rounded,
+                          color: theme.colorScheme.onSurfaceVariant),
+                    ),
                     onPressed: () => context.push('/notifications'),
                   ),
                 ],
+                ),
               ),
             ),
           ),

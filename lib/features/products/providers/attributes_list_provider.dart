@@ -26,7 +26,8 @@ ProductAttribute productAttributeFromApi(Map<String, dynamic> m) {
     default:
       displayType = AttributeDisplayType.text;
   }
-  final valuesRaw = m['values'] ?? m['attributeValues'] ?? m['items'] ?? const [];
+  final valuesRaw =
+      m['values'] ?? m['attributeValues'] ?? m['attribute_values'] ?? m['items'] ?? const [];
   final values = <String>[];
   if (valuesRaw is List) {
     for (final v in valuesRaw) {

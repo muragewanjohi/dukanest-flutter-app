@@ -1,7 +1,11 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
@@ -10,6 +14,7 @@ import '../../../core/auth/token_storage.dart';
 import '../data/attribute_value_format.dart';
 import '../data/attributes_repository.dart';
 import '../providers/attributes_list_provider.dart';
+import '../providers/categories_list_provider.dart';
 
 /// Add/Edit Product — Stitch: Add/Edit Product (with Variants)
 /// (screen 6a3e6b8d009b4574bb092c68b80dfcc0; variant module + attributes integration).
@@ -31,35 +36,38 @@ class _VariantLine {
     required this.options,
     required String initialSku,
     required String initialStock,
+    String initialRegularPrice = '',
+    String initialSalePrice = '',
+    String initialImageUrl = '',
   })  : sku = TextEditingController(text: initialSku),
-        stock = TextEditingController(text: initialStock);
+        stock = TextEditingController(text: initialStock),
+        regularPrice = TextEditingController(text: initialRegularPrice),
+        salePrice = TextEditingController(text: initialSalePrice),
+        imageUrl = TextEditingController(text: initialImageUrl);
 
   /// Attribute display name → displayed option value (e.g. Color → Red).
   final Map<String, String> options;
   final TextEditingController sku;
   final TextEditingController stock;
+  final TextEditingController regularPrice;
+  final TextEditingController salePrice;
+  final TextEditingController imageUrl;
 
-  String get optionSummary => options.values.join(' · ');
+  String get optionSummary =>
+      options.entries.map((e) => '${e.key}: ${e.value}').join('  |  ');
 
   void dispose() {
     sku.dispose();
     stock.dispose();
+    regularPrice.dispose();
+    salePrice.dispose();
+    imageUrl.dispose();
   }
 }
 
 class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   static const Duration _productCacheTtl = Duration(minutes: 5);
   static final Map<String, ({Map<String, dynamic> product, DateTime savedAt})> _productDetailCache = {};
-
-  /// Leave empty if the API returns no image.
-  static const _placeholderHeroImage = '';
-
-  static const _defaultCategorySeeds = [
-    'Bags & Accessories',
-    'Electronics',
-    'Fashion',
-    'Home Decor',
-  ];
 
   static const _campaigns = [
     'Summer Flash Sale 2024',
@@ -78,8 +86,9 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   late String _category;
   String? _campaign;
   bool _visible = true;
-  int _photoCount = 0;
-  String? _loadedHeroImageUrl;
+  /// Remote gallery URLs (from API) + local file paths pending upload.
+  final List<String> _remoteImageUrls = [];
+  final List<String> _localImagePaths = [];
   String? _productApiId;
   final ScrollController _scrollController = ScrollController();
   final List<_VariantLine> _variantLines = [];
@@ -87,7 +96,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   bool _isLoadingRemote = false;
   bool _isSaving = false;
   String? _dataSourceError;
-  bool _loadAttributes = false;
   DateTime? _lastSyncedAt;
   bool _hasSeenRefreshHint = false;
 
@@ -113,6 +121,9 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
           options: {'Default': 'Standard'},
           initialSku: baseSku,
           initialStock: _stock.text.trim().isEmpty ? '0' : _stock.text.trim(),
+          initialRegularPrice: _regularPrice.text.trim(),
+          initialSalePrice: _salePrice.text.trim(),
+          initialImageUrl: _remoteImageUrls.isNotEmpty ? _remoteImageUrls.first : '',
         ),
       );
     }
@@ -179,14 +190,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     return null;
   }
 
-  void _ensureCategoryOption(String category) {
-    final c = category.trim();
-    if (c.isEmpty) return;
-    if (!_categoryOptions.contains(c)) {
-      _categoryOptions = [c, ..._categoryOptions];
-    }
-  }
-
   void _applyVariantsFromProduct(Map<String, dynamic> p) {
     _disposeVariantLines();
     final rawVariants =
@@ -197,6 +200,11 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         final vSku = _asString(m['sku'] ?? m['code'], fallback: _sku.text.trim());
         final stockRaw = m['stock'] ?? m['stockQuantity'] ?? m['stock_quantity'] ?? m['quantity'];
         final vStock = stockRaw == null ? '0' : stockRaw.toString();
+        final vRegular = _moneyToKes(m['regularPrice'] ?? m['regular_price'] ?? m['price']);
+        final vSale = _moneyToKes(m['salePrice'] ?? m['sale_price']);
+        final vImage = _asString(
+          m['image'] ?? m['imageUrl'] ?? m['image_url'] ?? m['thumbnail'],
+        );
         var options = <String, String>{'Default': 'Standard'};
         final opt = m['options'] ??
             m['attributes'] ??
@@ -222,6 +230,9 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
             options: options,
             initialSku: vSku.isEmpty ? 'SKU' : vSku,
             initialStock: vStock,
+            initialRegularPrice: vRegular,
+            initialSalePrice: vSale,
+            initialImageUrl: vImage,
           ),
         );
       }
@@ -240,20 +251,31 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   Future<String> _resolveProductLookupKey(String inputKey) async {
     final trimmed = inputKey.trim();
     if (trimmed.isEmpty) return trimmed;
+    final looksLikeUuid = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+    ).hasMatch(trimmed);
+    if (looksLikeUuid) {
+      return trimmed;
+    }
     if (trimmed.contains('-')) {
       final api = ref.read(apiClientProvider);
-      final list = await api.getProducts(page: 1, limit: 50, search: trimmed);
-      if (list.success && list.data is Map<String, dynamic>) {
-        final data = list.data as Map<String, dynamic>;
-        final items = data['items'] ?? data['products'] ?? data['data'];
-        if (items is List) {
-          for (final raw in items.whereType<Map>()) {
-            final m = Map<String, dynamic>.from(raw);
-            final sku = (m['sku'] ?? m['code'] ?? '').toString();
-            final id = (m['id'] ?? '').toString();
-            if (sku == trimmed && id.isNotEmpty) return id;
+      try {
+        final list = await api.getProducts(page: 1, limit: 50, search: trimmed);
+        if (list.success && list.data is Map<String, dynamic>) {
+          final data = list.data as Map<String, dynamic>;
+          final items = data['items'] ?? data['products'] ?? data['data'];
+          if (items is List) {
+            for (final raw in items.whereType<Map>()) {
+              final m = Map<String, dynamic>.from(raw);
+              final sku = (m['sku'] ?? m['code'] ?? '').toString();
+              final id = (m['id'] ?? '').toString();
+              if (sku == trimmed && id.isNotEmpty) return id;
+            }
           }
         }
+      } on DioException {
+        // If listing fails (e.g. expired auth), fall back to the input key and let
+        // the detail request surface a clearer error state.
       }
     }
     return trimmed;
@@ -275,10 +297,11 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
 
     final category = _asString(
       p['categoryName'] ?? p['category'],
-      fallback: _category,
+      fallback: _categoryOptions.isNotEmpty ? _categoryOptions.first : '',
     );
-    _ensureCategoryOption(category);
-    _category = category;
+    _category = _categoryOptions.contains(category)
+        ? category
+        : (_categoryOptions.isNotEmpty ? _categoryOptions.first : '');
 
     final statusRaw = (p['status'] ?? '').toString().toLowerCase();
     if (statusRaw.isNotEmpty) {
@@ -287,14 +310,29 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       _visible = p['isActive'] == true || p['active'] == true;
     }
 
-    _loadedHeroImageUrl = _primaryImageFromMap(p);
+    _remoteImageUrls.clear();
+    void pushUrl(String? u) {
+      if (u == null || u.trim().isEmpty) return;
+      if (_remoteImageUrls.length >= 5) return;
+      _remoteImageUrls.add(u.trim());
+    }
+
     final imgs = p['images'] ?? p['media'] ?? p['gallery'];
-      if (imgs is List && imgs.isNotEmpty) {
-      _photoCount = imgs.length.clamp(1, 5);
-    } else if (_loadedHeroImageUrl != null) {
-      _photoCount = 1;
-    } else {
-        _photoCount = 0;
+    if (imgs is List) {
+      for (final e in imgs) {
+        if (e is String) {
+          pushUrl(e);
+        } else if (e is Map) {
+          final m = Map<String, dynamic>.from(e);
+          pushUrl(
+            (m['url'] ?? m['src'] ?? m['imageUrl'] ?? m['image_url'] ?? m['thumbnail'])?.toString(),
+          );
+        }
+      }
+    }
+    if (_remoteImageUrls.isEmpty) {
+      final primary = _primaryImageFromMap(p);
+      pushUrl(primary);
     }
 
     _applyVariantsFromProduct(p);
@@ -340,6 +378,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       if (mounted) {
         setState(() {
           _applyProductData(p);
+          _localImagePaths.clear();
           _isLiveData = true;
           _isLoadingRemote = false;
           _lastSyncedAt = DateTime.now();
@@ -347,16 +386,20 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final friendlyMessage = e is DioException && e.response?.statusCode == 401
+            ? 'Session expired. Please sign in again.'
+            : e.toString();
         setState(() {
           _isLiveData = false;
           _isLoadingRemote = false;
-          _dataSourceError = e.toString();
+          _dataSourceError = friendlyMessage;
         });
       }
     }
   }
 
   Future<void> _openAddVariantSheet() async {
+    final rootContext = context;
     final attrs = ref.read(dashboardAttributesProvider).valueOrNull ?? [];
     if (attrs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -364,10 +407,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       );
       return;
     }
-    final selected = <String, String>{}; // attribute name → value label
-    for (final a in attrs) {
-      selected[a.name] = _valueLabel(a, a.values.first);
-    }
+    final selected = <String, String>{}; // attribute name -> chosen value label
+    final regularPriceCtrl = TextEditingController(text: _regularPrice.text.trim());
+    final salePriceCtrl = TextEditingController(text: _salePrice.text.trim());
+    final imageUrlCtrl = TextEditingController(
+      text: _remoteImageUrls.isNotEmpty ? _remoteImageUrls.first : '',
+    );
 
     final added = await showModalBottomSheet<bool>(
       context: context,
@@ -391,17 +436,23 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                     controller: scrollController,
                     padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
                     children: [
-                      Text(
-                        'Add variant',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.primaryDark,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Add variant',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.primaryDark,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Pick one value per attribute. SKU can match your warehouse labels.',
+                        'Select one value per attribute.',
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -424,39 +475,196 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String>(
-                                    isExpanded: true,
-                                    value: selected[a.name],
-                                    items: a.values
-                                        .map(
-                                          (raw) => DropdownMenuItem(
-                                            value: _valueLabel(a, raw),
-                                            child: Text(_valueLabel(a, raw)),
-                                          ),
-                                        )
-                                        .toList(),
-                                    onChanged: (v) {
-                                      if (v != null) {
-                                        setModal(() => selected[a.name] = v);
-                                      }
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                children: a.values.map((raw) {
+                                  final label = _valueLabel(a, raw);
+                                  final isSelected = selected[a.name] == label;
+                                  return ChoiceChip(
+                                    label: Text(label),
+                                    selected: isSelected,
+                                    showCheckmark: false,
+                                    selectedColor: AppTheme.primary,
+                                    backgroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.surfaceContainerLow,
+                                    labelStyle: GoogleFonts.inter(
+                                      fontWeight: FontWeight.w600,
+                                      color: isSelected ? Colors.white : AppTheme.onSurfaceVariant,
+                                    ),
+                                    side: BorderSide(
+                                      color: isSelected
+                                          ? Colors.transparent
+                                          : Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+                                    ),
+                                    onSelected: (_) {
+                                      setModal(() {
+                                        if (isSelected) {
+                                          selected.remove(a.name);
+                                        } else {
+                                          selected[a.name] = label;
+                                        }
+                                      });
                                     },
-                                  ),
-                                ),
+                                  );
+                                }).toList(),
                               ),
                             ],
                           ),
                         );
                       }),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Variant price & image',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: AppTheme.primaryDark,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: regularPriceCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Regular price',
+                          prefixText: 'KES ',
+                          filled: true,
+                          fillColor: Theme.of(context).colorScheme.surfaceContainerLow,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: salePriceCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Sale price (optional)',
+                          prefixText: 'KES ',
+                          filled: true,
+                          fillColor: Theme.of(context).colorScheme.surfaceContainerLow,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Variant image (optional)',
+                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            if (imageUrlCtrl.text.trim().isNotEmpty)
+                              Row(
+                                children: [
+                                  _VariantImagePreview(
+                                    imagePathOrUrl: imageUrlCtrl.text.trim(),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      imageUrlCtrl.text
+                                          .replaceAll(r'\', '/')
+                                          .split('/')
+                                          .last,
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else
+                              Text(
+                                'No image selected',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                FilledButton.icon(
+                                  onPressed: () async {
+                                    final source = await _showPhotoSourcePicker();
+                                    if (source == null) return;
+                                    final path = await _pickImagePath(source);
+                                    if (path == null) return;
+                                    setModal(() => imageUrlCtrl.text = path);
+                                  },
+                                  icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+                                  label: const Text('Add image'),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: AppTheme.primaryDark,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                if (imageUrlCtrl.text.trim().isNotEmpty)
+                                  TextButton(
+                                    onPressed: () => setModal(() => imageUrlCtrl.clear()),
+                                    child: const Text('Remove'),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       FilledButton(
                         onPressed: () {
+                          final missing = attrs.where((a) => selected[a.name] == null).toList();
+                          if (missing.isNotEmpty) {
+                            ScaffoldMessenger.of(rootContext).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Select values for: ${missing.map((a) => a.name).join(', ')}',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          final variantRegular = _toDouble(regularPriceCtrl.text);
+                          final variantSale = _toDouble(salePriceCtrl.text);
+                          final variantPrimaryPrice =
+                              variantRegular > 0 ? variantRegular : variantSale;
+                          if (variantPrimaryPrice <= 0) {
+                            ScaffoldMessenger.of(rootContext).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Add a price for this variant (regular or sale).',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          if (variantRegular > 0 && variantSale > variantRegular) {
+                            ScaffoldMessenger.of(rootContext).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Variant sale price cannot be greater than regular price.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
                           final combo = Map<String, String>.from(selected);
                           if (_variantLines.any((l) => _optionsEqual(l.options, combo))) {
                             Navigator.pop(ctx, false);
@@ -468,6 +676,9 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             options: combo,
                             initialSku: '$base-V$idx',
                             initialStock: '0',
+                            initialRegularPrice: regularPriceCtrl.text.trim(),
+                            initialSalePrice: salePriceCtrl.text.trim(),
+                            initialImageUrl: imageUrlCtrl.text.trim(),
                           ));
                           Navigator.pop(ctx, true);
                         },
@@ -496,45 +707,607 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         const SnackBar(content: Text('That combination already exists')),
       );
     }
+    // Let bottom-sheet closing animations finish before disposal.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    regularPriceCtrl.dispose();
+    salePriceCtrl.dispose();
+    imageUrlCtrl.dispose();
+  }
+
+  Future<void> _openEditVariantSheet(_VariantLine line) async {
+    final attrs = ref.read(dashboardAttributesProvider).valueOrNull ?? [];
+    final selected = Map<String, String>.from(line.options);
+    final regularCtrl = TextEditingController(text: line.regularPrice.text);
+    final saleCtrl = TextEditingController(text: line.salePrice.text);
+    final imageCtrl = TextEditingController(text: line.imageUrl.text);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.surfaceContainerLowest,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: StatefulBuilder(
+            builder: (context, setModal) {
+              final theme = Theme.of(context);
+              return DraggableScrollableSheet(
+                initialChildSize: 0.8,
+                minChildSize: 0.5,
+                maxChildSize: 0.95,
+                expand: false,
+                builder: (context, scrollController) {
+                  return ListView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                    children: [
+                      Text(
+                        'Edit variant details',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.primaryDark,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Update selected attributes, price, and product image for this option.',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: theme.colorScheme.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (attrs.isEmpty)
+                        Text(
+                          'No attributes available for editing.',
+                          style: theme.textTheme.bodySmall,
+                        )
+                      else
+                        ...attrs.map((a) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  a.name,
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                    color: AppTheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 10,
+                                  runSpacing: 10,
+                                  children: a.values.map((raw) {
+                                    final label = _valueLabel(a, raw);
+                                    final isSelected = selected[a.name] == label;
+                                    return ChoiceChip(
+                                      label: Text(label),
+                                      selected: isSelected,
+                                      showCheckmark: false,
+                                      selectedColor: AppTheme.primary,
+                                      backgroundColor: theme.colorScheme.surfaceContainerLow,
+                                      labelStyle: GoogleFonts.inter(
+                                        fontWeight: FontWeight.w600,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : AppTheme.onSurfaceVariant,
+                                      ),
+                                      side: BorderSide(
+                                        color: isSelected
+                                            ? Colors.transparent
+                                            : theme.colorScheme.outlineVariant
+                                                .withValues(alpha: 0.5),
+                                      ),
+                                      onSelected: (_) {
+                                        setModal(() => selected[a.name] = label);
+                                      },
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: regularCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Regular price',
+                          prefixText: 'KES ',
+                          filled: true,
+                          fillColor: theme.colorScheme.surfaceContainerLow,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: saleCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Sale price (optional)',
+                          prefixText: 'KES ',
+                          filled: true,
+                          fillColor: theme.colorScheme.surfaceContainerLow,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Variant image (optional)',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            if (imageCtrl.text.trim().isNotEmpty)
+                              Row(
+                                children: [
+                                  _VariantImagePreview(
+                                    imagePathOrUrl: imageCtrl.text.trim(),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      imageCtrl.text.replaceAll(r'\', '/').split('/').last,
+                                      style: theme.textTheme.bodySmall,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else
+                              Text(
+                                'No image selected',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                FilledButton.icon(
+                                  onPressed: () async {
+                                    final source = await _showPhotoSourcePicker();
+                                    if (source == null) return;
+                                    final path = await _pickImagePath(source);
+                                    if (path == null) return;
+                                    setModal(() => imageCtrl.text = path);
+                                  },
+                                  icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+                                  label: const Text('Change image'),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: AppTheme.primaryDark,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                if (imageCtrl.text.trim().isNotEmpty)
+                                  TextButton(
+                                    onPressed: () => setModal(() => imageCtrl.clear()),
+                                    child: const Text('Remove'),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: () {
+                          final variantRegular = _toDouble(regularCtrl.text);
+                          final variantSale = _toDouble(saleCtrl.text);
+                          final variantPrimaryPrice =
+                              variantRegular > 0 ? variantRegular : variantSale;
+                          if (variantPrimaryPrice <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Add a price for this variant (regular or sale).',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          if (variantRegular > 0 && variantSale > variantRegular) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Variant sale price cannot be greater than regular price.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          setState(() {
+                            if (selected.isNotEmpty) {
+                              line.options
+                                ..clear()
+                                ..addAll(selected);
+                            }
+                            line.regularPrice.text = regularCtrl.text.trim();
+                            line.salePrice.text = saleCtrl.text.trim();
+                            line.imageUrl.text = imageCtrl.text.trim();
+                          });
+                          Navigator.pop(ctx);
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppTheme.primaryDark,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'Save changes',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    // Let bottom-sheet closing animations finish before disposal.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    regularCtrl.dispose();
+    saleCtrl.dispose();
+    imageCtrl.dispose();
   }
 
   double _toDouble(String value) {
-    final normalized = value.replaceAll(',', '').trim();
-    return double.tryParse(normalized) ?? 0;
+    final digits = value.replaceAll(RegExp(r'[^0-9.]'), '');
+    if (digits.isEmpty) return 0;
+    return double.tryParse(digits) ?? 0;
+  }
+
+  String? _validateBeforeSave() {
+    final name = _name.text.trim();
+    if (name.isEmpty) return 'Product name is required.';
+
+    final stockRaw = _stock.text.trim();
+    if (stockRaw.isNotEmpty && int.tryParse(stockRaw) == null) {
+      return 'Stock must be a whole number.';
+    }
+
+    final regular = _toDouble(_regularPrice.text);
+    final sale = _toDouble(_salePrice.text);
+    final primaryPrice = regular > 0 ? regular : sale;
+    if (primaryPrice <= 0) {
+      return 'Enter a regular price or sale price greater than 0.';
+    }
+    if (regular > 0 && sale > regular) {
+      return 'Sale price cannot be greater than regular price.';
+    }
+
+    if (_variantLines.isEmpty) {
+      return 'Add at least one product variant before saving.';
+    }
+    for (var i = 0; i < _variantLines.length; i++) {
+      final line = _variantLines[i];
+      if (line.options.isEmpty) {
+        return 'Variant ${i + 1} is missing selected attributes.';
+      }
+      final variantRegular = _toDouble(line.regularPrice.text);
+      final variantSale = _toDouble(line.salePrice.text);
+      final variantPrimaryPrice =
+          variantRegular > 0 ? variantRegular : variantSale;
+      if (variantPrimaryPrice <= 0) {
+        return 'Add a price for variant ${i + 1}.';
+      }
+      if (variantRegular > 0 && variantSale > variantRegular) {
+        return 'Variant ${i + 1} sale price cannot be greater than regular price.';
+      }
+    }
+
+    return null;
+  }
+
+  int get _totalPhotoSlotsUsed =>
+      (_remoteImageUrls.length + _localImagePaths.length).clamp(0, 5);
+
+  String _generateSkuIfNeeded(String productName) {
+    final base = productName
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'-+'), '-')
+        .replaceAll(RegExp(r'^-|-$'), '');
+    final prefix = base.isEmpty ? 'sku' : base;
+    final tail = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
+    final combined = '$prefix-$tail';
+    return combined.length > 80 ? combined.substring(0, 80) : combined;
+  }
+
+  String? _resolveCategoryIdForSave() {
+    final target = _category.trim().toLowerCase();
+    if (target.isEmpty) return null;
+    final async = ref.read(categoriesListProvider);
+    final cats = async.valueOrNull;
+    if (cats == null) return null;
+    for (final c in cats) {
+      if (c.name.trim().toLowerCase() == target) {
+        final id = c.id.trim();
+        if (id.isEmpty) return null;
+        return id;
+      }
+    }
+    return null;
+  }
+
+  String? _extractUploadedMediaUrl(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is String && raw.trim().isNotEmpty) return raw.trim();
+    if (raw is! Map) return null;
+    final m = Map<String, dynamic>.from(raw);
+    final inner = m['data'] is Map ? Map<String, dynamic>.from(m['data'] as Map) : m;
+    for (final k in ['url', 'publicUrl', 'public_url', 'src', 'path']) {
+      final v = inner[k];
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+    }
+    return null;
+  }
+
+  Future<String?> _uploadLocalImagePath(ApiClient api, String path) async {
+    final name = path.replaceAll(r'\', '/').split('/').last;
+    final form = FormData.fromMap({
+      'file': await MultipartFile.fromFile(path, filename: name),
+    });
+    final r = await api.uploadMedia(form);
+    if (!r.success || r.data == null) return null;
+    return _extractUploadedMediaUrl(r.data);
+  }
+
+  bool _looksLikeRemoteImage(String value) {
+    final v = value.trim().toLowerCase();
+    return v.startsWith('http://') || v.startsWith('https://');
+  }
+
+  Future<String> _resolveVariantImageUrl(ApiClient api, String rawValue) async {
+    final v = rawValue.trim();
+    if (v.isEmpty) return '';
+    if (_looksLikeRemoteImage(v)) return v;
+    final uploaded = await _uploadLocalImagePath(api, v);
+    return uploaded ?? '';
+  }
+
+  String _formatSaveError(Object e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map) {
+        final msg = data['message'];
+        if (msg is String && msg.isNotEmpty) return msg;
+        final err = data['error'];
+        if (err is Map && err['message'] is String) return err['message'] as String;
+        if (err is String && err.isNotEmpty) return err;
+      }
+      if (e.message != null && e.message!.isNotEmpty) return e.message!;
+    }
+    return e.toString();
+  }
+
+  Future<ImageSource?> _showPhotoSourcePicker() async {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppTheme.surfaceContainerLowest,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take Photo'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from Gallery'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _pickImagePath(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1800,
+      );
+      return file?.path;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Map<String, dynamic> _buildProductPayload({
+    required String name,
+    required String sku,
+    required double regular,
+    required double sale,
+    required int stockVal,
+    required List<String> imageUrls,
+    required List<Map<String, dynamic>> variants,
+    String? categoryId,
+  }) {
+    final desc = _description.text.trim();
+    final payload = <String, dynamic>{
+      'name': name,
+      'description': desc,
+      'sku': sku,
+      'price': regular,
+      'regularPrice': regular,
+      'regular_price': regular,
+      'stock': stockVal,
+      'stockQuantity': stockVal,
+      'stock_quantity': stockVal,
+      'quantity': stockVal,
+      'category': _category,
+      'categoryName': _category,
+      'isActive': _visible,
+      'is_active': _visible,
+      'status': _visible ? 'active' : 'draft',
+    };
+    if (sale > 0) {
+      payload['salePrice'] = sale;
+      payload['sale_price'] = sale;
+    }
+    if (categoryId != null && categoryId.isNotEmpty) {
+      payload['categoryId'] = categoryId;
+      payload['category_id'] = categoryId;
+    }
+    if (imageUrls.isNotEmpty) {
+      payload['images'] = imageUrls;
+      payload['imageUrls'] = imageUrls;
+      payload['image'] = imageUrls.first;
+      payload['imageUrl'] = imageUrls.first;
+      payload['featuredImage'] = imageUrls.first;
+      payload['featured_image'] = imageUrls.first;
+    }
+    if (variants.isNotEmpty) {
+      payload['variants'] = variants;
+      payload['productVariants'] = variants;
+      payload['product_variants'] = variants;
+    }
+    return payload;
   }
 
   Future<void> _saveProduct() async {
     if (_isSaving) return;
-    final name = _name.text.trim();
-    final sku = _sku.text.trim();
-    if (name.isEmpty || sku.isEmpty) {
+    final validationError = _validateBeforeSave();
+    if (validationError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Product name and SKU are required')),
+        SnackBar(content: Text(validationError)),
       );
       return;
+    }
+    final name = _name.text.trim();
+
+    var sku = _sku.text.trim();
+    if (sku.isEmpty) {
+      sku = _generateSkuIfNeeded(name);
+      _sku.text = sku;
     }
 
     setState(() => _isSaving = true);
     try {
-      final container = ProviderScope.containerOf(context, listen: false);
-      final api = container.read(apiClientProvider);
+      final api = ref.read(apiClientProvider);
 
-      final payload = <String, dynamic>{
-        'name': name,
-        'description': _description.text.trim(),
-        'sku': sku,
-        'regularPrice': _toDouble(_regularPrice.text),
-        'salePrice': _toDouble(_salePrice.text),
-        'stock': int.tryParse(_stock.text.trim()) ?? 0,
-        'category': _category,
-        'isActive': _visible,
-      };
+      final uploaded = <String>[];
+      for (final path in _localImagePaths) {
+        final url = await _uploadLocalImagePath(api, path);
+        if (url != null && url.isNotEmpty) {
+          uploaded.add(url);
+        }
+      }
+      final imageUrls = [..._remoteImageUrls, ...uploaded];
+
+      final variants = <Map<String, dynamic>>[];
+      for (final line in _variantLines) {
+        final variantSku = line.sku.text.trim();
+        if (variantSku.isEmpty) continue;
+        final variantStock = int.tryParse(line.stock.text.trim()) ?? 0;
+        final variantRegular = _toDouble(line.regularPrice.text);
+        final variantSale = _toDouble(line.salePrice.text);
+        final variantImage = await _resolveVariantImageUrl(api, line.imageUrl.text);
+
+        final variantPayload = <String, dynamic>{
+          'sku': variantSku,
+          'stock': variantStock,
+          'stockQuantity': variantStock,
+          'stock_quantity': variantStock,
+          'quantity': variantStock,
+          'options': Map<String, String>.from(line.options),
+          'attributes': Map<String, String>.from(line.options),
+          'attribute_values': Map<String, String>.from(line.options),
+        };
+
+        if (variantRegular > 0) {
+          variantPayload['price'] = variantRegular;
+          variantPayload['regularPrice'] = variantRegular;
+          variantPayload['regular_price'] = variantRegular;
+        }
+        if (variantSale > 0) {
+          variantPayload['salePrice'] = variantSale;
+          variantPayload['sale_price'] = variantSale;
+        }
+        if (variantImage.isNotEmpty) {
+          variantPayload['image'] = variantImage;
+          variantPayload['imageUrl'] = variantImage;
+          variantPayload['images'] = [variantImage];
+        }
+
+        variants.add(variantPayload);
+      }
+
+      final regular = _toDouble(_regularPrice.text);
+      final sale = _toDouble(_salePrice.text);
+      final stockVal = int.tryParse(_stock.text.trim()) ?? 0;
+
+      final primaryPrice = regular > 0 ? regular : sale;
+      if (primaryPrice <= 0) {
+        throw StateError('Enter a regular price or sale price greater than 0.');
+      }
+
+      final categoryId = _resolveCategoryIdForSave();
+
+      final payload = _buildProductPayload(
+        name: name,
+        sku: sku,
+        regular: regular > 0 ? regular : primaryPrice,
+        sale: sale,
+        stockVal: stockVal,
+        imageUrls: imageUrls,
+        variants: variants,
+        categoryId: categoryId,
+      );
 
       final isNew = widget.initialSku == null;
       final updateKey = _productApiId ?? widget.initialSku;
       if (!isNew && (updateKey == null || updateKey.isEmpty)) {
         throw StateError('Missing product id for update. Reload the product and try again.');
       }
+
       final response = isNew
           ? await api.createProduct(payload)
           : await api.updateProduct(updateKey!, payload);
@@ -548,13 +1321,48 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         SnackBar(content: Text(isNew ? 'Product created' : 'Product updated')),
       );
       context.pop();
+    } on DioException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_formatSaveError(e))),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Save failed: $e')),
+        SnackBar(content: Text(_formatSaveError(e))),
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    try {
+      final path = await _pickImagePath(source);
+      if (path == null || !mounted) return;
+      setState(() {
+        if (_totalPhotoSlotsUsed < 5) {
+          _localImagePaths.add(path);
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not pick photo: $e')),
+      );
+    }
+  }
+
+  Future<void> _showAddPhotoSourceSheet() async {
+    if (_totalPhotoSlotsUsed >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Maximum 5 photos reached')),
+      );
+      return;
+    }
+    final source = await _showPhotoSourcePicker();
+    if (source != null) {
+      await _pickPhoto(source);
     }
   }
 
@@ -563,21 +1371,42 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     super.initState();
     _loadRefreshHintPref();
     final isNew = widget.initialSku == null;
-    _categoryOptions = List<String>.from(_defaultCategorySeeds);
-    _category = _categoryOptions.first;
+    _categoryOptions = <String>[];
+    _category = '';
     _name = TextEditingController();
     _description = TextEditingController();
     _regularPrice = TextEditingController();
     _salePrice = TextEditingController();
     _sku = TextEditingController(text: widget.initialSku ?? '');
     _stock = TextEditingController();
-    _loadedHeroImageUrl = null;
+    _remoteImageUrls.clear();
+    _localImagePaths.clear();
     _productApiId = null;
-    _loadAttributes = !isNew;
     _initVariantLines();
     if (!isNew) {
       _loadLiveProductIfEditing();
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(categoriesListProvider.future).then((list) {
+        if (!mounted) return;
+        setState(() {
+          final names = list
+              .map((c) => c.name.trim())
+              .where((name) => name.isNotEmpty)
+              .toSet()
+              .toList()
+            ..sort();
+          _categoryOptions = names;
+          if (_categoryOptions.isNotEmpty) {
+            if (!_categoryOptions.contains(_category)) {
+              _category = _categoryOptions.first;
+            }
+          } else {
+            _category = '';
+          }
+        });
+      }).catchError((_) {});
+    });
   }
 
   Future<void> _loadRefreshHintPref() async {
@@ -585,8 +1414,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     if (!mounted) return;
     setState(() => _hasSeenRefreshHint = seen);
   }
-
-  String get _heroImageUrl => _loadedHeroImageUrl ?? _placeholderHeroImage;
 
   @override
   void dispose() {
@@ -619,6 +1446,35 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          decoration: BoxDecoration(
+            color: AppTheme.surface.withValues(alpha: 0.96),
+            border: Border(
+              top: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35)),
+            ),
+          ),
+          child: FilledButton.icon(
+            onPressed: _isSaving ? null : _saveProduct,
+            icon: _isSaving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.save_outlined, size: 18),
+            label: Text(_isSaving ? 'Saving product...' : 'Save product'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.primaryDark,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           if (isNew) return;
@@ -629,20 +1485,15 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
           slivers: [
           SliverAppBar(
             pinned: true,
+            toolbarHeight: kToolbarHeight,
             elevation: 0,
             backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
             surfaceTintColor: Colors.transparent,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: AppTheme.primaryDark),
+              icon: const Icon(Icons.arrow_back_rounded),
               onPressed: () => context.pop(),
             ),
-            title: Text(
-              isNew ? 'Add Product' : 'Edit Product',
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: AppTheme.primaryDark,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            title: Text(isNew ? 'Add Product' : 'Edit Product'),
             actions: [
               if (!isNew)
                 IconButton(
@@ -680,7 +1531,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                 _MediaSectionHeader(
                   title: 'Media',
                   trailing: Text(
-                    '$_photoCount / 5 Photos',
+                    '$_totalPhotoSlotsUsed / 5 Photos',
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w600,
@@ -739,21 +1590,29 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     children: [
-                      if (_heroImageUrl.trim().isNotEmpty) ...[
-                        _MediaThumb(
-                          imageUrl: _heroImageUrl,
-                          onRemove: () {
-                            setState(() {
-                              _loadedHeroImageUrl = null;
-                              if (_photoCount > 0) _photoCount--;
-                            });
-                          },
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      _AddPhotoButton(onTap: () {
-                        if (_photoCount < 5) setState(() => _photoCount++);
-                      }),
+                      ..._remoteImageUrls.asMap().entries.map(
+                            (e) => Padding(
+                              padding: const EdgeInsets.only(right: 12),
+                              child: _MediaThumb(
+                                imageUrl: e.value,
+                                localImagePath: null,
+                                onRemove: () =>
+                                    setState(() => _remoteImageUrls.removeAt(e.key)),
+                              ),
+                            ),
+                          ),
+                      ..._localImagePaths.asMap().entries.map(
+                            (e) => Padding(
+                              padding: const EdgeInsets.only(right: 12),
+                              child: _MediaThumb(
+                                imageUrl: '',
+                                localImagePath: e.value,
+                                onRemove: () =>
+                                    setState(() => _localImagePaths.removeAt(e.key)),
+                              ),
+                            ),
+                          ),
+                      _AddPhotoButton(onTap: _showAddPhotoSourceSheet),
                     ],
                   ),
                 ),
@@ -832,16 +1691,68 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            value:
-                                _categoryOptions.contains(_category) ? _category : _categoryOptions.first,
+                            value: _categoryOptions.contains(_category) ? _category : null,
                             isExpanded: true,
                             icon: Icon(Icons.expand_more, color: theme.colorScheme.onSurfaceVariant),
+                            hint: Text(
+                              _categoryOptions.isEmpty
+                                  ? 'No categories yet. Create one first.'
+                                  : 'Select category',
+                            ),
                             items: _categoryOptions
                                 .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                                 .toList(),
-                            onChanged: (v) => setState(() => _category = v ?? _categoryOptions.first),
+                            onChanged: _categoryOptions.isEmpty
+                                ? null
+                                : (v) => setState(() => _category = v ?? _category),
                           ),
                         ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _CardShell(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Inventory',
+                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Leave SKU empty to auto-generate when you publish.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _LabeledField(
+                              label: 'SKU',
+                              child: TextField(
+                                controller: _sku,
+                                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                                decoration: _inventoryFieldDeco(theme, hint: 'Auto if empty'),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _LabeledField(
+                              label: 'Stock',
+                              child: TextField(
+                                controller: _stock,
+                                keyboardType: TextInputType.number,
+                                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                                decoration: _inventoryFieldDeco(theme, hint: '0'),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -877,98 +1788,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
-                _CardShell(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Inventory',
-                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const Spacer(),
-                          TextButton(
-                            onPressed: () => context.push('/attributes'),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Manage attributes',
-                                  style: theme.textTheme.labelLarge?.copyWith(
-                                    color: AppTheme.primary,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                const Icon(Icons.chevron_right, size: 18, color: AppTheme.primary),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _LabeledField(
-                              label: 'SKU',
-                              child: TextField(
-                                controller: _sku,
-                                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                                decoration: _fieldDeco(theme),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _LabeledField(
-                              label: 'Stock',
-                              child: TextField(
-                                controller: _stock,
-                                keyboardType: TextInputType.number,
-                                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                                decoration: _fieldDeco(theme),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
                 const SizedBox(height: 16),
-                if (!_loadAttributes)
-                  _CardShell(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Product variants',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.primaryDark,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Load attributes when you are ready to configure variants.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        FilledButton.icon(
-                          onPressed: () => setState(() => _loadAttributes = true),
-                          icon: const Icon(Icons.layers_outlined, size: 18),
-                          label: const Text('Load variant options'),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  ...switch (ref.watch(dashboardAttributesProvider)) {
+                ...switch (ref.watch(dashboardAttributesProvider)) {
                     AsyncLoading<List<ProductAttribute>>() => [
                         _CardShell(
                           child: const Center(
@@ -999,7 +1820,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'Product variants',
+                                          'Product options',
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: 16,
                                             fontWeight: FontWeight.w700,
@@ -1008,7 +1829,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          'Each variant is a unique combination of your attributes, with its own SKU and stock.',
+                                          'Add options your customers understand, like Size, Color, or Material. Each option can have its own SKU, stock, price, and image.',
                                           style: GoogleFonts.inter(
                                             fontSize: 12,
                                             height: 1.35,
@@ -1035,8 +1856,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                     Expanded(
                                       child: Text(
                                         value.isEmpty
-                                            ? 'No attributes yet. Tap “Manage attributes” above to define options like Color or Size.'
-                                            : '${value.length} attribute(s) available — use them to build variants below.',
+                                            ? 'No attributes yet. Add product attributes like Size or Color first.'
+                                            : '${value.length} attribute(s) available — use them to build product options below.',
                                         style: GoogleFonts.inter(
                                           fontSize: 13,
                                           height: 1.4,
@@ -1052,7 +1873,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                 Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 8),
                                   child: Text(
-                                    'No variants yet. Add one manually.',
+                                    'No product options yet. Tap "Add variant" to create one.',
                                     style: theme.textTheme.bodySmall?.copyWith(
                                       color: theme.colorScheme.onSurfaceVariant,
                                     ),
@@ -1066,6 +1887,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                     padding: const EdgeInsets.only(bottom: 10),
                                     child: _VariantRowTile(
                                       line: line,
+                                      onEdit: () => _openEditVariantSheet(line),
                                       onRemove: () {
                                         setState(() {
                                           line.dispose();
@@ -1210,6 +2032,31 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    );
+  }
+
+  /// Stronger contrast vs `_CardShell` so SKU/stock read as inputs, not bare background.
+  InputDecoration _inventoryFieldDeco(ThemeData theme, {String? hint}) {
+    final idle = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(
+        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+      ),
+    );
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(
+        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+      ),
+      filled: true,
+      fillColor: theme.colorScheme.surfaceContainerHighest,
+      border: idle,
+      enabledBorder: idle,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     );
@@ -1371,14 +2218,21 @@ class _FmtIcon extends StatelessWidget {
 }
 
 class _MediaThumb extends StatelessWidget {
-  const _MediaThumb({required this.imageUrl, required this.onRemove});
+  const _MediaThumb({
+    required this.imageUrl,
+    required this.onRemove,
+    this.localImagePath,
+  });
 
   final String imageUrl;
   final VoidCallback onRemove;
+  final String? localImagePath;
 
   @override
   Widget build(BuildContext context) {
     final hasImage = imageUrl.trim().isNotEmpty;
+    final localPath = (localImagePath ?? '').trim();
+    final hasLocalImage = localPath.isNotEmpty;
     String fallbackUrl(String raw) {
       try {
         final u = Uri.parse(raw);
@@ -1399,7 +2253,20 @@ class _MediaThumb extends StatelessWidget {
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: hasImage
+          child: hasLocalImage
+              ? Image.file(
+                  File(localPath),
+                  width: 128,
+                  height: 128,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 128,
+                    height: 128,
+                    color: Theme.of(context).colorScheme.surfaceContainerLow,
+                    child: const Icon(Icons.image_not_supported_outlined),
+                  ),
+                )
+              : hasImage
               ? Image.network(
                   imageUrl,
                   width: 128,
@@ -1436,7 +2303,7 @@ class _MediaThumb extends StatelessWidget {
                   child: const Icon(Icons.image_not_supported_outlined),
                 ),
         ),
-        if (hasImage)
+        if (hasImage || hasLocalImage)
           Positioned(
             top: 6,
             right: 6,
@@ -1461,10 +2328,12 @@ class _MediaThumb extends StatelessWidget {
 class _VariantRowTile extends StatelessWidget {
   const _VariantRowTile({
     required this.line,
+    required this.onEdit,
     required this.onRemove,
   });
 
   final _VariantLine line;
+  final VoidCallback onEdit;
   final VoidCallback onRemove;
 
   @override
@@ -1495,6 +2364,11 @@ class _VariantRowTile extends StatelessWidget {
                 ),
               ),
               IconButton(
+                onPressed: onEdit,
+                icon: Icon(Icons.edit_outlined, color: theme.colorScheme.primary),
+                tooltip: 'Edit variant details',
+              ),
+              IconButton(
                 onPressed: onRemove,
                 icon: Icon(Icons.delete_outline_rounded, color: theme.colorScheme.error),
                 tooltip: 'Remove variant',
@@ -1502,6 +2376,22 @@ class _VariantRowTile extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (line.regularPrice.text.trim().isNotEmpty)
+                _VariantChip(label: 'Price: KES ${line.regularPrice.text.trim()}'),
+              if (line.salePrice.text.trim().isNotEmpty)
+                _VariantChip(label: 'Sale: KES ${line.salePrice.text.trim()}'),
+              if (line.imageUrl.text.trim().isNotEmpty)
+                _VariantImagePreview(imagePathOrUrl: line.imageUrl.text.trim()),
+            ],
+          ),
+          if (line.regularPrice.text.trim().isNotEmpty ||
+              line.salePrice.text.trim().isNotEmpty ||
+              line.imageUrl.text.trim().isNotEmpty)
+            const SizedBox(height: 10),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1557,14 +2447,104 @@ class _VariantRowTile extends StatelessWidget {
   }
 
   static InputDecoration _variantFieldDeco(ThemeData theme) {
+    final idle = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(
+        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+      ),
+    );
     return InputDecoration(
       filled: true,
-      fillColor: theme.colorScheme.surfaceContainerLowest,
-      border: OutlineInputBorder(
+      fillColor: theme.colorScheme.surfaceContainerHighest,
+      border: idle,
+      enabledBorder: idle,
+      focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    );
+  }
+}
+
+class _VariantChip extends StatelessWidget {
+  const _VariantChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+class _VariantImagePreview extends StatelessWidget {
+  const _VariantImagePreview({required this.imagePathOrUrl});
+
+  final String imagePathOrUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isRemote =
+        imagePathOrUrl.startsWith('http://') || imagePathOrUrl.startsWith('https://');
+
+    Widget img;
+    if (isRemote) {
+      img = Image.network(
+        imagePathOrUrl,
+        width: 44,
+        height: 44,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _variantImageFallback(theme),
+      );
+    } else {
+      img = Image.file(
+        File(imagePathOrUrl),
+        width: 44,
+        height: 44,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _variantImageFallback(theme),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: img,
+      ),
+    );
+  }
+
+  Widget _variantImageFallback(ThemeData theme) {
+    return Container(
+      width: 44,
+      height: 44,
+      color: theme.colorScheme.surfaceContainerLow,
+      child: Icon(
+        Icons.image_not_supported_outlined,
+        size: 18,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }

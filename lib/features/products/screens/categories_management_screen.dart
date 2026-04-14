@@ -53,7 +53,7 @@ class _CategoriesManagementScreenState extends ConsumerState<CategoriesManagemen
       loading: () => Scaffold(
         backgroundColor: AppTheme.surface,
         appBar: AppBar(
-          title: Text('Categories', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+          title: const Text('Categories'),
         ),
         body: const Center(child: CircularProgressIndicator()),
       ),
@@ -61,10 +61,10 @@ class _CategoriesManagementScreenState extends ConsumerState<CategoriesManagemen
         backgroundColor: AppTheme.surface,
         appBar: AppBar(
           leading: IconButton(
-            icon: Icon(Icons.arrow_back_rounded, color: colorScheme.outline),
+            icon: const Icon(Icons.arrow_back_rounded),
             onPressed: () => context.pop(),
           ),
-          title: Text('Categories', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+          title: const Text('Categories'),
         ),
         body: Center(
           child: Padding(
@@ -148,22 +148,15 @@ class _CategoriesManagementScreenState extends ConsumerState<CategoriesManagemen
             slivers: [
               SliverAppBar(
                 pinned: true,
+                toolbarHeight: kToolbarHeight,
                 elevation: 0,
                 backgroundColor: AppTheme.surface,
                 surfaceTintColor: Colors.transparent,
                 leading: IconButton(
-                  icon: Icon(Icons.arrow_back_rounded, color: colorScheme.outline),
+                  icon: const Icon(Icons.arrow_back_rounded),
                   onPressed: () => context.pop(),
                 ),
-                title: Text(
-                  'Categories',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.primaryDark,
-                    letterSpacing: -0.25,
-                  ),
-                ),
+                title: const Text('Categories'),
                 actions: [
                   IconButton(
                     icon: Icon(Icons.add_rounded, color: AppTheme.primaryDark),

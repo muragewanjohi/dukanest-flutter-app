@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/providers/store_identity_provider.dart';
+import '../providers/pending_orders_count_provider.dart';
 
 /// Order Fulfillment — Stitch layout (metrics, chips, order cards, processing goal).
 class OrdersListScreen extends ConsumerStatefulWidget {
@@ -49,11 +51,6 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
     _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
-  }
-
-  static String _orderKeyFromId(String raw) {
-    final match = RegExp(r'#([A-Z]+-\d+)').firstMatch(raw);
-    return match?.group(1) ?? raw.replaceAll(RegExp(r'[^A-Z0-9-]'), '');
   }
 
   String _normalizeStatus(String input) {
@@ -274,6 +271,7 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
             .toString();
 
         return _OrderListItem(
+          orderKey: idText,
           idLine: idLine,
           date: dateText,
           customer: customer,
@@ -349,20 +347,50 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final orders = _visibleOrders;
+    final storeIdentity = ref.watch(storeIdentityProvider).asData?.value;
+    final storeLogoUrl = storeIdentity?.logoUrl;
+    final storeName = (storeIdentity?.name ?? '').trim();
+    final pendingOrdersCount = ref.watch(pendingOrdersCountProvider).maybeWhen(
+          data: (count) => count,
+          orElse: () => 0,
+        );
+    final badgeLabel = pendingOrdersCount > 99 ? '99+' : '$pendingOrdersCount';
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
       body: RefreshIndicator(
         onRefresh: _loadOrders,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          padding: EdgeInsets.fromLTRB(16, 8 + MediaQuery.of(context).padding.top, 16, 24),
           children: [
             Row(
               children: [
-                const CircleAvatar(radius: 18, child: Icon(Icons.person, size: 20)),
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: theme.colorScheme.surfaceContainerHigh,
+                  child: ClipOval(
+                    child: (storeLogoUrl != null && storeLogoUrl.isNotEmpty)
+                        ? Image.network(
+                            storeLogoUrl,
+                            width: 36,
+                            height: 36,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Icon(
+                              Icons.storefront_rounded,
+                              size: 20,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          )
+                        : Icon(
+                            Icons.storefront_rounded,
+                            size: 20,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                  ),
+                ),
                 const SizedBox(width: 10),
                 Text(
-                  'DukaNest',
+                  storeName.isNotEmpty ? storeName : 'DukaNest',
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: AppTheme.primaryDark,
                     fontWeight: FontWeight.w800,
@@ -370,7 +398,11 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
                 ),
                 const Spacer(),
                 IconButton(
-                  icon: Icon(Icons.notifications_none_rounded, color: theme.colorScheme.onSurfaceVariant),
+                  icon: Badge(
+                    isLabelVisible: pendingOrdersCount > 0,
+                    label: Text(badgeLabel),
+                    child: Icon(Icons.notifications_none_rounded, color: theme.colorScheme.onSurfaceVariant),
+                  ),
                   onPressed: () => context.push('/notifications'),
                 ),
               ],
@@ -496,7 +528,6 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
               )
             else
               ...orders.map((order) {
-                final key = _orderKeyFromId(order.idLine);
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: _OrderCard(
@@ -506,7 +537,7 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
                     status: order.status,
                     detail: order.detail,
                     accentLeft: order.status == 'Pending',
-                    onOpen: () => context.push('/orders/detail/${Uri.encodeComponent(key)}'),
+                    onOpen: () => context.push('/orders/detail/${Uri.encodeComponent(order.orderKey)}'),
                   ),
                 );
               }),
@@ -538,6 +569,7 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
 
 class _OrderListItem {
   const _OrderListItem({
+    required this.orderKey,
     required this.idLine,
     required this.date,
     required this.customer,
@@ -545,6 +577,7 @@ class _OrderListItem {
     required this.detail,
   });
 
+  final String orderKey;
   final String idLine;
   final String date;
   final String customer;

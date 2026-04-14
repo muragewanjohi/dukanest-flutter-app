@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 
 final notificationsProvider = FutureProvider<List<_NotificationItem>>((ref) async {
@@ -34,6 +35,7 @@ class NotificationsScreen extends ConsumerWidget {
     final notifications = ref.watch(notificationsProvider);
 
     return Scaffold(
+      backgroundColor: AppTheme.surface,
       appBar: AppBar(title: const Text('Notifications')),
       body: notifications.when(
         data: (items) {

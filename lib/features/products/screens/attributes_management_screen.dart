@@ -130,22 +130,15 @@ class _AttributesManagementScreenState extends ConsumerState<AttributesManagemen
             slivers: [
               SliverAppBar(
                 pinned: true,
+                toolbarHeight: kToolbarHeight,
                 elevation: 0,
                 backgroundColor: AppTheme.surface,
                 surfaceTintColor: Colors.transparent,
                 leading: IconButton(
-                  icon: Icon(Icons.arrow_back_rounded, color: AppTheme.primaryDark),
+                  icon: const Icon(Icons.arrow_back_rounded),
                   onPressed: () => context.pop(),
                 ),
-                title: Text(
-                  'Attributes',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.primaryDark,
-                    letterSpacing: -0.25,
-                  ),
-                ),
+                title: const Text('Attributes'),
                 actions: [
                   IconButton(
                     icon: Icon(

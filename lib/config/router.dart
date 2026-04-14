@@ -36,11 +36,13 @@ import '../features/sales/screens/sales_editor_screen.dart';
 import '../features/customers/screens/customers_list_screen.dart';
 import '../features/onboarding/providers/auth_provider.dart';
 import '../core/auth/auth_state.dart';
+import '../core/providers/onboarding_seen_provider.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
+  final onboardingSeenState = ref.watch(onboardingSeenProvider);
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -50,6 +52,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isOnboarding = state.matchedLocation == '/onboarding';
       final isMfaPhase = state.matchedLocation == '/mfa';
       final atSplash = state.matchedLocation == '/splash';
+      final onboardingSeen = onboardingSeenState.valueOrNull;
+      final onboardingKnown = onboardingSeenState.hasValue;
 
       final isResolvingSession = authState.status == AuthStatus.initial ||
           authState.status == AuthStatus.sessionRestoring;
@@ -57,15 +61,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         return atSplash ? null : '/splash';
       }
       if (atSplash) {
+        if (!onboardingKnown) {
+          return null;
+        }
         switch (authState.status) {
           case AuthStatus.authenticated:
             return '/dashboard';
           case AuthStatus.awaitingMfa:
             return '/mfa';
           case AuthStatus.unauthenticated:
-            return '/login';
+            return onboardingSeen == true ? '/login' : '/onboarding';
           default:
-            return '/login';
+            return onboardingSeen == true ? '/login' : '/onboarding';
         }
       }
 
@@ -75,6 +82,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (authState.status == AuthStatus.unauthenticated) {
+        if (!onboardingKnown) {
+          return '/splash';
+        }
+        if (onboardingSeen != true) {
+          if (isOnboarding) {
+            return null;
+          }
+          return '/onboarding';
+        }
         if (isLoggingIn ||
             isOnboarding ||
             state.matchedLocation == '/register' ||

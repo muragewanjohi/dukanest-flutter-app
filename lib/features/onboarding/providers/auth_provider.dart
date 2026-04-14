@@ -54,12 +54,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final name = _pickString(tenantMap, ['name', 'storeName']);
     final subdomain = _pickString(tenantMap, ['subdomain', 'storeSubdomain']);
     final storeUrl = _pickString(tenantMap, ['storeUrl', 'url']);
+    final logoUrl = _pickString(tenantMap, ['logoUrl', 'logo', 'storeLogo', 'logo_url']);
     if (name == null || name.isEmpty) return;
     if (subdomain != null && subdomain.isNotEmpty) {
       await _tokenStorage.saveStoreIdentity(
         name: name,
         subdomain: subdomain,
         storeUrl: _storeUrlFromSubdomain(subdomain),
+        logoUrl: logoUrl,
       );
       return;
     }
@@ -68,6 +70,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         name: name,
         subdomain: '',
         storeUrl: storeUrl,
+        logoUrl: logoUrl,
       );
     }
   }
@@ -128,6 +131,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
                 name: name,
                 subdomain: subdomain,
                 storeUrl: _storeUrlFromSubdomain(subdomain),
+                logoUrl: _pickString(t, ['logoUrl', 'logo', 'storeLogo', 'logo_url']),
               );
             }
           }

@@ -1,32 +1,55 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/providers/store_identity_provider.dart';
 
 /// More tab layout based on Stitch "More Menu" screen.
-class MoreMenuScreen extends StatelessWidget {
+class MoreMenuScreen extends ConsumerWidget {
   const MoreMenuScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final storeIdentity = ref.watch(storeIdentityProvider).asData?.value;
+    final storeLogoUrl = storeIdentity?.logoUrl;
+    final storeName = (storeIdentity?.name ?? '').trim();
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+        padding: EdgeInsets.fromLTRB(24, 8 + MediaQuery.of(context).padding.top, 24, 24),
         children: [
           Row(
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: AppTheme.primary,
-                child: const Text('BL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
+                backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                child: ClipOval(
+                  child: (storeLogoUrl != null && storeLogoUrl.isNotEmpty)
+                      ? Image.network(
+                          storeLogoUrl,
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Icon(
+                            Icons.storefront_rounded,
+                            size: 22,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        )
+                      : Icon(
+                          Icons.storefront_rounded,
+                          size: 22,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                ),
               ),
               const SizedBox(width: 12),
               Text(
-                'Tenant Dashboard',
+                storeName.isNotEmpty ? storeName : 'DukaNest',
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: AppTheme.primaryDark,
                   fontWeight: FontWeight.w700,

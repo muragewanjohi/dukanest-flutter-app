@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/providers/store_identity_provider.dart';
 import '../analytics_parse.dart';
 import '../providers/dashboard_analytics_provider.dart';
 
@@ -29,6 +30,9 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final storeIdentity = ref.watch(storeIdentityProvider).asData?.value;
+    final storeLogoUrl = storeIdentity?.logoUrl;
+    final storeName = (storeIdentity?.name ?? '').trim();
     final async = ref.watch(dashboardAnalyticsProvider(_days));
     final view = parseAnalyticsViewData(async.valueOrNull, _days);
 
@@ -40,18 +44,36 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           await ref.read(dashboardAnalyticsProvider(_days).future);
         },
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          padding: EdgeInsets.fromLTRB(16, 8 + MediaQuery.of(context).padding.top, 16, 24),
           children: [
             Row(
               children: [
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                  child: const Icon(Icons.person, size: 22),
+                  child: ClipOval(
+                    child: (storeLogoUrl != null && storeLogoUrl.isNotEmpty)
+                        ? Image.network(
+                            storeLogoUrl,
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Icon(
+                              Icons.storefront_rounded,
+                              size: 22,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          )
+                        : Icon(
+                            Icons.storefront_rounded,
+                            size: 22,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'DukaNest',
+                  storeName.isNotEmpty ? storeName : 'DukaNest',
                   style: theme.textTheme.titleLarge?.copyWith(
                     color: AppTheme.primaryDark,
                     fontWeight: FontWeight.w800,

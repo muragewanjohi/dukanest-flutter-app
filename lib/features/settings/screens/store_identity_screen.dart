@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -6,19 +8,18 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/auth/token_storage.dart';
+import '../../../core/providers/store_identity_provider.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../../onboarding/providers/auth_provider.dart';
 import '../providers/dashboard_settings_provider.dart';
 
-/// Store Identity — Stitch: Store Identity (Refined) (e00fbf7d264a41b28406065a10d940de).
-/// Includes delete-account panel per product spec.
+/// Store name, logo, domain, address, and support contact. Includes delete-account panel.
 class StoreIdentityScreen extends ConsumerStatefulWidget {
   const StoreIdentityScreen({super.key});
-
-  static const _keFlagUrl =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuC2aTS8N0I0XazxD9RUrUxD3-5GEOmtvQnsyp1j9rktHX8Ux8DXjc5WevFm83W2PLJmsPXGukkAIbqGONp0BeQni0EgjGdqppFCxQsiV8OUkJzDFgSfTl1qJBMUd1clEtAil3hb_-UM19MCqB9pmr5a3o7Xsm8-d8of9Wj6H9Np3arrOhs9RHWSKvIiJwtNxe2WG-6GonPCqxCKCDkD_ptXtX3aoR1UB2cg5dGoEnmt447ybDF47DCQKfBTbzisUZmdQ9eORQDMUo5e';
 
   @override
   ConsumerState<StoreIdentityScreen> createState() => _StoreIdentityScreenState();
@@ -40,10 +41,12 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
   String _businessType = 'Retail';
   String _sellingCategory = 'Electronics & Gadgets';
 
-  bool _hydrated = false;
   bool _saving = false;
   String? _serverSubdomain;
   String? _logoImageUrl;
+  /// Bumped when the logo URL changes or after save so [CachedNetworkImage] does not show a stale bitmap if the URL is unchanged.
+  int _logoCacheEpoch = 0;
+  String? _lastHydratedStoreSignature;
 
   static const _businessTypeOptions = [
     'Retail',
@@ -74,6 +77,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
   }
 
   void _hydrateFrom(Map<String, dynamic> data) {
+    final prevLogo = _logoImageUrl;
     final store = settingsSection(data, 'store') ?? {};
     _storeName.text = settingsPick(store, ['name']);
     final sub = settingsPick(store, ['subdomain']);
@@ -118,6 +122,26 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
     } else if (sell.isNotEmpty) {
       _sellingCategory = sell;
     }
+    if (prevLogo != _logoImageUrl) {
+      _logoCacheEpoch++;
+    }
+  }
+
+  static String _storeSectionSignature(Map<String, dynamic>? s) {
+    if (s == null || s.isEmpty) return '';
+    final keys = s.keys.toList()..sort();
+    return jsonEncode({for (final k in keys) k: s[k]});
+  }
+
+  void _hydrateWhenStoreSectionChanges(Map<String, dynamic>? root) {
+    final sig = _storeSectionSignature(settingsSection(root, 'store'));
+    if (_lastHydratedStoreSignature != null && sig == _lastHydratedStoreSignature) return;
+    _lastHydratedStoreSignature = sig;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _hydrateFrom(root ?? {});
+      setState(() {});
+    });
   }
 
   Future<void> _save() async {
@@ -130,26 +154,39 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
             );
       }
       final api = ref.read(apiClientProvider);
+      final name = _storeName.text.trim();
+      final line1 = _address1.text.trim();
+      final phoneDigits = _phoneLocal.text.replaceAll(RegExp(r'\D'), '').replaceFirst(RegExp(r'^0+'), '');
+      final phoneE164 = phoneDigits.isNotEmpty ? '+254$phoneDigits' : '';
       final storePatch = <String, dynamic>{
-        'name': _storeName.text.trim(),
-        if (_phoneLocal.text.trim().isNotEmpty)
-          'phone':
-              '+254${_phoneLocal.text.replaceAll(RegExp(r'\D'), '').replaceFirst(RegExp(r'^0+'), '')}',
-        'line1': _address1.text.trim(),
+        'name': name,
+        'line1': line1,
+        'address_line_1': line1,
         'city': _city.text.trim(),
         'state': _state.text.trim(),
         'country': _country.text.trim(),
         'postalCode': _postal.text.trim(),
+        'postal_code': _postal.text.trim(),
         'contactEmail': _supportEmail.text.trim(),
+        'contact_email': _supportEmail.text.trim(),
         'description': _description.text.trim(),
       };
+      if (phoneE164.isNotEmpty) {
+        storePatch['phone'] = phoneE164;
+        storePatch['store_phone'] = phoneE164;
+      }
       if (_logoImageUrl != null && _logoImageUrl!.isNotEmpty) {
-        storePatch['logoUrl'] = _logoImageUrl;
+        final logo = _logoImageUrl!.trim();
+        storePatch['logoUrl'] = logo;
+        storePatch['logo_url'] = logo;
       }
       final body = <String, dynamic>{
         'store': storePatch,
         'businessType': _businessType,
+        'business_type': _businessType,
         'selling': _sellingCategory,
+        'selling_category': _sellingCategory,
+        'sellingCategory': _sellingCategory,
       };
       final r = await api.patchDashboardSettings(body);
       if (!mounted) return;
@@ -159,7 +196,30 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
         );
         return;
       }
-      ref.invalidate(dashboardSettingsProvider);
+      final patched = unwrapSettingsData(r.data);
+      if (patched != null) {
+        _hydrateFrom(patched);
+        _lastHydratedStoreSignature = _storeSectionSignature(settingsSection(patched, 'store'));
+      }
+      final refreshedRoot = await ref.refresh(dashboardSettingsProvider.future);
+      if (refreshedRoot != null) {
+        _hydrateFrom(refreshedRoot);
+        _lastHydratedStoreSignature = _storeSectionSignature(settingsSection(refreshedRoot, 'store'));
+      }
+      if (!mounted) return;
+      final normalizedSubdomain = _domain.text.trim();
+      final rootHost = (Uri.tryParse(AppConfig.publicApiBaseUrl)?.host ?? 'dukanest.com')
+          .replaceFirst(RegExp(r'^www\.'), '');
+      await ref.read(tokenStorageProvider).saveStoreIdentity(
+            name: _storeName.text.trim(),
+            subdomain: normalizedSubdomain,
+            storeUrl: normalizedSubdomain.isNotEmpty
+                ? 'https://$normalizedSubdomain.$rootHost'
+                : '',
+            logoUrl: _logoImageUrl,
+          );
+      ref.invalidate(storeIdentityProvider);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Changes saved')),
       );
@@ -209,10 +269,18 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
         if (data is Map) {
           final m = Map<String, dynamic>.from(data);
           final u = settingsPick(m, ['url', 'publicUrl', 'path']);
-          if (u.isNotEmpty) setState(() => _logoImageUrl = u);
+          if (u.isNotEmpty) {
+            setState(() {
+              _logoImageUrl = u;
+              _logoCacheEpoch++;
+            });
+          }
         }
       } else {
-        setState(() => _logoImageUrl = url);
+        setState(() {
+          _logoImageUrl = url;
+          _logoCacheEpoch++;
+        });
       }
       if (_logoImageUrl != null && _logoImageUrl!.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -306,10 +374,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
       loading: () => Scaffold(
         backgroundColor: AppTheme.surface,
         appBar: AppBar(
-          title: Text(
-            'Store Identity',
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 20),
-          ),
+          title: const Text('Store settings'),
         ),
         body: const Center(child: CircularProgressIndicator()),
       ),
@@ -317,13 +382,10 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
         backgroundColor: AppTheme.surface,
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded, size: 24),
+            icon: const Icon(Icons.arrow_back_rounded),
             onPressed: () => context.pop(),
           ),
-          title: Text(
-            'Store Identity',
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 20),
-          ),
+          title: const Text('Store settings'),
         ),
         body: Center(
           child: Padding(
@@ -343,13 +405,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
         ),
       ),
       data: (data) {
-        if (data != null && !_hydrated) {
-          _hydrated = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            _hydrateFrom(data);
-            setState(() {});
-          });
+        if (data != null) {
+          _hydrateWhenStoreSectionChanges(data);
         }
         return _buildMainScaffold(theme);
       },
@@ -364,19 +421,11 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
         scrolledUnderElevation: 0,
         backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
         surfaceTintColor: Colors.transparent,
-        foregroundColor: theme.colorScheme.onSurface,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, size: 24),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          'Store Identity',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: theme.colorScheme.onSurface,
-          ),
-        ),
+        title: const Text('Store settings'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
@@ -395,13 +444,13 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
                 _label(theme, 'Store Name'),
                 TextField(
                   controller: _storeName,
-                  decoration: _fieldDeco(theme, hint: 'e.g. Acme Electronics'),
+                  decoration: _fieldDeco(theme),
                 ),
                 const SizedBox(height: 16),
                 _label(theme, 'Store Domain'),
                 TextField(
                   controller: _domain,
-                  decoration: _fieldDeco(theme, hint: 'acme-store').copyWith(
+                  decoration: _fieldDeco(theme).copyWith(
                     suffixText: '.dukanest.com',
                     suffixStyle: GoogleFonts.inter(
                       fontSize: 14,
@@ -427,18 +476,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(2),
-                            child: SizedBox(
-                              width: 24,
-                              height: 16,
-                              child: CachedNetworkImage(
-                                imageUrl: StoreIdentityScreen._keFlagUrl,
-                                fit: BoxFit.cover,
-                                errorWidget: (_, __, ___) => const Text('🇰🇪', style: TextStyle(fontSize: 14)),
-                              ),
-                            ),
-                          ),
+                          const Text('🇰🇪', style: TextStyle(fontSize: 16)),
                           const SizedBox(width: 8),
                           Text('+254', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14)),
                           Icon(Icons.keyboard_arrow_down_rounded, color: theme.colorScheme.onSurfaceVariant, size: 18),
@@ -450,7 +488,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
                       child: TextField(
                         controller: _phoneLocal,
                         keyboardType: TextInputType.phone,
-                        decoration: _fieldDeco(theme, hint: '712 345 678'),
+                        decoration: _fieldDeco(theme),
                       ),
                     ),
                   ],
@@ -481,6 +519,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
                           child: _logoImageUrl != null && _logoImageUrl!.isNotEmpty
                               ? CachedNetworkImage(
                                   imageUrl: _logoImageUrl!,
+                                  cacheKey: 'store_logo_${_logoImageUrl}_$_logoCacheEpoch',
                                   width: 64,
                                   height: 64,
                                   fit: BoxFit.cover,
@@ -567,17 +606,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
                   controller: _description,
                   minLines: 5,
                   maxLines: 8,
-                  decoration: _fieldDeco(theme, hint: 'Tell your customers what makes your store unique...'),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'PROFESSIONAL TIP: KEEP IT CONCISE AND CUSTOMER-FOCUSED.',
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                    color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.55),
-                  ),
+                  decoration: _fieldDeco(theme),
                 ),
               ],
             ),
@@ -592,7 +621,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
                 _label(theme, 'Address Line 1'),
                 TextField(
                   controller: _address1,
-                  decoration: _fieldDeco(theme, hint: 'Street, Building, Suite'),
+                  decoration: _fieldDeco(theme),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -604,7 +633,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
                           _label(theme, 'City'),
                           TextField(
                             controller: _city,
-                            decoration: _fieldDeco(theme, hint: 'Nairobi'),
+                            decoration: _fieldDeco(theme),
                           ),
                         ],
                       ),
@@ -617,7 +646,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
                           _label(theme, 'State/Province'),
                           TextField(
                             controller: _state,
-                            decoration: _fieldDeco(theme, hint: 'Nairobi'),
+                            decoration: _fieldDeco(theme),
                           ),
                         ],
                       ),
@@ -634,7 +663,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
                           _label(theme, 'Country'),
                           TextField(
                             controller: _country,
-                            decoration: _fieldDeco(theme, hint: 'Kenya'),
+                            decoration: _fieldDeco(theme),
                           ),
                         ],
                       ),
@@ -647,7 +676,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
                           _label(theme, 'Postal Code'),
                           TextField(
                             controller: _postal,
-                            decoration: _fieldDeco(theme, hint: '00100'),
+                            decoration: _fieldDeco(theme),
                           ),
                         ],
                       ),
@@ -668,7 +697,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
                 TextField(
                   controller: _supportEmail,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: _fieldDeco(theme, hint: 'support@yourstore.com').copyWith(
+                  decoration: _fieldDeco(theme).copyWith(
                     prefixIcon: Icon(Icons.mail_outline_rounded, color: theme.colorScheme.onSurfaceVariant, size: 22),
                   ),
                 ),

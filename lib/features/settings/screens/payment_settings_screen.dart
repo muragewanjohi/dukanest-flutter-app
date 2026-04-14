@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -25,8 +27,9 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
   bool _cashEnabled = true;
   bool _mpesaEnabled = true;
   _MpesaMethod _mpesaMethod = _MpesaMethod.sendMoney;
-  bool _hydrated = false;
   bool _saving = false;
+  /// Server snapshot signature; avoids re-applying GET data on every local [setState] while still hydrating after refetch.
+  String _lastHydratedPaymentSignature = '';
 
   final _sendMoneyPhone = TextEditingController();
   final _tillNumber = TextEditingController();
@@ -65,6 +68,23 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
     _paybillNumber.text = settingsPick(p, ['paybill_number', 'paybillNumber', 'paybill']);
     _accountNumber.text = settingsPick(p, ['account_number', 'accountNumber', 'paybill_account', 'paybillAccount']);
     _pochiPhone.text = settingsPick(p, ['pochi_phone', 'pochiPhone', 'pochi']);
+  }
+
+  static String _paymentSectionSignature(Map<String, dynamic>? p) {
+    if (p == null || p.isEmpty) return '';
+    final keys = p.keys.toList()..sort();
+    return jsonEncode({for (final k in keys) k: p[k]});
+  }
+
+  void _hydrateWhenPaymentSectionChanges(Map<String, dynamic>? root) {
+    final sig = _paymentSectionSignature(settingsSection(root, 'payment'));
+    if (sig == _lastHydratedPaymentSignature) return;
+    _lastHydratedPaymentSignature = sig;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _hydrateFrom(root);
+      setState(() {});
+    });
   }
 
   static _PayTiming _parsePayTiming(String raw) {
@@ -116,17 +136,34 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
     if (_saving) return;
     setState(() => _saving = true);
     try {
+      final timing = _apiTiming();
+      final mpesaMethod = _apiMpesaMethod();
+      final mpesaPhone = _sendMoneyPhone.text.trim();
+      final till = _tillNumber.text.trim();
+      final paybill = _paybillNumber.text.trim();
+      final account = _accountNumber.text.trim();
+      final pochi = _pochiPhone.text.trim();
+      // Mirror camelCase + snake_case so the API persists regardless of which keys the server reads.
       final body = <String, dynamic>{
         'payment': {
           'cashEnabled': _cashEnabled,
+          'cash_enabled': _cashEnabled,
           'mpesaEnabled': _mpesaEnabled,
-          'paymentTiming': _apiTiming(),
-          'mpesaMethod': _apiMpesaMethod(),
-          'mpesaPhone': _sendMoneyPhone.text.trim(),
-          'tillNumber': _tillNumber.text.trim(),
-          'paybillNumber': _paybillNumber.text.trim(),
-          'paybillAccount': _accountNumber.text.trim(),
-          'pochiPhone': _pochiPhone.text.trim(),
+          'mpesa_enabled': _mpesaEnabled,
+          'paymentTiming': timing,
+          'payment_timing': timing,
+          'mpesaMethod': mpesaMethod,
+          'mpesa_method': mpesaMethod,
+          'mpesaPhone': mpesaPhone,
+          'mpesa_phone': mpesaPhone,
+          'tillNumber': till,
+          'till_number': till,
+          'paybillNumber': paybill,
+          'paybill_number': paybill,
+          'paybillAccount': account,
+          'paybill_account': account,
+          'pochiPhone': pochi,
+          'pochi_phone': pochi,
         },
       };
       final api = ref.read(apiClientProvider);
@@ -138,7 +175,17 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
         );
         return;
       }
-      ref.invalidate(dashboardSettingsProvider);
+      final patched = unwrapSettingsData(r.data);
+      if (patched != null && settingsSection(patched, 'payment') != null) {
+        _hydrateFrom(patched);
+        _lastHydratedPaymentSignature = _paymentSectionSignature(settingsSection(patched, 'payment'));
+      }
+      final refreshedRoot = await ref.refresh(dashboardSettingsProvider.future);
+      if (refreshedRoot != null) {
+        _lastHydratedPaymentSignature =
+            _paymentSectionSignature(settingsSection(refreshedRoot, 'payment'));
+      }
+      if (!mounted) return;
       ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(DashboardOnboardingStepKeys.payment);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Payment settings saved')),
@@ -174,17 +221,17 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
     return settingsAsync.when(
       loading: () => Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(title: Text('Payments', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600))),
+        appBar: AppBar(title: const Text('Payments')),
         body: const Center(child: CircularProgressIndicator()),
       ),
       error: (err, _) => Scaffold(
         backgroundColor: AppTheme.surface,
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded, size: 24),
+            icon: const Icon(Icons.arrow_back_rounded),
             onPressed: () => context.pop(),
           ),
-          title: Text('Payments', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+          title: const Text('Payments'),
         ),
         body: Center(
           child: Padding(
@@ -204,14 +251,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
         ),
       ),
       data: (root) {
-        if (!_hydrated) {
-          _hydrated = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            _hydrateFrom(root);
-            setState(() {});
-          });
-        }
+        _hydrateWhenPaymentSectionChanges(root);
         return _buildScaffold(theme);
       },
     );
@@ -222,20 +262,14 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
       backgroundColor: AppTheme.surface,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: AppTheme.surface,
-        foregroundColor: AppTheme.primaryDark,
+        scrolledUnderElevation: 0,
+        backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, size: 24),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          'Payments',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.primaryDark,
-          ),
-        ),
+        title: const Text('Payments'),
       ),
       body: Column(
         children: [

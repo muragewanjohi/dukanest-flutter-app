@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class DashboardShell extends StatelessWidget {
+import '../../orders/providers/pending_orders_count_provider.dart';
+
+class DashboardShell extends ConsumerWidget {
   const DashboardShell({
     super.key,
     required this.navigationShell,
@@ -17,7 +20,13 @@ class DashboardShell extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pendingOrdersCount = ref.watch(pendingOrdersCountProvider).maybeWhen(
+          data: (count) => count,
+          orElse: () => 0,
+        );
+    final badgeLabel = pendingOrdersCount > 99 ? '99+' : '$pendingOrdersCount';
+
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: Container(
@@ -32,15 +41,23 @@ class DashboardShell extends StatelessWidget {
         child: NavigationBar(
           selectedIndex: navigationShell.currentIndex,
           onDestinationSelected: _goBranch,
-          destinations: const [
+          destinations: [
             NavigationDestination(
               icon: Icon(Icons.grid_view_outlined),
               selectedIcon: Icon(Icons.grid_view_rounded),
               label: 'Home',
             ),
             NavigationDestination(
-              icon: Icon(Icons.shopping_bag_outlined),
-              selectedIcon: Icon(Icons.shopping_bag),
+              icon: Badge(
+                isLabelVisible: pendingOrdersCount > 0,
+                label: Text(badgeLabel),
+                child: const Icon(Icons.shopping_bag_outlined),
+              ),
+              selectedIcon: Badge(
+                isLabelVisible: pendingOrdersCount > 0,
+                label: Text(badgeLabel),
+                child: const Icon(Icons.shopping_bag),
+              ),
               label: 'Orders',
             ),
             NavigationDestination(

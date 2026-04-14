@@ -98,6 +98,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
+  String _friendlyAuthError(String raw) {
+    final message = raw.trim();
+    final lower = message.toLowerCase();
+    if (lower.contains('socketexception') ||
+        lower.contains('failed host lookup') ||
+        lower.contains('network is unreachable') ||
+        lower.contains('connection refused')) {
+      return 'No internet connection. Please check your network and try again.';
+    }
+    if (lower.contains('connecttimeout') ||
+        lower.contains('timed out') ||
+        lower.contains('connection took longer')) {
+      return 'Request timed out. Please try again in a moment.';
+    }
+    if (lower.contains('missing or invalid bearer token') ||
+        lower.contains('unauthorized') ||
+        lower.contains('401')) {
+      return 'Your session has expired. Please sign in again.';
+    }
+    if (message.length > 180) {
+      return 'Could not sign in right now. Please try again.';
+    }
+    return message;
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
@@ -107,34 +132,50 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       backgroundColor: colorScheme.surface,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxHeight < 760;
+            final horizontalPadding = compact ? 20.0 : 24.0;
+            final verticalPadding = compact ? 16.0 : 24.0;
+            final logoHeight = compact ? 44.0 : 56.0;
+
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: horizontalPadding,
+                    vertical: verticalPadding,
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: SingleChildScrollView(
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight - (verticalPadding * 2),
+                        ),
+                        child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                     // Top Logo
                     Center(
                       child: Image.asset(
                         'assets/images/logo_with_name.png',
-                        height: 56, 
+                        height: logoHeight,
                         fit: BoxFit.contain,
                       ),
                     ),
-                    const SizedBox(height: 48),
+                    SizedBox(height: compact ? 20 : 32),
                     Text(
                       'Welcome back, Owner',
-                      style: theme.textTheme.displaySmall?.copyWith(
+                      style: theme.textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                         color: colorScheme.secondary,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     Text(
                       'Sign in to manage your shop.',
                       style: theme.textTheme.bodyLarge?.copyWith(
@@ -142,23 +183,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 48),
+                    SizedBox(height: compact ? 16 : 24),
 
-                    // Google SSO Placed First
-                    OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _handleGoogleSignIn,
-                      icon: SvgPicture.asset(
-                        'assets/images/google_icon.svg',
-                        height: 20,
-                        width: 20,
-                      ),
-                      label: const Text('Continue with Google'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                    // Google — elevated, high-contrast secondary CTA (distinct from email form).
+                    Material(
+                      elevation: 2,
+                      shadowColor: colorScheme.shadow.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(12),
+                      color: colorScheme.surface,
+                      child: InkWell(
+                        onTap: _isLoading ? null : _handleGoogleSignIn,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Ink(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: colorScheme.outline.withValues(alpha: 0.55),
+                              width: 1.5,
+                            ),
+                            color: colorScheme.surfaceContainerLowest,
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: compact ? 14 : 16),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SvgPicture.asset(
+                                  'assets/images/google_icon.svg',
+                                  height: 22,
+                                  width: 22,
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Continue with Google',
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.2,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                     
-                    const SizedBox(height: 32),
+                    SizedBox(height: compact ? 14 : 20),
                     Row(
                       children: [
                         Expanded(child: Divider(color: colorScheme.outlineVariant.withValues(alpha: 0.5))),
@@ -169,24 +240,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Expanded(child: Divider(color: colorScheme.outlineVariant.withValues(alpha: 0.5))),
                       ],
                     ),
-                    const SizedBox(height: 32),
+                    SizedBox(height: compact ? 14 : 20),
 
                     if (authState.error != null) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                         decoration: BoxDecoration(
                           color: colorScheme.errorContainer,
-                          borderRadius: BorderRadius.circular(100),
+                          borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(
-                          authState.error!,
+                          _friendlyAuthError(authState.error!),
                           style: theme.textTheme.labelMedium?.copyWith(
                             color: colorScheme.onErrorContainer,
                           ),
                           textAlign: TextAlign.center,
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      SizedBox(height: compact ? 12 : 16),
                     ],
 
                     _buildFieldLabel('Email'),
@@ -204,7 +275,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 24),
+                    SizedBox(height: compact ? 12 : 16),
                     
                     _buildFieldLabel('Password'),
                     TextFormField(
@@ -220,7 +291,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
@@ -231,7 +302,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         child: const Text('Forgot password?'),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    SizedBox(height: compact ? 10 : 14),
                     
                     // Signature Gradient CTA Button: Sign in to Dashboard
                     Container(
@@ -260,7 +331,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
                           shadowColor: Colors.transparent,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding: EdgeInsets.symmetric(vertical: compact ? 12 : 14),
                         ),
                         child: _isLoading
                             ? const SizedBox(
@@ -271,33 +342,71 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             : const Text('Sign in to Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ),
-                    const SizedBox(height: 48),
-                    
-                    // Unified Clean Footer
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          "Don't have a store? ",
-                          style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
-                        ),
-                        InkWell(
-                          onTap: () => context.push('/register'),
-                          child: Text(
-                            'Start free trial',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.primary,
-                              fontWeight: FontWeight.bold,
+                    SizedBox(height: compact ? 18 : 22),
+
+                    // Registration path: directly under primary CTA so it is not lost at the bottom edge.
+                    Semantics(
+                      label: "Don't have a store? Start your free trial. Opens registration.",
+                      child: Material(
+                        color: colorScheme.primaryContainer.withValues(alpha: 0.28),
+                        borderRadius: BorderRadius.circular(14),
+                        child: InkWell(
+                          onTap: _isLoading ? null : () => context.push('/register'),
+                          borderRadius: BorderRadius.circular(14),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.storefront_outlined,
+                                  color: colorScheme.primary,
+                                  size: 26,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Don't have a store?",
+                                        style: theme.textTheme.titleSmall?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          color: colorScheme.onSurface,
+                                          height: 1.2,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Start your free trial — create your shop in minutes.',
+                                        style: theme.textTheme.bodySmall?.copyWith(
+                                          color: colorScheme.onSurfaceVariant,
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.arrow_forward_rounded,
+                                  color: colorScheme.primary,
+                                  size: 22,
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                      ],
-                    )
-                  ],
+                      ),
+                    ),
+                    SizedBox(height: compact ? 14 : 18),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
+            );
+          },
         ),
       ),
     );

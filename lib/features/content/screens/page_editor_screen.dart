@@ -71,17 +71,10 @@ class _PageEditorScreenState extends State<PageEditorScreen> {
         backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: theme.colorScheme.primary, size: 24),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          'Page Editor',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: theme.colorScheme.primary,
-          ),
-        ),
+        title: const Text('Page Editor'),
         actions: [
           IconButton(
             icon: Icon(Icons.settings_outlined, color: theme.colorScheme.primary),

@@ -99,13 +99,22 @@ class AppTheme {
 
       appBarTheme: AppBarTheme(
         backgroundColor: surface,
-        foregroundColor: secondary,
+        foregroundColor: primaryDark,
         elevation: 0,
         scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        centerTitle: false,
+        toolbarHeight: kToolbarHeight,
+        titleSpacing: NavigationToolbar.kMiddleSpacing,
+        iconTheme: const IconThemeData(color: primaryDark, size: 24),
+        actionsIconTheme: const IconThemeData(color: primaryDark, size: 24),
         titleTextStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 34,
+          fontSize: 18,
           fontWeight: FontWeight.w700,
-          color: secondary,
+          letterSpacing: -0.2,
+          height: 1.25,
+          color: primaryDark,
         ),
       ),
 

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../onboarding/providers/auth_provider.dart';
 import '../../../config/theme.dart';
 import '../../../core/auth/token_storage.dart';
+import '../../../core/providers/store_identity_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -12,49 +13,82 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final identityAsync = ref.watch(storeIdentityProvider);
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: AppBar(
         backgroundColor: AppTheme.surface,
-        foregroundColor: AppTheme.primaryDark,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          'Store Settings',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: AppTheme.primaryDark,
-          ),
-        ),
+        title: const Text('Store Settings'),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: AppTheme.primary,
-                child: const Text(
-                  'BL',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
+              identityAsync.when(
+                data: (id) {
+                  final name = id.name?.trim();
+                  final initial = (name != null && name.isNotEmpty) ? name[0].toUpperCase() : '?';
+                  return CircleAvatar(
+                    radius: 20,
+                    backgroundColor: AppTheme.primary,
+                    child: Text(
+                      initial,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                  );
+                },
+                loading: () => CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppTheme.primary.withValues(alpha: 0.35),
+                  child: const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   ),
+                ),
+                error: (_, __) => CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppTheme.primary,
+                  child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 20),
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
-                'Tenant Dashboard',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: AppTheme.primaryDark,
-                  fontWeight: FontWeight.w700,
+              Expanded(
+                child: identityAsync.when(
+                  data: (id) => Text(
+                    (id.name != null && id.name!.trim().isNotEmpty) ? id.name!.trim() : 'Your store',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: AppTheme.primaryDark,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  loading: () => Text(
+                    '…',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: AppTheme.primaryDark,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  error: (_, __) => Text(
+                    'Settings',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: AppTheme.primaryDark,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
-              const Spacer(),
               IconButton(
                 icon: Icon(
                   Icons.notifications_none_rounded,
@@ -65,7 +99,15 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 20),
-          _StoreHeroCard(theme: theme),
+          identityAsync.when(
+            data: (id) => _StoreHeroCard(
+              theme: theme,
+              storeName: id.name,
+              storeUrl: id.storeUrl,
+            ),
+            loading: () => _StoreHeroCard(theme: theme),
+            error: (_, __) => _StoreHeroCard(theme: theme),
+          ),
           const SizedBox(height: 24),
           _CategoryHeader(title: 'General'),
           _SettingsCard(
@@ -74,25 +116,9 @@ class SettingsScreen extends ConsumerWidget {
               _SettingsRow(
                 theme: theme,
                 icon: Icons.storefront_outlined,
-                title: 'Store Identity',
-                subtitle: 'Name, logo, and subdomain',
+                title: 'Store settings',
+                subtitle: 'Name, logo, subdomain, address',
                 onTap: () => context.push('/store-identity'),
-              ),
-              _rowDivider(theme),
-              _SettingsRow(
-                theme: theme,
-                icon: Icons.currency_exchange_rounded,
-                title: 'Currency',
-                subtitle: 'Set your primary store currency',
-                onTap: () => _demo(context, 'Currency'),
-              ),
-              _rowDivider(theme),
-              _SettingsRow(
-                theme: theme,
-                icon: Icons.public_outlined,
-                title: 'Country',
-                subtitle: 'Set your business country or region',
-                onTap: () => _demo(context, 'Country'),
               ),
               _rowDivider(theme),
               _SettingsRow(
@@ -121,8 +147,7 @@ class SettingsScreen extends ConsumerWidget {
                 theme: theme,
                 icon: Icons.payments_outlined,
                 title: 'Payments',
-                subtitle: 'M-Pesa, PesaPal, Bank Transfer',
-                trailing: _activePill(theme),
+                subtitle: 'Cash on delivery and M-Pesa',
                 onTap: () => context.push('/payment-settings'),
               ),
             ],
@@ -167,22 +192,9 @@ class SettingsScreen extends ConsumerWidget {
                 subtitle: 'Push preferences, Email alerts',
                 onTap: () => context.push('/notifications'),
               ),
-              _rowDivider(theme),
-              _SettingsRow(
-                theme: theme,
-                icon: Icons.support_agent_outlined,
-                title: 'Support',
-                subtitle: 'Help center, Ticket history',
-                onTap: () => _demo(context, 'Support'),
-              ),
             ],
           ),
           const SizedBox(height: 20),
-          _DeveloperToolsCard(
-            theme: theme,
-            onTap: () => _demo(context, 'Developer Tools & API'),
-          ),
-          const SizedBox(height: 24),
           FilledButton.tonalIcon(
             onPressed: () {
               ref.read(authProvider.notifier).logout();
@@ -191,30 +203,6 @@ class SettingsScreen extends ConsumerWidget {
             label: const Text('Sign out'),
           ),
         ],
-      ),
-    );
-  }
-
-  static void _demo(BuildContext context, String label) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label (demo)')),
-    );
-  }
-
-  static Widget _activePill(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: const Color(0xFFD1FAE5),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        'ACTIVE',
-        style: GoogleFonts.inter(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          color: const Color(0xFF047857),
-        ),
       ),
     );
   }
@@ -231,12 +219,16 @@ class SettingsScreen extends ConsumerWidget {
 }
 
 class _StoreHeroCard extends StatelessWidget {
-  const _StoreHeroCard({required this.theme});
+  const _StoreHeroCard({required this.theme, this.storeName, this.storeUrl});
 
   final ThemeData theme;
+  final String? storeName;
+  final String? storeUrl;
 
   @override
   Widget build(BuildContext context) {
+    final name = (storeName != null && storeName!.trim().isNotEmpty) ? storeName!.trim() : 'Your store';
+    final url = (storeUrl != null && storeUrl!.trim().isNotEmpty) ? storeUrl!.trim() : '';
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -260,7 +252,9 @@ class _StoreHeroCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'DukaNest Premium',
+                  name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
@@ -268,24 +262,20 @@ class _StoreHeroCard extends StatelessWidget {
                     height: 1.2,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'dukanest.com/mystore',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: Colors.white.withValues(alpha: 0.8),
+                if (url.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    url.replaceFirst(RegExp(r'^https?://'), ''),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
-          ),
-          IconButton(
-            icon: Icon(
-              Icons.qr_code_2_rounded,
-              color: Colors.white.withValues(alpha: 0.65),
-              size: 28,
-            ),
-            onPressed: () => SettingsScreen._demo(context, 'Store QR'),
           ),
         ],
       ),
@@ -353,7 +343,6 @@ class _SettingsRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
-    this.trailing,
   });
 
   final ThemeData theme;
@@ -361,7 +350,6 @@ class _SettingsRow extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
-  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -406,10 +394,6 @@ class _SettingsRow extends StatelessWidget {
                   ],
                 ),
               ),
-              if (trailing != null) ...[
-                trailing!,
-                const SizedBox(width: 8),
-              ],
               Icon(Icons.chevron_right_rounded, color: theme.colorScheme.outline),
             ],
           ),
@@ -417,88 +401,4 @@ class _SettingsRow extends StatelessWidget {
       ),
     );
   }
-}
-
-class _DeveloperToolsCard extends StatelessWidget {
-  const _DeveloperToolsCard({required this.theme, required this.onTap});
-
-  final ThemeData theme;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _DashedBorderPainter(
-        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
-        radius: 14,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.developer_mode_outlined,
-                  color: theme.colorScheme.onSurfaceVariant,
-                  size: 24,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    'Developer Tools & API',
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-                Icon(
-                  Icons.open_in_new_rounded,
-                  color: theme.colorScheme.onSurfaceVariant,
-                  size: 22,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DashedBorderPainter extends CustomPainter {
-  _DashedBorderPainter({required this.color, required this.radius});
-
-  final Color color;
-  final double radius;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final r = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      Radius.circular(radius),
-    );
-    final path = Path()..addRRect(r);
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    for (final metric in path.computeMetrics()) {
-      var len = 0.0;
-      while (len < metric.length) {
-        final end = (len + 5).clamp(0.0, metric.length);
-        canvas.drawPath(metric.extractPath(len, end), paint);
-        len += 10;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.radius != radius;
 }

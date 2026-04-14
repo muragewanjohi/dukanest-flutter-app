@@ -10,8 +10,10 @@ class TokenStorage {
   static const _storeNameKey = 'store_name';
   static const _storeSubdomainKey = 'store_subdomain';
   static const _storeUrlKey = 'store_url';
+  static const _storeLogoUrlKey = 'store_logo_url';
   static const _productsListRefreshHintSeenKey = 'products_list_refresh_hint_seen';
   static const _productDetailRefreshHintSeenKey = 'product_detail_refresh_hint_seen';
+  static const _onboardingSeenKey = 'onboarding_seen';
   /// Legacy key from multi-store experiment; still cleared on logout.
   static const _legacySelectedTenantKey = 'selected_tenant_id';
 
@@ -35,23 +37,30 @@ class TokenStorage {
     await _storage.delete(key: _storeNameKey);
     await _storage.delete(key: _storeSubdomainKey);
     await _storage.delete(key: _storeUrlKey);
+    await _storage.delete(key: _storeLogoUrlKey);
   }
 
   Future<void> saveStoreIdentity({
     required String name,
     required String subdomain,
     required String storeUrl,
+    String? logoUrl,
   }) async {
     await _storage.write(key: _storeNameKey, value: name);
     await _storage.write(key: _storeSubdomainKey, value: subdomain);
     await _storage.write(key: _storeUrlKey, value: storeUrl);
+    if (logoUrl != null && logoUrl.trim().isNotEmpty) {
+      await _storage.write(key: _storeLogoUrlKey, value: logoUrl.trim());
+    }
   }
 
-  Future<({String? name, String? subdomain, String? storeUrl})> getStoreIdentity() async {
+  Future<({String? name, String? subdomain, String? storeUrl, String? logoUrl})> getStoreIdentity()
+  async {
     final name = await _storage.read(key: _storeNameKey);
     final subdomain = await _storage.read(key: _storeSubdomainKey);
     final storeUrl = await _storage.read(key: _storeUrlKey);
-    return (name: name, subdomain: subdomain, storeUrl: storeUrl);
+    final logoUrl = await _storage.read(key: _storeLogoUrlKey);
+    return (name: name, subdomain: subdomain, storeUrl: storeUrl, logoUrl: logoUrl);
   }
 
   Future<void> saveProductsListRefreshHintSeen(bool seen) async {
@@ -68,5 +77,13 @@ class TokenStorage {
 
   Future<bool> getProductDetailRefreshHintSeen() async {
     return (await _storage.read(key: _productDetailRefreshHintSeenKey)) == '1';
+  }
+
+  Future<void> saveOnboardingSeen(bool seen) async {
+    await _storage.write(key: _onboardingSeenKey, value: seen ? '1' : '0');
+  }
+
+  Future<bool> getOnboardingSeen() async {
+    return (await _storage.read(key: _onboardingSeenKey)) == '1';
   }
 }

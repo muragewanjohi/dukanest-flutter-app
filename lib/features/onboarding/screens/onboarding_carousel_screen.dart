@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../core/auth/token_storage.dart';
+import '../../../core/providers/onboarding_seen_provider.dart';
 
 class OnboardingSlide {
   final String title;
@@ -13,14 +17,16 @@ class OnboardingSlide {
   });
 }
 
-class OnboardingCarouselScreen extends StatefulWidget {
+class OnboardingCarouselScreen extends ConsumerStatefulWidget {
   const OnboardingCarouselScreen({super.key});
 
   @override
-  State<OnboardingCarouselScreen> createState() => _OnboardingCarouselScreenState();
+  ConsumerState<OnboardingCarouselScreen> createState() =>
+      _OnboardingCarouselScreenState();
 }
 
-class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
+class _OnboardingCarouselScreenState
+    extends ConsumerState<OnboardingCarouselScreen> {
   final PageController _pageController = PageController();
   int _currentIndex = 0;
 
@@ -48,7 +54,16 @@ class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
     super.dispose();
   }
 
-  void _nextPage() {
+  Future<void> _completeOnboarding() async {
+    await ref.read(tokenStorageProvider).saveOnboardingSeen(true);
+    // Router redirect requires [onboardingSeenProvider] to read true; otherwise /login is redirected back to /onboarding.
+    ref.invalidate(onboardingSeenProvider);
+    await ref.read(onboardingSeenProvider.future);
+    if (!mounted) return;
+    context.go('/login');
+  }
+
+  Future<void> _nextPage() async {
     if (_currentIndex < _slides.length - 1) {
       _pageController.animateToPage(
         _currentIndex + 1,
@@ -56,7 +71,7 @@ class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
         curve: Curves.easeInOut,
       );
     } else {
-      context.go('/login');
+      await _completeOnboarding();
     }
   }
 
@@ -78,7 +93,7 @@ class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
                 children: [
                   if (_currentIndex < _slides.length - 1)
                     TextButton(
-                      onPressed: () => context.go('/login'),
+                      onPressed: () => _completeOnboarding(),
                       child: const Text('Skip'),
                     )
                   else
@@ -185,7 +200,7 @@ class _OnboardingCarouselScreenState extends State<OnboardingCarouselScreen> {
                       ),
                     ),
                     child: ElevatedButton(
-                      onPressed: _nextPage,
+                      onPressed: () => _nextPage(),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
                         shadowColor: Colors.transparent,

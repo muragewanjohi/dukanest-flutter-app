@@ -12,6 +12,10 @@ import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/auth/token_storage.dart';
+import '../data/attributes_repository.dart';
+import '../data/categories_repository.dart';
+import '../providers/attributes_list_provider.dart';
+import '../providers/categories_list_provider.dart';
 
 /// Product catalog — Stitch: "Product Catalog (with Quick Actions)"
 /// Project DukaNest Tenant App Plan, screen 62433aa938834d55bc36fd5d1a134124.
@@ -125,6 +129,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
   bool _isLiveData = false;
   String? _errorMessage;
   List<ProductListItem> _products = const [];
+  List<ProductListItem> _allProducts = const [];
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
   int _currentPage = 1;
@@ -133,6 +138,8 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
   int _totalItems = 0;
   DateTime? _lastSyncedAt;
   bool _hasSeenRefreshHint = false;
+  Set<String> _selectedCategoryNames = {};
+  Map<String, Set<String>> _selectedAttributeValuesById = {};
 
   String _cacheKeyFor({required int page}) {
     final q = _searchController.text.trim().toLowerCase();
@@ -250,8 +257,10 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
     if (!forceRefresh) {
       final cached = _productsCache[cacheKey];
       if (cached != null && DateTime.now().difference(cached.savedAt) < _productsCacheTtl) {
+        final filtered = _applyLocalFilters(cached.products);
         setState(() {
-          _products = cached.products;
+          _allProducts = cached.products;
+          _products = filtered;
           _currentPage = cached.page;
           _pageSize = cached.pageSize;
           _totalPages = cached.totalPages;
@@ -330,7 +339,8 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
       );
 
       setState(() {
-        _products = mapped;
+        _allProducts = mapped;
+        _products = _applyLocalFilters(mapped);
         _currentPage = response.pagination?.page ?? pageToLoad;
         _pageSize = response.pagination?.limit ?? _pageSize;
         _totalPages = response.pagination?.totalPages ?? 1;
@@ -341,7 +351,8 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
       });
     } catch (e) {
       setState(() {
-        _products = _fallbackProducts();
+        _allProducts = _fallbackProducts();
+        _products = _applyLocalFilters(_allProducts);
         _currentPage = 1;
         _totalPages = 1;
         _totalItems = _products.length;
@@ -368,6 +379,130 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
       const Duration(milliseconds: 300),
       () => _loadProducts(pageOverride: 1),
     );
+  }
+
+  List<ProductListItem> _applyLocalFilters(List<ProductListItem> items) {
+    return items.where((product) {
+      if (_selectedCategoryNames.isNotEmpty) {
+        final category = product.meta.split('•').first.trim();
+        if (!_selectedCategoryNames.contains(category)) return false;
+      }
+      if (_selectedAttributeValuesById.isNotEmpty) {
+        final searchable = '${product.name} ${product.meta} ${product.sku}'.toLowerCase();
+        for (final selectedValues in _selectedAttributeValuesById.values) {
+          if (selectedValues.isEmpty) continue;
+          final hasAny = selectedValues.any((value) => searchable.contains(value.toLowerCase()));
+          if (!hasAny) return false;
+        }
+      }
+      return true;
+    }).toList();
+  }
+
+  int _activeFilterCount() {
+    final attrCount = _selectedAttributeValuesById.values.fold<int>(
+      0,
+      (total, values) => total + values.length,
+    );
+    return _selectedCategoryNames.length + attrCount;
+  }
+
+  void _applyAndSetFilters({
+    required Set<String> categoryNames,
+    required Map<String, Set<String>> attributeValuesById,
+  }) {
+    setState(() {
+      _selectedCategoryNames = categoryNames;
+      _selectedAttributeValuesById = attributeValuesById;
+      _products = _applyLocalFilters(_allProducts);
+    });
+  }
+
+  Future<void> _openFiltersSheet({
+    required List<CategoryEntry> categories,
+    required List<ProductAttribute> attributes,
+  }) async {
+    final hydratedAttributes = await _loadAttributesWithValues(attributes);
+    if (!mounted) return;
+    final initialCategories = Set<String>.from(_selectedCategoryNames);
+    final initialAttrs = <String, Set<String>>{
+      for (final entry in _selectedAttributeValuesById.entries) entry.key: Set<String>.from(entry.value),
+    };
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return _ProductsFilterSheet(
+          categories: categories,
+          attributes: hydratedAttributes,
+          selectedCategoryNames: initialCategories,
+          selectedAttributeValuesById: initialAttrs,
+          onApply: _applyAndSetFilters,
+        );
+      },
+    );
+  }
+
+  List<String> _extractAttributeValuesFromDetail(Map<String, dynamic> detail) {
+    final rawValues =
+        detail['values'] ??
+        detail['attributeValues'] ??
+        detail['attribute_values'] ??
+        detail['items'] ??
+        detail['options'];
+    if (rawValues is! List) return const [];
+    final values = <String>[];
+    for (final raw in rawValues) {
+      if (raw is Map) {
+        final m = Map<String, dynamic>.from(raw);
+        final label = (m['value'] ?? m['name'] ?? '').toString().trim();
+        if (label.isEmpty) continue;
+        final cc = (m['colorCode'] ?? m['color_code'] ?? '').toString().trim();
+        values.add(cc.isNotEmpty ? '$label|${cc.startsWith('#') ? cc : '#$cc'}' : label);
+      } else if (raw != null) {
+        final s = raw.toString().trim();
+        if (s.isNotEmpty) values.add(s);
+      }
+    }
+    return values;
+  }
+
+  Future<List<ProductAttribute>> _loadAttributesWithValues(
+    List<ProductAttribute> attributes,
+  ) async {
+    final api = ref.read(apiClientProvider);
+    final hydrated = <ProductAttribute>[];
+    for (final attr in attributes) {
+      if (attr.values.isNotEmpty) {
+        hydrated.add(attr);
+        continue;
+      }
+      try {
+        final r = await api.getDashboardAttribute(attr.id);
+        final data = r.data;
+        if (r.success && data is Map<String, dynamic>) {
+          final detail = (data['attribute'] ?? data['item'] ?? data);
+          if (detail is Map<String, dynamic>) {
+            final values = _extractAttributeValuesFromDetail(detail);
+            hydrated.add(
+              ProductAttribute(
+                id: attr.id,
+                name: attr.name,
+                description: attr.description,
+                values: values,
+                displayType: attr.displayType,
+              ),
+            );
+            continue;
+          }
+        }
+      } catch (_) {
+        // Keep the attribute even if detail lookup fails.
+      }
+      hydrated.add(attr);
+    }
+    return hydrated;
   }
 
   static Future<void> _launchExternal(String url) async {
@@ -633,7 +768,11 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final products = _products;
-    final fabBottom = MediaQuery.of(context).padding.bottom + 80;
+    final categoriesAsync = ref.watch(categoriesListProvider);
+    final attributesAsync = ref.watch(dashboardAttributesProvider);
+    final categories = categoriesAsync.valueOrNull ?? const <CategoryEntry>[];
+    final attributes = attributesAsync.valueOrNull ?? const <ProductAttribute>[];
+    final fabBottom = MediaQuery.of(context).padding.bottom + 8;
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
@@ -690,7 +829,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'DukaNest',
+                    'Products',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
@@ -720,101 +859,31 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 28),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'INVENTORY MANAGEMENT',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.primary,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Product Catalog',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.primaryDark,
-                            height: 1.05,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (wide)
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [AppTheme.primaryDark, AppTheme.primary],
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color.fromRGBO(12, 5, 40, 0.06),
-                            blurRadius: 24,
-                            offset: Offset(0, 12),
-                          ),
-                        ],
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () async {
-                            await context.push('/products/new');
-                            if (!mounted) return;
-                            _invalidateProductsCache();
-                            await _loadProducts(pageOverride: _currentPage, forceRefresh: true);
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.add, color: Colors.white, size: 22),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Add New Product',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              if (!wide) const SizedBox(height: 24),
+              const SizedBox(height: 16),
               if (!wide)
                 _FiltersRow(
                   theme: theme,
                   controller: _searchController,
                   onSearchChanged: _onSearchChanged,
                   isLoading: _isLoading,
+                  activeFiltersCount: _activeFilterCount(),
+                  onOpenFilters: () => _openFiltersSheet(
+                    categories: categories,
+                    attributes: attributes,
+                  ),
                 ),
-              if (wide) const SizedBox(height: 24),
+              if (wide) const SizedBox(height: 16),
               if (wide)
                 _FiltersRowWide(
                   theme: theme,
                   controller: _searchController,
                   onSearchChanged: _onSearchChanged,
                   isLoading: _isLoading,
+                  activeFiltersCount: _activeFilterCount(),
+                  onOpenFilters: () => _openFiltersSheet(
+                    categories: categories,
+                    attributes: attributes,
+                  ),
                 ),
               const SizedBox(height: 24),
               _ProductsDataSourceBadge(isLiveData: _isLiveData),
@@ -973,134 +1042,22 @@ class _FiltersRow extends StatelessWidget {
     required this.controller,
     required this.onSearchChanged,
     required this.isLoading,
+    required this.activeFiltersCount,
+    required this.onOpenFilters,
   });
 
   final ThemeData theme;
   final TextEditingController controller;
   final ValueChanged<String> onSearchChanged;
   final bool isLoading;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceContainerLowest,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 8),
-                child: Icon(Icons.search, color: theme.colorScheme.outline, size: 22),
-              ),
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  onChanged: onSearchChanged,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppTheme.onSurfaceVariant,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Search products by name, SKU or category...',
-                    hintStyle: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: theme.colorScheme.outline,
-                    ),
-                    suffixIcon: isLoading
-                        ? const Padding(
-                            padding: EdgeInsets.all(10),
-                            child: SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          )
-                        : null,
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'All Categories',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: AppTheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                    Icon(Icons.expand_more, color: theme.colorScheme.outline),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(Icons.filter_list, color: theme.colorScheme.onSurfaceVariant),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _FiltersRowWide extends StatelessWidget {
-  const _FiltersRowWide({
-    required this.theme,
-    required this.controller,
-    required this.onSearchChanged,
-    required this.isLoading,
-  });
-
-  final ThemeData theme;
-  final TextEditingController controller;
-  final ValueChanged<String> onSearchChanged;
-  final bool isLoading;
+  final int activeFiltersCount;
+  final VoidCallback onOpenFilters;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          flex: 8,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             decoration: BoxDecoration(
@@ -1114,85 +1071,390 @@ class _FiltersRowWide extends StatelessWidget {
                 ),
               ],
             ),
-            child: Row(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Icon(Icons.search, color: theme.colorScheme.outline, size: 22),
+            child: TextField(
+              controller: controller,
+              onChanged: onSearchChanged,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: AppTheme.onSurfaceVariant,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search products by name, SKU or category...',
+                hintStyle: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: theme.colorScheme.outline,
                 ),
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    onChanged: onSearchChanged,
-                    style: GoogleFonts.inter(fontSize: 14, color: AppTheme.onSurfaceVariant),
-                    decoration: InputDecoration(
-                      hintText: 'Search products by name, SKU or category...',
-                      hintStyle: GoogleFonts.inter(fontSize: 14, color: theme.colorScheme.outline),
-                      suffixIcon: isLoading
-                          ? const Padding(
-                              padding: EdgeInsets.all(10),
-                              child: SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                            )
-                          : null,
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    ),
-                  ),
+                suffixIcon: isLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : null,
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        _FilterButton(
+          count: activeFiltersCount,
+          onTap: onOpenFilters,
+        ),
+      ],
+    );
+  }
+}
+
+class _FiltersRowWide extends StatelessWidget {
+  const _FiltersRowWide({
+    required this.theme,
+    required this.controller,
+    required this.onSearchChanged,
+    required this.isLoading,
+    required this.activeFiltersCount,
+    required this.onOpenFilters,
+  });
+
+  final ThemeData theme;
+  final TextEditingController controller;
+  final ValueChanged<String> onSearchChanged;
+  final bool isLoading;
+  final int activeFiltersCount;
+  final VoidCallback onOpenFilters;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
               ],
+            ),
+            child: TextField(
+              controller: controller,
+              onChanged: onSearchChanged,
+              style: GoogleFonts.inter(fontSize: 14, color: AppTheme.onSurfaceVariant),
+              decoration: InputDecoration(
+                hintText: 'Search products by name, SKU or category...',
+                hintStyle: GoogleFonts.inter(fontSize: 14, color: theme.colorScheme.outline),
+                suffixIcon: isLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : null,
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
             ),
           ),
         ),
         const SizedBox(width: 16),
-        Expanded(
-          flex: 4,
-          child: Row(
+        _FilterButton(
+          count: activeFiltersCount,
+          onTap: onOpenFilters,
+        ),
+      ],
+    );
+  }
+}
+
+class _FilterButton extends StatelessWidget {
+  const _FilterButton({
+    required this.count,
+    required this.onTap,
+  });
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppTheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: SizedBox(
+          width: 52,
+          height: 52,
+          child: Stack(
+            clipBehavior: Clip.none,
             children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(12),
+              Center(
+                child: Icon(
+                  Icons.filter_list_rounded,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (count > 0)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '$count',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                  child: Row(
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductsFilterSheet extends StatefulWidget {
+  const _ProductsFilterSheet({
+    required this.categories,
+    required this.attributes,
+    required this.selectedCategoryNames,
+    required this.selectedAttributeValuesById,
+    required this.onApply,
+  });
+
+  final List<CategoryEntry> categories;
+  final List<ProductAttribute> attributes;
+  final Set<String> selectedCategoryNames;
+  final Map<String, Set<String>> selectedAttributeValuesById;
+  final void Function({
+    required Set<String> categoryNames,
+    required Map<String, Set<String>> attributeValuesById,
+  }) onApply;
+
+  @override
+  State<_ProductsFilterSheet> createState() => _ProductsFilterSheetState();
+}
+
+class _ProductsFilterSheetState extends State<_ProductsFilterSheet> {
+  late Set<String> _selectedCategories;
+  late Map<String, Set<String>> _selectedAttributeValuesById;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedCategories = Set<String>.from(widget.selectedCategoryNames);
+    _selectedAttributeValuesById = {
+      for (final entry in widget.selectedAttributeValuesById.entries)
+        entry.key: Set<String>.from(entry.value),
+    };
+  }
+
+  void _toggleCategory(String categoryName) {
+    setState(() {
+      if (_selectedCategories.contains(categoryName)) {
+        _selectedCategories.remove(categoryName);
+      } else {
+        _selectedCategories.add(categoryName);
+      }
+    });
+  }
+
+  void _toggleAttributeValue(String attributeId, String value) {
+    setState(() {
+      final current = _selectedAttributeValuesById[attributeId] ?? <String>{};
+      if (current.contains(value)) {
+        current.remove(value);
+      } else {
+        current.add(value);
+      }
+      if (current.isEmpty) {
+        _selectedAttributeValuesById.remove(attributeId);
+      } else {
+        _selectedAttributeValuesById[attributeId] = current;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final maxSheetHeight = MediaQuery.of(context).size.height * 0.78;
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxSheetHeight),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20, 12, 20, 16 + bottomInset),
+            child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(
-                        child: Text(
-                          'All Categories',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: AppTheme.onSurfaceVariant,
-                          ),
+                      Text(
+                        'CATEGORIES',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.1,
+                          color: AppTheme.primary.withValues(alpha: 0.6),
                         ),
                       ),
-                      Icon(Icons.expand_more, color: theme.colorScheme.outline),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: widget.categories.map((category) {
+                          final selected = _selectedCategories.contains(category.name);
+                          return ChoiceChip(
+                            label: Text(category.name),
+                            selected: selected,
+                            onSelected: (_) => _toggleCategory(category.name),
+                            showCheckmark: false,
+                            selectedColor: AppTheme.primary,
+                            backgroundColor: AppTheme.surfaceContainerLow,
+                            labelStyle: GoogleFonts.inter(
+                              fontWeight: FontWeight.w600,
+                              color: selected ? Colors.white : AppTheme.onSurfaceVariant,
+                            ),
+                            side: BorderSide(
+                              color: selected
+                                  ? Colors.transparent
+                                  : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 24),
+                      ...widget.attributes.map((attribute) {
+                        final selectedValues =
+                            _selectedAttributeValuesById[attribute.id] ?? const <String>{};
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              attribute.name.toUpperCase(),
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.1,
+                                color: AppTheme.primary.withValues(alpha: 0.6),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: attribute.values.map((raw) {
+                                final value = raw.split('|').first.trim();
+                                final selected = selectedValues.contains(value);
+                                return ChoiceChip(
+                                  label: Text(value),
+                                  selected: selected,
+                                  onSelected: (_) => _toggleAttributeValue(attribute.id, value),
+                                  showCheckmark: false,
+                                  selectedColor: AppTheme.primary,
+                                  backgroundColor: AppTheme.surfaceContainerLow,
+                                  labelStyle: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w600,
+                                    color: selected ? Colors.white : AppTheme.onSurfaceVariant,
+                                  ),
+                                  side: BorderSide(
+                                    color: selected
+                                        ? Colors.transparent
+                                        : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        );
+                      }),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 48,
-                height: 48,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      widget.onApply(
+                        categoryNames: <String>{},
+                        attributeValuesById: <String, Set<String>>{},
+                      );
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Clear All'),
                   ),
-                  child: Icon(Icons.filter_list, color: theme.colorScheme.onSurfaceVariant),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        widget.onApply(
+                          categoryNames: _selectedCategories,
+                          attributeValuesById: _selectedAttributeValuesById,
+                        );
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Apply Filters'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-      ],
+      ),
+      ),
     );
   }
 }
@@ -1221,9 +1483,8 @@ class _QuickActionCards extends StatelessWidget {
               onTap: () => context.push('/categories'),
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Container(
                       width: 40,
@@ -1235,27 +1496,35 @@ class _QuickActionCards extends StatelessWidget {
                       alignment: Alignment.center,
                       child: Icon(Icons.folder_open_rounded, color: AppTheme.primaryDark),
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Manage Categories',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.primaryDark,
-                        height: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Organize your shop structure',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        color: AppTheme.onSurfaceVariant,
-                        height: 1.25,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Manage Categories',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.primaryDark,
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Organize your shop structure',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              color: AppTheme.onSurfaceVariant,
+                              height: 1.25,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -1272,9 +1541,8 @@ class _QuickActionCards extends StatelessWidget {
               onTap: () => context.push('/attributes'),
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Container(
                       width: 40,
@@ -1286,27 +1554,35 @@ class _QuickActionCards extends StatelessWidget {
                       alignment: Alignment.center,
                       child: Icon(Icons.format_list_bulleted_rounded, color: theme.colorScheme.secondary),
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Manage Attributes',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.primaryDark,
-                        height: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Define sizes, colors & more',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        color: AppTheme.onSurfaceVariant,
-                        height: 1.25,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Manage Attributes',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.primaryDark,
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Define sizes, colors & more',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              color: AppTheme.onSurfaceVariant,
+                              height: 1.25,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

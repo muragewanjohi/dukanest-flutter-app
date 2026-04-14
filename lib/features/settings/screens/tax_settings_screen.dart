@@ -123,17 +123,17 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen> {
     return settingsAsync.when(
       loading: () => Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(title: Text('Tax Settings', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600))),
+        appBar: AppBar(title: const Text('Tax Settings')),
         body: const Center(child: CircularProgressIndicator()),
       ),
       error: (err, _) => Scaffold(
         backgroundColor: AppTheme.surface,
         appBar: AppBar(
           leading: IconButton(
-            icon: Icon(Icons.arrow_back_rounded, color: AppTheme.primaryDark, size: 26),
+            icon: const Icon(Icons.arrow_back_rounded),
             onPressed: () => context.pop(),
           ),
-          title: Text('Tax Settings', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+          title: const Text('Tax Settings'),
         ),
         body: Center(
           child: Padding(
@@ -175,17 +175,10 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen> {
         backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: AppTheme.primaryDark, size: 26),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          'Tax Settings',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.primaryDark,
-          ),
-        ),
+        title: const Text('Tax Settings'),
         actions: [
           IconButton(
             icon: Icon(Icons.more_vert_rounded, color: theme.colorScheme.outline),

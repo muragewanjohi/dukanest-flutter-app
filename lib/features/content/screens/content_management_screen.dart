@@ -40,20 +40,11 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
         scrolledUnderElevation: 0,
         backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
         surfaceTintColor: Colors.transparent,
-        foregroundColor: AppTheme.primaryDark,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, size: 24),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          'Content Manager',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.primaryDark,
-            letterSpacing: -0.3,
-          ),
-        ),
+        title: const Text('Content Manager'),
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined),

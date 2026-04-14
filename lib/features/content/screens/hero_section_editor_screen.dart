@@ -104,17 +104,10 @@ class _HeroSectionEditorScreenState extends State<HeroSectionEditorScreen> {
         backgroundColor: AppTheme.surface,
         foregroundColor: AppTheme.primaryDark,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, size: 24),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          'Edit Hero Section',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.primaryDark,
-          ),
-        ),
+        title: const Text('Edit Hero Section'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),

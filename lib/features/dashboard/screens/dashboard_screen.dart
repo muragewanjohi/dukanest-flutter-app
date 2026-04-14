@@ -7,10 +7,11 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/auth/auth_state.dart';
-import '../../../core/auth/token_storage.dart';
+import '../../../core/providers/store_identity_provider.dart';
 import '../../onboarding/providers/auth_provider.dart';
 import '../providers/dashboard_getting_started_provider.dart';
 import '../providers/dashboard_local_onboarding_provider.dart';
@@ -34,9 +35,7 @@ final dashboardOverviewProvider = FutureProvider<Map<String, dynamic>?>((ref) as
   }
 });
 
-final dashboardStoreIdentityProvider = FutureProvider<({String? name, String? subdomain, String? storeUrl})>(
-  (ref) async => ref.read(tokenStorageProvider).getStoreIdentity(),
-);
+final dashboardLastSyncedAtProvider = StateProvider<DateTime?>((ref) => null);
 
 List<_OnboardingStepUi> _mergeLocalStepCompletion(
   List<_OnboardingStepUi> steps,
@@ -191,6 +190,59 @@ Map<String, dynamic>? _firstMap(Map<String, dynamic>? data, List<String> keys) {
   return null;
 }
 
+String _normalizeAbsoluteUrl(String raw) {
+  final s = raw.trim();
+  if (s.isEmpty) return '';
+  if (s.startsWith('http://') || s.startsWith('https://')) return s;
+  if (s.startsWith('//')) return 'https:$s';
+  final base = AppConfig.publicApiBaseUrl.replaceFirst(RegExp(r'/$'), '');
+  if (s.startsWith('/')) return '$base$s';
+  return '$base/$s';
+}
+
+String? _extractStoreLogoUrl(Map<String, dynamic>? data) {
+  if (data == null) return null;
+
+  String pick(dynamic value) {
+    if (value is! String) return '';
+    return _normalizeAbsoluteUrl(value);
+  }
+
+  String pickFrom(Map<String, dynamic>? map) {
+    if (map == null) return '';
+    final candidates = [
+      map['logo'],
+      map['logoUrl'],
+      map['logo_url'],
+      map['storeLogo'],
+      map['store_logo'],
+      map['brandLogo'],
+      map['brand_logo'],
+      map['image'],
+      map['imageUrl'],
+      map['image_url'],
+      map['avatar'],
+      map['avatarUrl'],
+      map['avatar_url'],
+    ];
+    for (final candidate in candidates) {
+      final normalized = pick(candidate);
+      if (normalized.isNotEmpty) return normalized;
+    }
+    return '';
+  }
+
+  final root = pickFrom(data);
+  if (root.isNotEmpty) return root;
+  final tenant = _firstMap(data, ['tenant', 'store', 'shop']);
+  final tenantLogo = pickFrom(tenant);
+  if (tenantLogo.isNotEmpty) return tenantLogo;
+  final branding = _firstMap(data, ['branding', 'brand', 'identity']);
+  final brandingLogo = pickFrom(branding);
+  if (brandingLogo.isNotEmpty) return brandingLogo;
+  return null;
+}
+
 List<_OnboardingStepUi> _parseOnboardingStepsFromOverview(
   Map<String, dynamic>? data, {
   required List<_OnboardingStepUi> defaultSteps,
@@ -324,6 +376,15 @@ List<_OnboardingStepUi> _defaultOnboardingStepsAfterRegistration() {
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
+
+  String _lastUpdatedLabel(DateTime? at) {
+    if (at == null) return 'Not synced yet';
+    final diff = DateTime.now().difference(at);
+    if (diff.inMinutes < 1) return 'Updated just now';
+    if (diff.inMinutes < 60) return 'Updated ${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return 'Updated ${diff.inHours}h ago';
+    return 'Updated ${diff.inDays}d ago';
+  }
 
   static const _cardShadow = [
     BoxShadow(
@@ -547,9 +608,16 @@ class DashboardScreen extends ConsumerWidget {
     final overview = ref.watch(dashboardOverviewProvider);
     final data = overview.asData?.value;
     final isLiveData = data != null;
-    final storeIdentity = ref.watch(dashboardStoreIdentityProvider).asData?.value;
+    final storeIdentity = ref.watch(storeIdentityProvider).asData?.value;
     final storeName = storeIdentity?.name;
     final storeUrl = storeIdentity?.storeUrl;
+    final storeLogoUrl = storeIdentity?.logoUrl ?? _extractStoreLogoUrl(data);
+    final lastSyncedAt = ref.watch(dashboardLastSyncedAtProvider);
+    if (isLiveData && lastSyncedAt == null) {
+      Future.microtask(() {
+        ref.read(dashboardLastSyncedAtProvider.notifier).state = DateTime.now();
+      });
+    }
     final authUser = ref.watch(authProvider).user;
     final tenantMap = _firstMap(data, ['tenant', 'store']);
     final tenantNameFromApi = tenantMap == null
@@ -648,17 +716,47 @@ class DashboardScreen extends ConsumerWidget {
     final allOnboardingComplete =
         onboardingSteps.isNotEmpty && onboardingSteps.every((s) => s.completed);
 
+    Future<void> refreshDashboard() async {
+      ref.invalidate(dashboardOverviewProvider);
+      ref.invalidate(dashboardGettingStartedProvider);
+      await Future.wait([
+        ref.read(dashboardOverviewProvider.future),
+        ref.read(dashboardGettingStartedProvider.future),
+      ]);
+      ref.read(dashboardLastSyncedAtProvider.notifier).state = DateTime.now();
+    }
+
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(24, 8 + MediaQuery.of(context).padding.top, 24, 120),
-        children: [
+      body: RefreshIndicator(
+        onRefresh: refreshDashboard,
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(24, 8 + MediaQuery.of(context).padding.top, 24, 120),
+          children: [
           Row(
             children: [
               CircleAvatar(
                 radius: 20,
                 backgroundColor: theme.colorScheme.surfaceContainerHigh,
-                child: Icon(Icons.person, size: 22, color: theme.colorScheme.onSurfaceVariant),
+                child: ClipOval(
+                  child: (storeLogoUrl != null && storeLogoUrl.trim().isNotEmpty)
+                      ? Image.network(
+                          storeLogoUrl,
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Icon(
+                            Icons.storefront_rounded,
+                            size: 22,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        )
+                      : Icon(
+                          Icons.storefront_rounded,
+                          size: 22,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                ),
               ),
               const SizedBox(width: 12),
               Text(
@@ -670,6 +768,15 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ),
               const Spacer(),
+              IconButton.filledTonal(
+                onPressed: () => refreshDashboard(),
+                style: IconButton.styleFrom(
+                  backgroundColor: theme.colorScheme.surface,
+                  foregroundColor: theme.colorScheme.onSurfaceVariant,
+                ),
+                tooltip: 'Refresh',
+                icon: const Icon(Icons.refresh_rounded),
+              ),
               IconButton.filledTonal(
                 onPressed: () {},
                 style: IconButton.styleFrom(
@@ -756,7 +863,10 @@ class DashboardScreen extends ConsumerWidget {
                   FilledButton.icon(
                     onPressed: () {
                       final u = storeUrl.trim();
-                      SharePlus.instance.share(ShareParams(text: u)).then((_) {
+                      final name = (displayStoreName ?? 'my store').trim();
+                      final shareText =
+                          'Shop with $name on DukaNest.\nBrowse products and order here: $u';
+                      SharePlus.instance.share(ShareParams(text: shareText)).then((_) {
                         ref
                             .read(dashboardLocalStepCompletionsProvider.notifier)
                             .markComplete(DashboardOnboardingStepKeys.shareStore);
@@ -776,6 +886,13 @@ class DashboardScreen extends ConsumerWidget {
           ],
           const SizedBox(height: 32),
           _OverviewDataSourceBadge(isLiveData: isLiveData),
+          const SizedBox(height: 6),
+          Text(
+            '${_lastUpdatedLabel(lastSyncedAt)} • Pull down to refresh',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           if (!allOnboardingComplete) ...[
             const SizedBox(height: 12),
             _GettingStartedCarousel(
@@ -805,7 +922,8 @@ class DashboardScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           _growCard(context, theme),
           const SizedBox(height: 24),
-        ],
+          ],
+        ),
       ),
     );
   }

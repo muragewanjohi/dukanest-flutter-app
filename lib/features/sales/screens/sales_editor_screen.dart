@@ -186,19 +186,12 @@ class _SalesEditorScreenState extends State<SalesEditorScreen> {
         scrolledUnderElevation: 0,
         backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
         surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.black26,
+        shadowColor: Colors.transparent,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: AppTheme.primaryDark, size: 24),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          'Edit Sale',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.primaryDark,
-          ),
-        ),
+        title: const Text('Edit Sale'),
         actions: [
           TextButton(
             onPressed: _save,

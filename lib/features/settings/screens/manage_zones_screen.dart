@@ -24,17 +24,17 @@ class ManageZonesScreen extends ConsumerWidget {
     return zonesAsync.when(
       loading: () => Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(title: Text('Manage Zones', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600))),
+        appBar: AppBar(title: const Text('Manage Zones')),
         body: const Center(child: CircularProgressIndicator()),
       ),
       error: (e, _) => Scaffold(
         backgroundColor: AppTheme.surface,
         appBar: AppBar(
           leading: IconButton(
-            icon: Icon(Icons.arrow_back_rounded, color: AppTheme.primaryDark, size: 26),
+            icon: const Icon(Icons.arrow_back_rounded),
             onPressed: () => context.pop(),
           ),
-          title: Text('Manage Zones', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+          title: const Text('Manage Zones'),
         ),
         body: Center(
           child: Padding(
@@ -61,17 +61,10 @@ class ManageZonesScreen extends ConsumerWidget {
         backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: AppTheme.primaryDark, size: 26),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          'Manage Zones',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.primaryDark,
-          ),
-        ),
+        title: const Text('Manage Zones'),
         actions: [
           IconButton(
             icon: Icon(Icons.add_rounded, color: AppTheme.primaryDark),

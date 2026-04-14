@@ -253,17 +253,10 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
         backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: AppTheme.primaryDark, size: 26),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          _appBarTitle,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.primaryDark,
-          ),
-        ),
+        title: Text(_appBarTitle),
       ),
       body: Column(
         children: [

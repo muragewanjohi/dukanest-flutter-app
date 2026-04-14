@@ -143,17 +143,10 @@ class _BlogPostEditorScreenState extends State<BlogPostEditorScreen> {
         backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded, color: AppTheme.primaryDark, size: 24),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          _isEditing ? 'Edit Post' : 'New Post',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: theme.colorScheme.onSurface,
-          ),
-        ),
+        title: Text(_isEditing ? 'Edit Post' : 'New Post'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
