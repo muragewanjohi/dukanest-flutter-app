@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 
 /// Page Editor (home & storefront sections) — Stitch: Page Editor (Full Mobile)
 /// (193cf9f46f214b38ab8e5ca84d6a5192). No duplicate tab bar; bottom bar is in-screen actions only.
@@ -65,26 +66,15 @@ class _PageEditorScreenState extends State<PageEditorScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text('Page Editor'),
+      appBar: DashboardAppBar(
+        title: 'Page Editor',
+        showDivider: true,
         actions: [
           IconButton(
             icon: Icon(Icons.settings_outlined, color: theme.colorScheme.primary),
             onPressed: () => _toast('Page settings (demo)'),
           ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.12)),
-        ),
       ),
       body: Column(
         children: [

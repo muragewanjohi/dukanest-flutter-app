@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 
 /// Edit Hero Section — Stitch: Edit Hero Section (Mobile) (438af177a59b4d84b3285b46a0c5f086).
 class HeroSectionEditorScreen extends StatefulWidget {
@@ -98,16 +99,8 @@ class _HeroSectionEditorScreenState extends State<HeroSectionEditorScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: AppTheme.surface,
-        foregroundColor: AppTheme.primaryDark,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text('Edit Hero Section'),
+      appBar: DashboardAppBar(
+        title: 'Edit Hero Section',
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),

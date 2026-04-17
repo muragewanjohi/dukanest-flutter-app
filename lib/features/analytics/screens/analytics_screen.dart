@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
-import '../../../core/providers/store_identity_provider.dart';
+import '../../../core/widgets/dashboard_page_header.dart';
 import '../analytics_parse.dart';
 import '../providers/dashboard_analytics_provider.dart';
 
@@ -30,9 +30,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final storeIdentity = ref.watch(storeIdentityProvider).asData?.value;
-    final storeLogoUrl = storeIdentity?.logoUrl;
-    final storeName = (storeIdentity?.name ?? '').trim();
     final async = ref.watch(dashboardAnalyticsProvider(_days));
     final view = parseAnalyticsViewData(async.valueOrNull, _days);
 
@@ -46,62 +43,16 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         child: ListView(
           padding: EdgeInsets.fromLTRB(16, 8 + MediaQuery.of(context).padding.top, 16, 24),
           children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                  child: ClipOval(
-                    child: (storeLogoUrl != null && storeLogoUrl.isNotEmpty)
-                        ? Image.network(
-                            storeLogoUrl,
-                            width: 40,
-                            height: 40,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Icon(
-                              Icons.storefront_rounded,
-                              size: 22,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          )
-                        : Icon(
-                            Icons.storefront_rounded,
-                            size: 22,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  storeName.isNotEmpty ? storeName : 'DukaNest',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: AppTheme.primaryDark,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const Spacer(),
+            DashboardPageHeader(
+              title: 'Analytics Center',
+              subtitle:
+                  'Deep-dive insights into your store performance and customer behavior across all channels.',
+              actions: [
                 IconButton(
                   icon: Icon(Icons.notifications_none_rounded, color: theme.colorScheme.onSurfaceVariant),
                   onPressed: () => context.push('/notifications'),
                 ),
               ],
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Analytics Center',
-              style: theme.textTheme.headlineMedium?.copyWith(
-                color: AppTheme.primaryDark,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Deep-dive insights into your store performance and customer behavior across all channels.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                height: 1.4,
-              ),
             ),
             const SizedBox(height: 16),
             Container(

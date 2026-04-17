@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/onboarding/screens/landing_screen.dart';
 import '../features/onboarding/screens/onboarding_carousel_screen.dart';
 import '../features/onboarding/screens/login_screen.dart';
 import '../features/onboarding/screens/reset_password_screen.dart';
@@ -50,6 +51,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final isLoggingIn = state.matchedLocation == '/login';
       final isOnboarding = state.matchedLocation == '/onboarding';
+      final isLanding = state.matchedLocation == '/landing';
       final isMfaPhase = state.matchedLocation == '/mfa';
       final atSplash = state.matchedLocation == '/splash';
       final onboardingSeen = onboardingSeenState.valueOrNull;
@@ -70,15 +72,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           case AuthStatus.awaitingMfa:
             return '/mfa';
           case AuthStatus.unauthenticated:
-            return onboardingSeen == true ? '/login' : '/onboarding';
+            return onboardingSeen == true ? '/landing' : '/onboarding';
           default:
-            return onboardingSeen == true ? '/login' : '/onboarding';
+            return onboardingSeen == true ? '/landing' : '/onboarding';
         }
       }
 
       // While secure storage is still loading, avoid flashing the intro carousel.
       if (authState.status == AuthStatus.initial && isOnboarding) {
-        return '/login';
+        return '/landing';
       }
 
       if (authState.status == AuthStatus.unauthenticated) {
@@ -91,13 +93,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           }
           return '/onboarding';
         }
-        if (isLoggingIn ||
+        if (isLanding ||
+            isLoggingIn ||
             isOnboarding ||
             state.matchedLocation == '/register' ||
             state.matchedLocation == '/reset-password') {
           return null;
         }
-        return '/login';
+        return '/landing';
       }
 
       if (authState.status == AuthStatus.awaitingMfa && !isMfaPhase) {
@@ -108,7 +111,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         final isRegister = state.matchedLocation == '/register';
         final isResetPassword =
             state.matchedLocation == '/reset-password';
-        if (isLoggingIn ||
+        if (isLanding ||
+            isLoggingIn ||
             isMfaPhase ||
             isOnboarding ||
             isRegister ||
@@ -127,6 +131,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingCarouselScreen(),
+      ),
+      GoRoute(
+        path: '/landing',
+        builder: (context, state) => const LandingScreen(),
       ),
       GoRoute(
         path: '/register',

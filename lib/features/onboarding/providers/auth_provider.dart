@@ -111,13 +111,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     state = state.copyWith(status: AuthStatus.sessionRestoring);
 
+    AuthUser? restoredUser;
+    bool serverRejectedToken = false;
     try {
       final response = await _authService.getAuthMe();
       if (response.success && response.data != null) {
         final inner = response.data!;
         final userRaw = inner['user'];
         if (userRaw is Map) {
-          final user = AuthUser.fromJson(Map<String, dynamic>.from(userRaw));
+          restoredUser = AuthUser.fromJson(Map<String, dynamic>.from(userRaw));
           final tenantRaw = inner['tenant'];
           if (tenantRaw is Map) {
             final t = Map<String, dynamic>.from(tenantRaw);
@@ -135,22 +137,48 @@ class AuthNotifier extends StateNotifier<AuthState> {
               );
             }
           }
-          state = state.copyWith(
-            status: AuthStatus.authenticated,
-            user: user,
-            clearError: true,
-          );
-          return;
+        }
+      } else {
+        // `AuthService.getAuthMe()` translates DioExceptions into
+        // `ApiResponse(success: false)`. Only treat this as a hard auth
+        // failure when the server explicitly told us the token is bad.
+        // Transient errors (offline, timeout, 5xx) fall through and we
+        // keep the stored session alive.
+        final code = response.error?.code;
+        if (code == 'UNAUTHORIZED' ||
+            code == 'INVALID_TOKEN' ||
+            code == 'TOKEN_EXPIRED') {
+          serverRejectedToken = true;
         }
       }
     } catch (_) {
-      // Malformed `/auth/me` payload or parse error — force sign-in.
+      // Parse / unexpected errors — fall through. We'll re-check storage
+      // below to decide whether the session is truly dead.
     }
 
-    await _tokenStorage.clearTokens();
+    // If the auth interceptor's refresh path failed during `/auth/me`, it
+    // will have already wiped the tokens. In that case the session really
+    // is over — send the user to login.
+    final tokenStillPresent = (await _tokenStorage.getAccessToken()) != null;
+
+    if (serverRejectedToken || !tokenStillPresent) {
+      await _tokenStorage.clearTokens();
+      state = state.copyWith(
+        status: AuthStatus.unauthenticated,
+        clearUser: true,
+        clearError: true,
+      );
+      return;
+    }
+
+    // Token is still valid as far as we can tell — either `/auth/me`
+    // succeeded (restoredUser != null) or it hit a transient error and
+    // we're restoring optimistically. Either way, the user stays signed
+    // in and goes straight to the dashboard. If the token is actually
+    // bad, the interceptor will handle it on the next API call.
     state = state.copyWith(
-      status: AuthStatus.unauthenticated,
-      clearUser: true,
+      status: AuthStatus.authenticated,
+      user: restoredUser,
       clearError: true,
     );
   }

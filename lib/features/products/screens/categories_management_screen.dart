@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 import '../data/categories_repository.dart';
 import '../providers/categories_list_provider.dart';
 
@@ -50,22 +51,14 @@ class _CategoriesManagementScreenState extends ConsumerState<CategoriesManagemen
     final asyncCategories = ref.watch(categoriesListProvider);
 
     return asyncCategories.when(
-      loading: () => Scaffold(
+      loading: () => const Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(
-          title: const Text('Categories'),
-        ),
-        body: const Center(child: CircularProgressIndicator()),
+        appBar: DashboardAppBar(title: 'Categories'),
+        body: Center(child: CircularProgressIndicator()),
       ),
       error: (err, _) => Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () => context.pop(),
-          ),
-          title: const Text('Categories'),
-        ),
+        appBar: const DashboardAppBar(title: 'Categories'),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -146,17 +139,9 @@ class _CategoriesManagementScreenState extends ConsumerState<CategoriesManagemen
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              SliverAppBar(
-                pinned: true,
-                toolbarHeight: kToolbarHeight,
-                elevation: 0,
-                backgroundColor: AppTheme.surface,
-                surfaceTintColor: Colors.transparent,
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back_rounded),
-                  onPressed: () => context.pop(),
-                ),
-                title: const Text('Categories'),
+              buildDashboardSliverAppBar(
+                context: context,
+                title: 'Categories',
                 actions: [
                   IconButton(
                     icon: Icon(Icons.add_rounded, color: AppTheme.primaryDark),

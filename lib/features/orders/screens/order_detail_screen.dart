@@ -1,6 +1,7 @@
 import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 import '../providers/pending_orders_count_provider.dart';
 
 /// Order detail — Stitch: "Order Details (Optimized Actions)"
@@ -28,29 +30,70 @@ final orderDetailProvider = FutureProvider.family<Map<String, dynamic>?, String>
       return Map<String, dynamic>.from(raw);
     }
 
-    final directResponse = await api.getOrderDetail(orderKey);
-    if (directResponse.success && directResponse.data != null) {
-      final direct = parseDetailPayload(directResponse.data);
-      if (direct != null) return direct;
+    bool looksLikeOrderCode(String value) =>
+        RegExp(r'^[A-Za-z]{2,}-\d{6,}(-\d+)?$').hasMatch(value.trim());
+
+    Future<String?> resolveOrderIdFromList(String key) async {
+      final lookupResponse = await api.getOrders(
+        page: 1,
+        // use a broader window since some backends use contains/fuzzy search
+        // and may not return the exact code as the first item.
+        limit: 50,
+        search: key,
+      );
+      if (!lookupResponse.success || lookupResponse.data == null) return null;
+      final lookupPayload = lookupResponse.data;
+      final list = lookupPayload is Map<String, dynamic>
+          ? (lookupPayload['items'] ?? lookupPayload['orders'] ?? lookupPayload['data'])
+          : lookupPayload;
+      if (list is! List || list.isEmpty) return null;
+
+      for (final raw in list.whereType<Map>()) {
+        final map = Map<String, dynamic>.from(raw);
+        final code = (map['code'] ?? map['orderNumber'] ?? map['order_number'] ?? '')
+            .toString()
+            .trim();
+        final id = (map['id'] ?? '').toString().trim();
+        if (id.isEmpty) continue;
+        if (code == key || key == id) return id;
+      }
+
+      // Fallback to first valid ID if exact code match wasn't found.
+      for (final raw in list.whereType<Map>()) {
+        final id = (raw['id'] ?? '').toString().trim();
+        if (id.isNotEmpty) return id;
+      }
+      return null;
+    }
+
+    final key = orderKey.trim();
+    if (key.isEmpty) return null;
+
+    // If routed with an order code (e.g. ORD-20260414-799953), resolve to ID first.
+    if (looksLikeOrderCode(key)) {
+      final resolvedId = await resolveOrderIdFromList(key);
+      if (resolvedId != null) {
+        final resolvedResponse = await api.getOrderDetail(resolvedId);
+        if (resolvedResponse.success && resolvedResponse.data != null) {
+          return parseDetailPayload(resolvedResponse.data);
+        }
+      }
+    }
+
+    // Attempt direct fetch (works when orderKey is already an API ID).
+    try {
+      final directResponse = await api.getOrderDetail(key);
+      if (directResponse.success && directResponse.data != null) {
+        final direct = parseDetailPayload(directResponse.data);
+        if (direct != null) return direct;
+      }
+    } on DioException {
+      // Fall through to lookup fallback below.
     }
 
     // Fallback: resolve by order code through list search, then fetch detail by id.
-    final lookupResponse = await api.getOrders(
-      page: 1,
-      limit: 1,
-      search: orderKey,
-    );
-    if (!lookupResponse.success || lookupResponse.data == null) return null;
-    final lookupPayload = lookupResponse.data;
-    final list = lookupPayload is Map<String, dynamic>
-        ? (lookupPayload['items'] ?? lookupPayload['orders'] ?? lookupPayload['data'])
-        : lookupPayload;
-    if (list is! List || list.isEmpty) return null;
-    final first = list.first;
-    if (first is! Map) return null;
-    final firstMap = Map<String, dynamic>.from(first);
-    final resolvedId = (firstMap['id'] ?? '').toString().trim();
-    if (resolvedId.isEmpty) return null;
+    final resolvedId = await resolveOrderIdFromList(key);
+    if (resolvedId == null || resolvedId.isEmpty) return null;
 
     final resolvedResponse = await api.getOrderDetail(resolvedId);
     if (!resolvedResponse.success || resolvedResponse.data == null) return null;
@@ -82,34 +125,138 @@ class OrderDetailScreen extends ConsumerWidget {
     return fallback;
   }
 
+  /// Walks a dot-path like `product.images.0` through nested maps/lists and
+  /// returns the first non-empty string found, or '' if missing.
+  static String _pickPath(Map<String, dynamic> root, String path) {
+    dynamic cursor = root;
+    for (final seg in path.split('.')) {
+      if (cursor is Map) {
+        cursor = cursor[seg];
+      } else if (cursor is List) {
+        final idx = int.tryParse(seg);
+        if (idx == null || idx < 0 || idx >= cursor.length) return '';
+        cursor = cursor[idx];
+      } else {
+        return '';
+      }
+      if (cursor == null) return '';
+    }
+    if (cursor is String) return cursor.trim();
+    if (cursor is num) return cursor.toString();
+    return '';
+  }
+
+  static String _pickFirstPath(Map<String, dynamic> root, List<String> paths) {
+    for (final p in paths) {
+      final value = _pickPath(root, p);
+      if (value.isNotEmpty) return value;
+    }
+    return '';
+  }
+
+  static num? _pickNum(Map<String, dynamic> map, List<String> keys) {
+    for (final key in keys) {
+      final raw = map[key];
+      if (raw is num) return raw;
+      if (raw is String) {
+        final parsed = num.tryParse(raw.trim());
+        if (parsed != null) return parsed;
+      }
+    }
+    return null;
+  }
+
   static String _formatMoney(dynamic value, {String currency = 'KES'}) {
-    if (value is num) return '$currency ${value.toStringAsFixed(2)}';
-    if (value is String && value.trim().isNotEmpty) return value;
+    num? numeric;
+    if (value is num) {
+      numeric = value;
+    } else if (value is String) {
+      numeric = num.tryParse(value.trim());
+      if (numeric == null && value.trim().isNotEmpty) return value;
+    }
+    if (numeric != null) return '$currency ${numeric.toStringAsFixed(2)}';
     return '$currency 0.00';
   }
 
   static _OrderDetailData _mapApiOrderToDetail(Map<String, dynamic> raw, String fallbackCode) {
-    final customerRaw = raw['customer'];
-    final customer = customerRaw is Map<String, dynamic> ? customerRaw : <String, dynamic>{};
-    final shippingRaw = raw['shippingAddress'] ?? raw['shipping_address'] ?? raw['shipping'];
-    final shipping = shippingRaw is Map<String, dynamic> ? shippingRaw : <String, dynamic>{};
-    final currency = _pickString(raw, ['currencyCode', 'currency_code'], fallback: 'KES');
-    final code = _pickString(raw, ['code', 'orderNumber', 'order_number', 'id'], fallback: fallbackCode);
-    final itemsRaw = raw['items'] ?? raw['lineItems'] ?? raw['orderItems'] ?? const [];
+    final customerRaw = raw['customer'] ?? raw['buyer'] ?? raw['user'];
+    final customer = customerRaw is Map<String, dynamic>
+        ? Map<String, dynamic>.from(customerRaw)
+        : <String, dynamic>{};
+    final shippingRaw = raw['shippingAddress'] ??
+        raw['shipping_address'] ??
+        raw['shipping'] ??
+        raw['shippingDetails'];
+    final shipping = shippingRaw is Map<String, dynamic>
+        ? Map<String, dynamic>.from(shippingRaw)
+        : <String, dynamic>{};
+    final currency = _pickString(raw, ['currencyCode', 'currency_code', 'currency'], fallback: 'KES');
+    final code = _pickString(
+      raw,
+      ['code', 'orderNumber', 'order_number', 'orderCode', 'id'],
+      fallback: fallbackCode,
+    );
+    final apiId = _pickString(raw, ['id', 'orderId', 'order_id', '_id'], fallback: '');
+
+    final itemsRaw = raw['items'] ??
+        raw['lineItems'] ??
+        raw['line_items'] ??
+        raw['orderItems'] ??
+        raw['order_items'] ??
+        const [];
     final itemList = itemsRaw is List ? itemsRaw : const [];
     final lineItems = itemList.whereType<Map>().map((entry) {
       final item = Map<String, dynamic>.from(entry);
       final qty = item['quantity'] ?? item['qty'] ?? 1;
-      final variant = _pickString(item, ['variant', 'option', 'sku'], fallback: 'Standard');
-      final priceValue = item['total'] ?? item['price'] ?? item['unitPrice'] ?? 0;
+      final variant = _pickString(
+        item,
+        ['variant', 'variantName', 'variant_name', 'option', 'sku'],
+        fallback: 'Standard',
+      );
+      final priceValue = item['total'] ??
+          item['totalPrice'] ??
+          item['total_price'] ??
+          item['price'] ??
+          item['unitPrice'] ??
+          item['unit_price'] ??
+          0;
+      final image = _pickFirstPath(item, [
+        'image',
+        'imageUrl',
+        'image_url',
+        'thumbnail',
+        'thumbnailUrl',
+        'thumbnail_url',
+        'productImage',
+        'product_image',
+        'product.image',
+        'product.imageUrl',
+        'product.image_url',
+        'product.thumbnail',
+        'product.thumbnailUrl',
+        'product.thumbnail_url',
+        'product.images.0',
+        'product.images.0.url',
+        'images.0',
+        'images.0.url',
+        'variant.image',
+        'variant.imageUrl',
+        'variant.image_url',
+      ]);
+      final flatName = _pickString(
+        item,
+        ['name', 'title', 'productName', 'product_name'],
+        fallback: '',
+      );
+      final nestedName = flatName.isEmpty
+          ? _pickFirstPath(item, ['product.name', 'product.title', 'variant.name'])
+          : flatName;
       return _LineItem(
-        name: _pickString(item, ['name', 'title'], fallback: 'Item'),
+        name: nestedName.isEmpty ? 'Item' : nestedName,
         variantQty: '$variant • Qty: $qty',
         price: _formatMoney(priceValue, currency: currency),
         thumbColor: const Color(0xFF718096),
-        imageUrl: _pickString(item, ['image', 'imageUrl', 'thumbnail'], fallback: '').isEmpty
-            ? null
-            : _pickString(item, ['image', 'imageUrl', 'thumbnail']),
+        imageUrl: image.isEmpty ? null : image,
       );
     }).toList();
 
@@ -145,24 +292,87 @@ class OrderDetailScreen extends ConsumerWidget {
       ),
     ];
 
-    final subtotal = raw['subtotal'] ?? raw['subTotal'] ?? raw['totalBeforeTax'] ?? 0;
-    final shippingAmount = raw['shipping'] ?? raw['shippingAmount'] ?? 0;
-    final tax = raw['tax'] ?? raw['taxAmount'] ?? 0;
-    final total = raw['total'] ?? raw['grandTotal'] ?? subtotal;
+    // Totals — support snake_case, grand/amount aliases, and nested totals object.
+    final totalsRaw = raw['totals'] ?? raw['summary'];
+    final totals = totalsRaw is Map<String, dynamic>
+        ? Map<String, dynamic>.from(totalsRaw)
+        : <String, dynamic>{};
+    final subtotal = _pickNum(raw, ['subtotal', 'subTotal', 'sub_total', 'totalBeforeTax', 'total_before_tax']) ??
+        _pickNum(totals, ['subtotal', 'subTotal', 'sub_total']) ??
+        0;
+    final shippingAmount = _pickNum(raw, [
+          'shippingAmount',
+          'shipping_amount',
+          'shipping_total',
+          'shippingTotal',
+          'deliveryFee',
+          'delivery_fee',
+        ]) ??
+        _pickNum(shipping, ['amount', 'fee', 'cost']) ??
+        _pickNum(totals, ['shipping', 'shippingAmount']) ??
+        // Only treat a bare `shipping` key as an amount when it isn't the
+        // nested address object above.
+        (raw['shipping'] is num ? raw['shipping'] as num : 0);
+    final tax = _pickNum(raw, ['tax', 'taxAmount', 'tax_amount', 'totalTax', 'total_tax']) ??
+        _pickNum(totals, ['tax', 'taxAmount']) ??
+        0;
+    final total = _pickNum(raw, [
+          'total',
+          'grandTotal',
+          'grand_total',
+          'totalAmount',
+          'total_amount',
+          'amountTotal',
+          'amount_total',
+          'amount',
+          'orderTotal',
+          'order_total',
+        ]) ??
+        _pickNum(totals, ['total', 'grandTotal', 'grand_total']) ??
+        subtotal;
+
+    // Customer — fall back to top-level order-scoped fields that the list
+    // endpoint already exposes (`customerName`, `customer_name`, `email`, ...).
+    final customerName = _pickString(
+      customer,
+      ['name', 'fullName', 'full_name', 'displayName', 'display_name'],
+      fallback: _pickString(
+        raw,
+        ['customerName', 'customer_name', 'buyerName', 'buyer_name', 'billingName', 'billing_name'],
+        fallback: _pickFirstPath(raw, ['billingAddress.name', 'shippingAddress.name']).isNotEmpty
+            ? _pickFirstPath(raw, ['billingAddress.name', 'shippingAddress.name'])
+            : 'Customer',
+      ),
+    );
+    final customerEmail = _pickString(
+      customer,
+      ['email', 'emailAddress', 'email_address'],
+      fallback: _pickString(raw, ['customerEmail', 'customer_email', 'email'], fallback: '—'),
+    );
+    final customerPhone = _pickString(
+      customer,
+      ['phone', 'phoneNumber', 'phone_number', 'mobile', 'mobileNumber', 'mobile_number'],
+      fallback: _pickString(
+        raw,
+        ['customerPhone', 'customer_phone', 'phone', 'phoneNumber', 'phone_number', 'contactPhone', 'contact_phone'],
+        fallback: '—',
+      ),
+    );
 
     final address = [
-      _pickString(shipping, ['name'], fallback: _pickString(customer, ['name'], fallback: 'Customer')),
-      _pickString(shipping, ['line1', 'address1', 'address'], fallback: ''),
-      _pickString(shipping, ['line2', 'address2'], fallback: ''),
+      _pickString(shipping, ['name', 'fullName', 'full_name'], fallback: customerName),
+      _pickString(shipping, ['line1', 'address1', 'address_1', 'address', 'street', 'streetAddress', 'street_address'], fallback: ''),
+      _pickString(shipping, ['line2', 'address2', 'address_2'], fallback: ''),
       [
-        _pickString(shipping, ['city'], fallback: ''),
-        _pickString(shipping, ['state'], fallback: ''),
-        _pickString(shipping, ['postalCode', 'zip'], fallback: ''),
+        _pickString(shipping, ['city', 'town'], fallback: ''),
+        _pickString(shipping, ['state', 'region', 'province'], fallback: ''),
+        _pickString(shipping, ['postalCode', 'postal_code', 'zip', 'zipCode', 'zip_code'], fallback: ''),
       ].where((e) => e.isNotEmpty).join(', '),
-      _pickString(shipping, ['country'], fallback: ''),
+      _pickString(shipping, ['country', 'countryCode', 'country_code'], fallback: ''),
     ].where((e) => e.isNotEmpty).join('\n');
 
     return _OrderDetailData(
+      apiId: apiId.isEmpty ? code : apiId,
       code: code,
       itemsCategorySubtitle: '${lineItems.length} items',
       premiumCustomer: false,
@@ -171,9 +381,9 @@ class OrderDetailScreen extends ConsumerWidget {
       shipping: _formatMoney(shippingAmount, currency: currency),
       tax: _formatMoney(tax, currency: currency),
       total: _formatMoney(total, currency: currency),
-      customerName: _pickString(customer, ['name', 'fullName'], fallback: 'Customer'),
-      customerEmail: _pickString(customer, ['email'], fallback: '—'),
-      customerPhone: _pickString(customer, ['phone', 'phoneNumber'], fallback: '—'),
+      customerName: customerName,
+      customerEmail: customerEmail,
+      customerPhone: customerPhone,
       shippingAddress: address.isEmpty ? '—' : address,
       timeline: timeline,
     );
@@ -183,10 +393,15 @@ class OrderDetailScreen extends ConsumerWidget {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  Future<void> _patchOrderStatus(BuildContext context, WidgetRef ref, String status) async {
+  Future<void> _patchOrderStatus(
+    BuildContext context,
+    WidgetRef ref,
+    String status, {
+    required String apiId,
+  }) async {
     try {
       final api = ref.read(apiClientProvider);
-      final r = await api.patchOrder(orderKey, {'status': status});
+      final r = await api.patchOrder(apiId, {'status': status});
       if (!r.success) {
         throw StateError(r.error?.message ?? 'Update failed');
       }
@@ -224,24 +439,12 @@ class OrderDetailScreen extends ConsumerWidget {
     return liveOrder.when(
       loading: () => Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(
-          title: Text('Order #$orderKey'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () => context.pop(),
-          ),
-        ),
+        appBar: const DashboardAppBar(title: 'Orders'),
         body: const Center(child: CircularProgressIndicator()),
       ),
       error: (err, _) => Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(
-          title: Text('Order #$orderKey'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () => context.pop(),
-          ),
-        ),
+        appBar: const DashboardAppBar(title: 'Orders'),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -263,13 +466,7 @@ class OrderDetailScreen extends ConsumerWidget {
         if (raw == null) {
           return Scaffold(
             backgroundColor: AppTheme.surface,
-            appBar: AppBar(
-              title: Text('Order #$orderKey'),
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back_rounded),
-                onPressed: () => context.pop(),
-              ),
-            ),
+            appBar: const DashboardAppBar(title: 'Orders'),
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
@@ -313,69 +510,31 @@ class OrderDetailScreen extends ConsumerWidget {
   ) {
     return Scaffold(
       backgroundColor: AppTheme.surface,
+      appBar: DashboardAppBar(
+        title: 'Orders',
+        actions: [
+          IconButton(
+            icon: Badge(
+              isLabelVisible: pendingOrdersCount > 0,
+              label: Text(badgeLabel),
+              child: Icon(
+                Icons.notifications_none_rounded,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            onPressed: () => context.push('/notifications'),
+          ),
+        ],
+      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SafeArea(
-            bottom: false,
-            child: SizedBox(
-              height: kToolbarHeight,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(0, 0, 8, 0),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_rounded),
-                      onPressed: () => context.pop(),
-                      color: _navyTitle,
-                    ),
-                    Expanded(
-                      child: Text(
-                        'Order #${data.code}',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.plusJakartaSans(
-                          color: _navyTitle,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 18,
-                          letterSpacing: -0.2,
-                          height: 1.25,
-                        ),
-                      ),
-                    ),
-                  ClipOval(
-                    child: Image.network(
-                      'https://lh3.googleusercontent.com/aida-public/AB6AXuBYNcARSFNN-b8ct1FSGr2g6zoPRV3QUjw5sb16F4jJlamo225muiun234Zz8Upd_RN5cmauNcUJtDBBdX5JMGivANpvGVeZZYdSSFaqriBfrlNSynd6QlbhN0SOE_lLUAESXrz3vaAdPyAtlgZX8vSM9uY0dOw7L6EDgNwOATYzmyZvhXuRcGu9wCqN9Bwbuc2PsIRrfa3XiWPRHzbiLTIROU0MjrVwVfgAe5dNg8kYJttC_aSM6XSPRvXNSlxPeb2UwMU83Kmkp78',
-                      width: 40,
-                      height: 40,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 40,
-                        height: 40,
-                        color: AppTheme.surfaceContainerLow,
-                        alignment: Alignment.center,
-                        child: Icon(Icons.person_rounded,
-                            color: AppTheme.primary.withValues(alpha: 0.8), size: 22),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: Badge(
-                      isLabelVisible: pendingOrdersCount > 0,
-                      label: Text(badgeLabel),
-                      child: Icon(Icons.notifications_none_rounded,
-                          color: theme.colorScheme.onSurfaceVariant),
-                    ),
-                    onPressed: () => context.push('/notifications'),
-                  ),
-                ],
-                ),
-              ),
-            ),
-          ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
               children: [
+                _OrderCodeHeader(code: data.code),
+                const SizedBox(height: 12),
                 _DataSourceBadge(isLiveData: isLiveData),
                 const SizedBox(height: 12),
                 _itemsCard(context, data),
@@ -709,7 +868,7 @@ class OrderDetailScreen extends ConsumerWidget {
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
-                onTap: () => _patchOrderStatus(context, ref, 'shipped'),
+                onTap: () => _patchOrderStatus(context, ref, 'shipped', apiId: data.apiId),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Row(
@@ -763,7 +922,7 @@ class OrderDetailScreen extends ConsumerWidget {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: () => _patchOrderStatus(context, ref, 'cancelled'),
+              onTap: () => _patchOrderStatus(context, ref, 'cancelled', apiId: data.apiId),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Row(
@@ -992,7 +1151,7 @@ class OrderDetailScreen extends ConsumerWidget {
                   ),
                   const Spacer(),
                   FilledButton(
-                    onPressed: () => _patchOrderStatus(context, ref, 'processing'),
+                    onPressed: () => _patchOrderStatus(context, ref, 'processing', apiId: data.apiId),
                     style: FilledButton.styleFrom(
                       backgroundColor: AppTheme.primaryDark,
                       foregroundColor: Colors.white,
@@ -1012,6 +1171,44 @@ class OrderDetailScreen extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Compact, scannable header that pushes the order code into the page body
+/// so the app bar can stay a stable "Orders" section title.
+class _OrderCodeHeader extends StatelessWidget {
+  const _OrderCodeHeader({required this.code});
+
+  final String code;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'ORDER',
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.9,
+            color: AppTheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '#$code',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.3,
+            height: 1.2,
+            color: theme.colorScheme.onSurface,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1192,6 +1389,7 @@ class _LineItem {
 
 class _OrderDetailData {
   const _OrderDetailData({
+    required this.apiId,
     required this.code,
     required this.itemsCategorySubtitle,
     required this.premiumCustomer,
@@ -1207,6 +1405,9 @@ class _OrderDetailData {
     required this.timeline,
   });
 
+  /// The backend-canonical ID used for PATCH/cancel endpoints. Falls back to
+  /// [code] when the API didn't return a separate `id` field.
+  final String apiId;
   final String code;
   final String itemsCategorySubtitle;
   final bool premiumCustomer;

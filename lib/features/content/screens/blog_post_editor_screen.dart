@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 
 /// Edit / create blog post — Stitch: Edit Blog Post (Refined) (518f2f427af54eb38a97196c5dd1a986).
 /// Full-screen route: no duplicate bottom nav (Stitch mock nav omitted in app).
@@ -137,16 +138,9 @@ class _BlogPostEditorScreenState extends State<BlogPostEditorScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(_isEditing ? 'Edit Post' : 'New Post'),
+      appBar: DashboardAppBar(
+        title: _isEditing ? 'Edit Post' : 'New Post',
+        showDivider: true,
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -167,13 +161,6 @@ class _BlogPostEditorScreenState extends State<BlogPostEditorScreen> {
             ),
           ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Divider(
-            height: 1,
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
-          ),
-        ),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),

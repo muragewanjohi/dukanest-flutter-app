@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../settings/providers/dashboard_settings_provider.dart';
 import '../data/attribute_value_format.dart';
 import '../data/attributes_repository.dart';
@@ -422,26 +423,17 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen> {
     final isColor = _displayType == AttributeDisplayType.color;
 
     if (_loadingRemote) {
-      return Scaffold(
+      return const Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(
-          title: const Text('Attribute'),
-        ),
-        body: const Center(child: CircularProgressIndicator()),
+        appBar: DashboardAppBar(title: 'Attribute'),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      appBar: AppBar(
-        backgroundColor: AppTheme.surface,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(widget.isNew ? 'Add attribute' : 'Edit attribute'),
+      appBar: DashboardAppBar(
+        title: widget.isNew ? 'Add attribute' : 'Edit attribute',
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),

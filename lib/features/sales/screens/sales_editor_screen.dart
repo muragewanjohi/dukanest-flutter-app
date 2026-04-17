@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 
 /// Edit Sale — Stitch: Sales Editor (8792636371ab4a40bf1c564d2419a238).
 /// Full-screen route: no dashboard bottom bar (Stitch mock nav omitted in app).
@@ -181,17 +182,9 @@ class _SalesEditorScreenState extends State<SalesEditorScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
-        surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text('Edit Sale'),
+      appBar: DashboardAppBar(
+        title: 'Edit Sale',
+        showDivider: true,
         actions: [
           TextButton(
             onPressed: _save,
@@ -204,13 +197,6 @@ class _SalesEditorScreenState extends State<SalesEditorScreen> {
             ),
           ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Divider(
-            height: 1,
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
-          ),
-        ),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),

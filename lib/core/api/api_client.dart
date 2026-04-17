@@ -155,6 +155,36 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
+  Future<ApiResponse<dynamic>> getProductVariants(String productId) async {
+    final response = await _dio.get('/dashboard/products/$productId/variants');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> createProductVariant(
+    String productId,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await _dio.post('/dashboard/products/$productId/variants', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> updateProductVariant(
+    String productId,
+    String variantId,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await _dio.put('/dashboard/products/$productId/variants/$variantId', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> deleteProductVariant(
+    String productId,
+    String variantId,
+  ) async {
+    final response = await _dio.delete('/dashboard/products/$productId/variants/$variantId');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
   Future<ApiResponse<dynamic>> getCustomers({
     int page = 1,
     int limit = 20,
@@ -242,7 +272,27 @@ class ApiClient {
 
   /// StoreFlow mobile: `GET /notifications/list` (see Postman).
   Future<ApiResponse<dynamic>> getNotifications() async {
-    final response = await _dio.get('/notifications/list');
+    try {
+      final response = await _dio.get('/notifications');
+      return ApiResponse.fromJson(response.data, (json) => json);
+    } on DioException catch (e) {
+      // Backward compatibility for deployments still exposing /notifications/list.
+      final code = e.response?.statusCode ?? 0;
+      if (code != 404 && code != 405) rethrow;
+      final fallback = await _dio.get('/notifications/list');
+      return ApiResponse.fromJson(fallback.data, (json) => json);
+    }
+  }
+
+  Future<ApiResponse<dynamic>> getNotificationPreferences() async {
+    final response = await _dio.get('/notifications/preferences');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> updateNotificationPreferences(
+    Map<String, dynamic> body,
+  ) async {
+    final response = await _dio.put('/notifications/preferences', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 

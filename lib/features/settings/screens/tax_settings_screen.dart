@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 import '../providers/dashboard_settings_provider.dart';
 
 /// Tax Settings — Stitch: Tax Settings (Mobile) (cfb73a5c3d7646ef8c811e474c6c7b33).
@@ -121,20 +122,14 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen> {
     final settingsAsync = ref.watch(dashboardSettingsProvider);
 
     return settingsAsync.when(
-      loading: () => Scaffold(
+      loading: () => const Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(title: const Text('Tax Settings')),
-        body: const Center(child: CircularProgressIndicator()),
+        appBar: DashboardAppBar(title: 'Tax Settings'),
+        body: Center(child: CircularProgressIndicator()),
       ),
       error: (err, _) => Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () => context.pop(),
-          ),
-          title: const Text('Tax Settings'),
-        ),
+        appBar: const DashboardAppBar(title: 'Tax Settings'),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -169,16 +164,8 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen> {
   Widget _buildScaffold(ThemeData theme) {
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text('Tax Settings'),
+      appBar: DashboardAppBar(
+        title: 'Tax Settings',
         actions: [
           IconButton(
             icon: Icon(Icons.more_vert_rounded, color: theme.colorScheme.outline),

@@ -12,6 +12,7 @@ import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/auth/token_storage.dart';
+import '../../../core/widgets/dashboard_page_header.dart';
 import '../data/attributes_repository.dart';
 import '../data/categories_repository.dart';
 import '../providers/attributes_list_provider.dart';
@@ -766,7 +767,6 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final products = _products;
     final categoriesAsync = ref.watch(categoriesListProvider);
     final attributesAsync = ref.watch(dashboardAttributesProvider);
@@ -820,24 +820,9 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
           return ListView(
             padding: EdgeInsets.fromLTRB(24, 8 + MediaQuery.of(context).padding.top, 24, 120),
             children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: colorScheme.surfaceContainerHighest,
-                    child: Icon(Icons.storefront_outlined, color: colorScheme.onSurfaceVariant),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Products',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.primaryDark,
-                      letterSpacing: -0.25,
-                    ),
-                  ),
-                  const Spacer(),
+              DashboardPageHeader(
+                title: 'Products',
+                actions: [
                   IconButton(
                     style: IconButton.styleFrom(
                       backgroundColor: Colors.transparent,

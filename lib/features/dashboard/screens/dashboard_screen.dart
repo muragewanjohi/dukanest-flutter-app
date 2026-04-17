@@ -7,11 +7,11 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/auth/auth_state.dart';
 import '../../../core/providers/store_identity_provider.dart';
+import '../../../core/widgets/dashboard_page_header.dart';
 import '../../onboarding/providers/auth_provider.dart';
 import '../providers/dashboard_getting_started_provider.dart';
 import '../providers/dashboard_local_onboarding_provider.dart';
@@ -187,59 +187,6 @@ Map<String, dynamic>? _firstMap(Map<String, dynamic>? data, List<String> keys) {
     final v = data[k];
     if (v is Map) return Map<String, dynamic>.from(v);
   }
-  return null;
-}
-
-String _normalizeAbsoluteUrl(String raw) {
-  final s = raw.trim();
-  if (s.isEmpty) return '';
-  if (s.startsWith('http://') || s.startsWith('https://')) return s;
-  if (s.startsWith('//')) return 'https:$s';
-  final base = AppConfig.publicApiBaseUrl.replaceFirst(RegExp(r'/$'), '');
-  if (s.startsWith('/')) return '$base$s';
-  return '$base/$s';
-}
-
-String? _extractStoreLogoUrl(Map<String, dynamic>? data) {
-  if (data == null) return null;
-
-  String pick(dynamic value) {
-    if (value is! String) return '';
-    return _normalizeAbsoluteUrl(value);
-  }
-
-  String pickFrom(Map<String, dynamic>? map) {
-    if (map == null) return '';
-    final candidates = [
-      map['logo'],
-      map['logoUrl'],
-      map['logo_url'],
-      map['storeLogo'],
-      map['store_logo'],
-      map['brandLogo'],
-      map['brand_logo'],
-      map['image'],
-      map['imageUrl'],
-      map['image_url'],
-      map['avatar'],
-      map['avatarUrl'],
-      map['avatar_url'],
-    ];
-    for (final candidate in candidates) {
-      final normalized = pick(candidate);
-      if (normalized.isNotEmpty) return normalized;
-    }
-    return '';
-  }
-
-  final root = pickFrom(data);
-  if (root.isNotEmpty) return root;
-  final tenant = _firstMap(data, ['tenant', 'store', 'shop']);
-  final tenantLogo = pickFrom(tenant);
-  if (tenantLogo.isNotEmpty) return tenantLogo;
-  final branding = _firstMap(data, ['branding', 'brand', 'identity']);
-  final brandingLogo = pickFrom(branding);
-  if (brandingLogo.isNotEmpty) return brandingLogo;
   return null;
 }
 
@@ -611,7 +558,6 @@ class DashboardScreen extends ConsumerWidget {
     final storeIdentity = ref.watch(storeIdentityProvider).asData?.value;
     final storeName = storeIdentity?.name;
     final storeUrl = storeIdentity?.storeUrl;
-    final storeLogoUrl = storeIdentity?.logoUrl ?? _extractStoreLogoUrl(data);
     final lastSyncedAt = ref.watch(dashboardLastSyncedAtProvider);
     if (isLiveData && lastSyncedAt == null) {
       Future.microtask(() {
@@ -733,41 +679,9 @@ class DashboardScreen extends ConsumerWidget {
         child: ListView(
           padding: EdgeInsets.fromLTRB(24, 8 + MediaQuery.of(context).padding.top, 24, 120),
           children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: theme.colorScheme.surfaceContainerHigh,
-                child: ClipOval(
-                  child: (storeLogoUrl != null && storeLogoUrl.trim().isNotEmpty)
-                      ? Image.network(
-                          storeLogoUrl,
-                          width: 40,
-                          height: 40,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Icon(
-                            Icons.storefront_rounded,
-                            size: 22,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        )
-                      : Icon(
-                          Icons.storefront_rounded,
-                          size: 22,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'DukaNest',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: AppTheme.primaryDark,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.25,
-                ),
-              ),
-              const Spacer(),
+          DashboardPageHeader(
+            title: 'Welcome back, $greetingName',
+            actions: [
               IconButton.filledTonal(
                 onPressed: () => refreshDashboard(),
                 style: IconButton.styleFrom(
@@ -778,7 +692,7 @@ class DashboardScreen extends ConsumerWidget {
                 icon: const Icon(Icons.refresh_rounded),
               ),
               IconButton.filledTonal(
-                onPressed: () {},
+                onPressed: () => context.push('/notifications'),
                 style: IconButton.styleFrom(
                   backgroundColor: theme.colorScheme.surface,
                   foregroundColor: theme.colorScheme.onSurfaceVariant,
@@ -786,24 +700,6 @@ class DashboardScreen extends ConsumerWidget {
                 icon: const Icon(Icons.notifications_outlined),
               ),
             ],
-          ),
-          const SizedBox(height: 32),
-          Text(
-            'OVERVIEW',
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: AppTheme.primaryDark,
-              letterSpacing: 2,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Welcome back, $greetingName',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurface,
-            ),
           ),
           if ((displayStoreName != null && displayStoreName.trim().isNotEmpty) ||
               (storeUrl != null && storeUrl.trim().isNotEmpty)) ...[

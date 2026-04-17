@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 import '../providers/delivery_zones_provider.dart';
 import 'delivery_zone_editor_screen.dart';
 
@@ -22,20 +23,14 @@ class ManageZonesScreen extends ConsumerWidget {
     final zonesAsync = ref.watch(deliveryZonesListProvider);
 
     return zonesAsync.when(
-      loading: () => Scaffold(
+      loading: () => const Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(title: const Text('Manage Zones')),
-        body: const Center(child: CircularProgressIndicator()),
+        appBar: DashboardAppBar(title: 'Manage Zones'),
+        body: Center(child: CircularProgressIndicator()),
       ),
       error: (e, _) => Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () => context.pop(),
-          ),
-          title: const Text('Manage Zones'),
-        ),
+        appBar: const DashboardAppBar(title: 'Manage Zones'),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -55,16 +50,8 @@ class ManageZonesScreen extends ConsumerWidget {
       ),
       data: (zones) => Scaffold(
       backgroundColor: AppTheme.surface,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text('Manage Zones'),
+      appBar: DashboardAppBar(
+        title: 'Manage Zones',
         actions: [
           IconButton(
             icon: Icon(Icons.add_rounded, color: AppTheme.primaryDark),

@@ -13,6 +13,7 @@ import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/auth/token_storage.dart';
 import '../../../core/providers/store_identity_provider.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../../onboarding/providers/auth_provider.dart';
 import '../providers/dashboard_settings_provider.dart';
@@ -371,22 +372,14 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
     final settingsAsync = ref.watch(dashboardSettingsProvider);
 
     return settingsAsync.when(
-      loading: () => Scaffold(
+      loading: () => const Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(
-          title: const Text('Store settings'),
-        ),
-        body: const Center(child: CircularProgressIndicator()),
+        appBar: DashboardAppBar(title: 'Store Settings'),
+        body: Center(child: CircularProgressIndicator()),
       ),
       error: (err, _) => Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () => context.pop(),
-          ),
-          title: const Text('Store settings'),
-        ),
+        appBar: const DashboardAppBar(title: 'Store Settings'),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -416,20 +409,9 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
   Widget _buildMainScaffold(ThemeData theme) {
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text('Store settings'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
-        ),
+      appBar: const DashboardAppBar(
+        title: 'Store Settings',
+        showDivider: true,
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),

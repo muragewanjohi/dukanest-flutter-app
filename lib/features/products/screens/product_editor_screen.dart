@@ -11,6 +11,7 @@ import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/auth/token_storage.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 import '../data/attribute_value_format.dart';
 import '../data/attributes_repository.dart';
 import '../providers/attributes_list_provider.dart';
@@ -33,6 +34,7 @@ class ProductEditorScreen extends ConsumerStatefulWidget {
 /// One sellable variant (option combination + SKU + stock).
 class _VariantLine {
   _VariantLine({
+    this.variantId,
     required this.options,
     required String initialSku,
     required String initialStock,
@@ -46,6 +48,7 @@ class _VariantLine {
         imageUrl = TextEditingController(text: initialImageUrl);
 
   /// Attribute display name → displayed option value (e.g. Color → Red).
+  final String? variantId;
   final Map<String, String> options;
   final TextEditingController sku;
   final TextEditingController stock;
@@ -92,6 +95,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   String? _productApiId;
   final ScrollController _scrollController = ScrollController();
   final List<_VariantLine> _variantLines = [];
+  final Set<String> _loadedVariantIds = <String>{};
   bool _isLiveData = false;
   bool _isLoadingRemote = false;
   bool _isSaving = false;
@@ -108,6 +112,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       v.dispose();
     }
     _variantLines.clear();
+    _loadedVariantIds.clear();
   }
 
   void _initVariantLines() {
@@ -197,6 +202,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     if (rawVariants is List && rawVariants.isNotEmpty) {
       for (final item in rawVariants.whereType<Map>()) {
         final m = Map<String, dynamic>.from(item);
+        final vId = _asString(m['id'] ?? m['variantId']);
         final vSku = _asString(m['sku'] ?? m['code'], fallback: _sku.text.trim());
         final stockRaw = m['stock'] ?? m['stockQuantity'] ?? m['stock_quantity'] ?? m['quantity'];
         final vStock = stockRaw == null ? '0' : stockRaw.toString();
@@ -227,6 +233,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         }
         _variantLines.add(
           _VariantLine(
+            variantId: vId.isEmpty ? null : vId,
             options: options,
             initialSku: vSku.isEmpty ? 'SKU' : vSku,
             initialStock: vStock,
@@ -235,6 +242,9 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
             initialImageUrl: vImage,
           ),
         );
+        if (vId.isNotEmpty) {
+          _loadedVariantIds.add(vId);
+        }
       }
       return;
     }
@@ -1014,9 +1024,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       return 'Sale price cannot be greater than regular price.';
     }
 
-    if (_variantLines.isEmpty) {
-      return 'Add at least one product variant before saving.';
-    }
     for (var i = 0; i < _variantLines.length; i++) {
       final line = _variantLines[i];
       if (line.options.isEmpty) {
@@ -1104,6 +1111,86 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     return uploaded ?? '';
   }
 
+  Map<String, dynamic> _buildVariantPayload(
+    _VariantLine line, {
+    required int stock,
+    required double regular,
+    required double sale,
+    required String imageUrl,
+  }) {
+    final payload = <String, dynamic>{
+      'sku': line.sku.text.trim(),
+      'stock': stock,
+      'stockQuantity': stock,
+      'stock_quantity': stock,
+      'quantity': stock,
+      'options': Map<String, String>.from(line.options),
+      'attributes': Map<String, String>.from(line.options),
+      'attribute_values': Map<String, String>.from(line.options),
+    };
+    if (regular > 0) {
+      payload['price'] = regular;
+      payload['regularPrice'] = regular;
+      payload['regular_price'] = regular;
+    }
+    if (sale > 0) {
+      payload['salePrice'] = sale;
+      payload['sale_price'] = sale;
+    }
+    if (imageUrl.isNotEmpty) {
+      payload['image'] = imageUrl;
+      payload['imageUrl'] = imageUrl;
+      payload['images'] = [imageUrl];
+    }
+    return payload;
+  }
+
+  String _extractPersistedProductId(dynamic payload, String fallbackId) {
+    if (payload is Map<String, dynamic>) {
+      final direct = (payload['id'] ?? payload['productId'] ?? '').toString().trim();
+      if (direct.isNotEmpty) return direct;
+      final nested = payload['product'] ?? payload['item'] ?? payload['data'];
+      if (nested is Map) {
+        final id = (nested['id'] ?? nested['productId'] ?? '').toString().trim();
+        if (id.isNotEmpty) return id;
+      }
+    }
+    return fallbackId;
+  }
+
+  Future<void> _syncVariantsForProduct(ApiClient api, String productId) async {
+    final existingLines = _variantLines
+        .where((v) => (v.variantId ?? '').trim().isNotEmpty)
+        .toList();
+    final currentIds = existingLines.map((v) => v.variantId!.trim()).toSet();
+    final removedIds = _loadedVariantIds.difference(currentIds);
+
+    for (final removedId in removedIds) {
+      await api.deleteProductVariant(productId, removedId);
+    }
+
+    for (final line in _variantLines) {
+      final stock = int.tryParse(line.stock.text.trim()) ?? 0;
+      final regular = _toDouble(line.regularPrice.text);
+      final sale = _toDouble(line.salePrice.text);
+      final imageUrl = await _resolveVariantImageUrl(api, line.imageUrl.text);
+      final body = _buildVariantPayload(
+        line,
+        stock: stock,
+        regular: regular,
+        sale: sale,
+        imageUrl: imageUrl,
+      );
+
+      final variantId = (line.variantId ?? '').trim();
+      if (variantId.isEmpty) {
+        await api.createProductVariant(productId, body);
+      } else {
+        await api.updateProductVariant(productId, variantId, body);
+      }
+    }
+  }
+
   String _formatSaveError(Object e) {
     if (e is DioException) {
       final data = e.response?.data;
@@ -1171,6 +1258,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     String? categoryId,
   }) {
     final desc = _description.text.trim();
+    final hasVariants = variants.isNotEmpty;
     final payload = <String, dynamic>{
       'name': name,
       'description': desc,
@@ -1178,16 +1266,20 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       'price': regular,
       'regularPrice': regular,
       'regular_price': regular,
-      'stock': stockVal,
-      'stockQuantity': stockVal,
-      'stock_quantity': stockVal,
-      'quantity': stockVal,
       'category': _category,
       'categoryName': _category,
       'isActive': _visible,
       'is_active': _visible,
       'status': _visible ? 'active' : 'draft',
     };
+    // Per API contract: product stock is managed at product level only when
+    // there are no variants. When variants exist, backend derives totals.
+    if (!hasVariants) {
+      payload['stock'] = stockVal;
+      payload['stockQuantity'] = stockVal;
+      payload['stock_quantity'] = stockVal;
+      payload['quantity'] = stockVal;
+    }
     if (sale > 0) {
       payload['salePrice'] = sale;
       payload['sale_price'] = sale;
@@ -1242,44 +1334,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       }
       final imageUrls = [..._remoteImageUrls, ...uploaded];
 
-      final variants = <Map<String, dynamic>>[];
-      for (final line in _variantLines) {
-        final variantSku = line.sku.text.trim();
-        if (variantSku.isEmpty) continue;
-        final variantStock = int.tryParse(line.stock.text.trim()) ?? 0;
-        final variantRegular = _toDouble(line.regularPrice.text);
-        final variantSale = _toDouble(line.salePrice.text);
-        final variantImage = await _resolveVariantImageUrl(api, line.imageUrl.text);
-
-        final variantPayload = <String, dynamic>{
-          'sku': variantSku,
-          'stock': variantStock,
-          'stockQuantity': variantStock,
-          'stock_quantity': variantStock,
-          'quantity': variantStock,
-          'options': Map<String, String>.from(line.options),
-          'attributes': Map<String, String>.from(line.options),
-          'attribute_values': Map<String, String>.from(line.options),
-        };
-
-        if (variantRegular > 0) {
-          variantPayload['price'] = variantRegular;
-          variantPayload['regularPrice'] = variantRegular;
-          variantPayload['regular_price'] = variantRegular;
-        }
-        if (variantSale > 0) {
-          variantPayload['salePrice'] = variantSale;
-          variantPayload['sale_price'] = variantSale;
-        }
-        if (variantImage.isNotEmpty) {
-          variantPayload['image'] = variantImage;
-          variantPayload['imageUrl'] = variantImage;
-          variantPayload['images'] = [variantImage];
-        }
-
-        variants.add(variantPayload);
-      }
-
       final regular = _toDouble(_regularPrice.text);
       final sale = _toDouble(_salePrice.text);
       final stockVal = int.tryParse(_stock.text.trim()) ?? 0;
@@ -1298,7 +1352,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         sale: sale,
         stockVal: stockVal,
         imageUrls: imageUrls,
-        variants: variants,
+        variants: const [],
         categoryId: categoryId,
       );
 
@@ -1315,6 +1369,15 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       if (!response.success) {
         throw StateError(response.error?.message ?? 'Failed to save product');
       }
+
+      final persistedProductId = _extractPersistedProductId(
+        response.data,
+        (updateKey ?? '').toString().trim(),
+      );
+      if (persistedProductId.isEmpty) {
+        throw StateError('Product saved, but missing product id for variant sync.');
+      }
+      await _syncVariantsForProduct(api, persistedProductId);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1434,6 +1497,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isNew = widget.initialSku == null;
+    final hasVariants = _variantLines.isNotEmpty;
     String lastUpdatedLabel() {
       final at = _lastSyncedAt;
       if (at == null) return 'Not synced yet';
@@ -1483,17 +1547,10 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         child: CustomScrollView(
           controller: _scrollController,
           slivers: [
-          SliverAppBar(
-            pinned: true,
-            toolbarHeight: kToolbarHeight,
-            elevation: 0,
-            backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
-            surfaceTintColor: Colors.transparent,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded),
-              onPressed: () => context.pop(),
-            ),
-            title: Text(isNew ? 'Add Product' : 'Edit Product'),
+          buildDashboardSliverAppBar(
+            context: context,
+            title: isNew ? 'Add Product' : 'Edit Product',
+            showDivider: true,
             actions: [
               if (!isNew)
                 IconButton(
@@ -1519,10 +1576,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
               ),
               const SizedBox(width: 8),
             ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(1),
-              child: Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
-            ),
           ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -1722,7 +1775,9 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Leave SKU empty to auto-generate when you publish.',
+                        hasVariants
+                            ? 'Product stock is auto-calculated from your variants.'
+                            : 'Leave SKU empty to auto-generate when you publish.',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -1747,8 +1802,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                               child: TextField(
                                 controller: _stock,
                                 keyboardType: TextInputType.number,
+                                enabled: !hasVariants,
                                 style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                                decoration: _inventoryFieldDeco(theme, hint: '0'),
+                                decoration: _inventoryFieldDeco(
+                                  theme,
+                                  hint: hasVariants ? 'Managed by variants' : '0',
+                                ),
                               ),
                             ),
                           ),

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 import '../providers/content_hub_provider.dart';
 
 /// Content Manager — Stitch: Content Management (Updated Nav & Sales)
@@ -35,16 +36,9 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text('Content Manager'),
+      appBar: DashboardAppBar(
+        title: 'Content Manager',
+        showDivider: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
@@ -59,10 +53,6 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
             ),
           ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35)),
-        ),
       ),
       body: hubAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

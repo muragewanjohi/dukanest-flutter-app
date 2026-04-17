@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
-import '../../../core/providers/store_identity_provider.dart';
+import '../../../core/widgets/dashboard_page_header.dart';
 
 /// More tab layout based on Stitch "More Menu" screen.
 class MoreMenuScreen extends ConsumerWidget {
@@ -13,72 +13,22 @@ class MoreMenuScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final storeIdentity = ref.watch(storeIdentityProvider).asData?.value;
-    final storeLogoUrl = storeIdentity?.logoUrl;
-    final storeName = (storeIdentity?.name ?? '').trim();
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
       body: ListView(
         padding: EdgeInsets.fromLTRB(24, 8 + MediaQuery.of(context).padding.top, 24, 24),
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                child: ClipOval(
-                  child: (storeLogoUrl != null && storeLogoUrl.isNotEmpty)
-                      ? Image.network(
-                          storeLogoUrl,
-                          width: 40,
-                          height: 40,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Icon(
-                            Icons.storefront_rounded,
-                            size: 22,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        )
-                      : Icon(
-                          Icons.storefront_rounded,
-                          size: 22,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                storeName.isNotEmpty ? storeName : 'DukaNest',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: AppTheme.primaryDark,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const Spacer(),
+          DashboardPageHeader(
+            title: 'More',
+            subtitle:
+                'Manage your business operations and account settings from a single command center.',
+            actions: [
               IconButton(
                 icon: Icon(Icons.notifications_none_rounded, color: theme.colorScheme.onSurfaceVariant),
                 onPressed: () => context.push('/notifications'),
               ),
             ],
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'More',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 32,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.3,
-              color: AppTheme.primary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Manage your business operations and account settings from a single command center.',
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
           ),
           const SizedBox(height: 26),
           _MoreItem(

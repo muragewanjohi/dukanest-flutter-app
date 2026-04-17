@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../providers/dashboard_settings_provider.dart';
 
@@ -117,20 +118,14 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     final settingsAsync = ref.watch(dashboardSettingsProvider);
 
     return settingsAsync.when(
-      loading: () => Scaffold(
+      loading: () => const Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(title: const Text('Shipping & Delivery')),
-        body: const Center(child: CircularProgressIndicator()),
+        appBar: DashboardAppBar(title: 'Shipping & Delivery'),
+        body: Center(child: CircularProgressIndicator()),
       ),
       error: (err, _) => Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: () => context.pop(),
-          ),
-          title: const Text('Shipping & Delivery'),
-        ),
+        appBar: const DashboardAppBar(title: 'Shipping & Delivery'),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -165,17 +160,7 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
   Widget _buildScaffold(ThemeData theme) {
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text('Shipping & Delivery'),
-      ),
+      appBar: const DashboardAppBar(title: 'Shipping & Delivery'),
       body: Column(
         children: [
           Expanded(

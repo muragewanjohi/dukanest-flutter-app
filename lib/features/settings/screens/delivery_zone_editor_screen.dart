@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 import '../providers/delivery_zones_provider.dart';
 
 /// Arguments when opening the editor from the manage-zones list (optional).
@@ -247,17 +248,7 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: AppTheme.surface.withValues(alpha: 0.92),
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(_appBarTitle),
-      ),
+      appBar: DashboardAppBar(title: _appBarTitle),
       body: Column(
         children: [
           Expanded(

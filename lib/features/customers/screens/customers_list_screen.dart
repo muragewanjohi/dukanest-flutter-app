@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/widgets/dashboard_page_header.dart';
 
 class _CustomerRow {
   const _CustomerRow({
@@ -258,35 +259,17 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
-            Row(
-              children: [
-                IconButton(
-                  style: IconButton.styleFrom(
-                    backgroundColor: theme.colorScheme.surfaceContainerLow,
-                    foregroundColor: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-                  onPressed: () => _goBack(context),
+            DashboardPageHeader(
+              title: 'Customers',
+              leading: IconButton(
+                style: IconButton.styleFrom(
+                  backgroundColor: theme.colorScheme.surfaceContainerLow,
+                  foregroundColor: theme.colorScheme.onSurfaceVariant,
                 ),
-                const SizedBox(width: 8),
-                Image.asset(
-                  'assets/images/logo_with_name.png',
-                  height: 28,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const SizedBox(height: 28, width: 28),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Customers',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: AppTheme.primaryDark,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                onPressed: () => _goBack(context),
+              ),
+              actions: [
                 IconButton(
                   icon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
                   onPressed: () {},

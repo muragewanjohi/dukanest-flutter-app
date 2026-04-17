@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 import '../data/attribute_value_format.dart';
 import '../data/attributes_repository.dart';
 import '../providers/attributes_list_provider.dart';
@@ -128,17 +129,9 @@ class _AttributesManagementScreenState extends ConsumerState<AttributesManagemen
           final filtered = _filter(attributes);
           return CustomScrollView(
             slivers: [
-              SliverAppBar(
-                pinned: true,
-                toolbarHeight: kToolbarHeight,
-                elevation: 0,
-                backgroundColor: AppTheme.surface,
-                surfaceTintColor: Colors.transparent,
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back_rounded),
-                  onPressed: () => context.pop(),
-                ),
-                title: const Text('Attributes'),
+              buildDashboardSliverAppBar(
+                context: context,
+                title: 'Attributes',
                 actions: [
                   IconButton(
                     icon: Icon(

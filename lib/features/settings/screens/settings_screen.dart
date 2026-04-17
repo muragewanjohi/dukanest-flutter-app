@@ -6,6 +6,7 @@ import '../../onboarding/providers/auth_provider.dart';
 import '../../../config/theme.dart';
 import '../../../core/auth/token_storage.dart';
 import '../../../core/providers/store_identity_provider.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -16,14 +17,7 @@ class SettingsScreen extends ConsumerWidget {
     final identityAsync = ref.watch(storeIdentityProvider);
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      appBar: AppBar(
-        backgroundColor: AppTheme.surface,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text('Store Settings'),
-      ),
+      appBar: const DashboardAppBar(title: 'Store Settings'),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [

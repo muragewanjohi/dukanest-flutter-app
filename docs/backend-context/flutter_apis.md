@@ -53,6 +53,10 @@ These paths are relative to **`/api/v1/mobile`** (full URL example: `https://www
 | GET | `/dashboard/products/:id` | Product + variants |
 | PUT/PATCH | `/dashboard/products/:id` | Update (`updateProductSchema`) |
 | DELETE | `/dashboard/products/:id` | Delete + cache invalidation |
+| GET | `/dashboard/products/:id/variants` | List variants for product |
+| POST | `/dashboard/products/:id/variants` | Create variant (stock per variant) |
+| PUT/PATCH | `/dashboard/products/:id/variants/:variantId` | Update variant |
+| DELETE | `/dashboard/products/:id/variants/:variantId` | Delete variant |
 | GET | `/dashboard/customers` | Paginated list + `search` |
 | GET | `/dashboard/customers/:id` | Profile + order aggregates |
 | GET | `/dashboard/categories` | List (`parent_id`, `status`, `include_children`) |
@@ -254,7 +258,17 @@ Public (non-mobile base): `GET /api/tenants/check-subdomain`, `POST /api/tenants
 | Exists | POST | `/dashboard/products` | Create | `ProductEditorScreen` |
 | Exists | PUT/PATCH | `/dashboard/products/:id` | Update (partial fields) | `ProductEditorScreen` |
 | Exists | DELETE | `/dashboard/products/:id` | Delete | `ProductsListScreen` |
+| Exists | GET | `/dashboard/products/:id/variants` | List variants | Variant list/editor |
+| Exists | POST | `/dashboard/products/:id/variants` | Create variant | Variant list/editor |
+| Exists | PUT/PATCH | `/dashboard/products/:id/variants/:variantId` | Update variant | Variant list/editor |
+| Exists | DELETE | `/dashboard/products/:id/variants/:variantId` | Delete variant | Variant list/editor |
 | Exists | POST | `/media/upload` | Tenant media upload | Editors, store identity |
+
+#### Product stock behavior for Flutter
+
+- **No variants:** send/edit `stock_quantity` on the product (`POST`/`PATCH /dashboard/products`).
+- **Has variants:** treat product-level `stock_quantity` as read-only and manage stock on variant rows.
+- Backend auto-syncs product stock from variant totals after variant create/update/delete.
 
 ---
 
@@ -331,6 +345,80 @@ Exact split between one coarse `PATCH /dashboard/settings` vs fine-grained route
 | Exists | POST | `/notifications/register-device` | FCM token registration | Push setup |
 
 **Note:** Remove or gate **demo list fallback** on error once the API is reliable.
+
+### Push notifications follow-up checklist (Android + iOS)
+
+Use this checklist to complete push setup end-to-end now that backend uses **FCM HTTP v1**.
+
+#### 1) Backend environment (required for Android/Web push)
+
+Set these server env vars (same Firebase project as the Flutter app):
+
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY` (single-line env value, keep `\n` line breaks escaped)
+
+Example format:
+
+```env
+FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-firebase-project-id.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+```
+
+Where to get them:
+
+- Firebase Console -> Project settings -> Service accounts -> **Generate new private key** (JSON download)
+- Map JSON fields directly:
+  - `project_id` -> `FIREBASE_PROJECT_ID`
+  - `client_email` -> `FIREBASE_CLIENT_EMAIL`
+  - `private_key` -> `FIREBASE_PRIVATE_KEY`
+
+Optional iOS relay env (only if using APNs relay path):
+
+- `APNS_PUSH_URL`
+- `APNS_AUTH_TOKEN`
+
+#### 2) Flutter app registration flow (required)
+
+After login (with valid bearer token), app must register device token:
+
+- `POST /api/v1/mobile/notifications/register-device`
+- Headers:
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+- Body:
+
+```json
+{
+  "deviceId": "stable-device-id",
+  "token": "fcm-registration-token",
+  "platform": "android",
+  "appVersion": "1.0.0",
+  "deviceName": "Pixel 7"
+}
+```
+
+Important:
+
+- Register once on login/startup.
+- Register again on `onTokenRefresh`.
+- Re-register when user changes account/store.
+
+#### 3) Flutter runtime handling (required)
+
+- Request notification permission (Android 13+ and iOS).
+- Handle foreground messages (`onMessage`) and show local notification.
+- Handle notification taps (`onMessageOpenedApp` + initial message).
+- Use payload `data.link` for deep-link navigation to the target screen.
+
+#### 4) Quick verification steps
+
+1. Login in Flutter as tenant user.
+2. Confirm `POST /notifications/register-device` returns success.
+3. Place a new order in storefront.
+4. Confirm backend logs do not show FCM auth/config errors.
+5. Confirm Android device receives push.
 
 ---
 

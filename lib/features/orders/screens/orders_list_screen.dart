@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
-import '../../../core/providers/store_identity_provider.dart';
+import '../../../core/widgets/dashboard_page_header.dart';
 import '../providers/pending_orders_count_provider.dart';
 
 /// Order Fulfillment — Stitch layout (metrics, chips, order cards, processing goal).
@@ -347,13 +347,14 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final orders = _visibleOrders;
-    final storeIdentity = ref.watch(storeIdentityProvider).asData?.value;
-    final storeLogoUrl = storeIdentity?.logoUrl;
-    final storeName = (storeIdentity?.name ?? '').trim();
-    final pendingOrdersCount = ref.watch(pendingOrdersCountProvider).maybeWhen(
+    final providerPendingCount = ref.watch(pendingOrdersCountProvider).maybeWhen(
           data: (count) => count,
           orElse: () => 0,
         );
+    // Prefer the metric shown on this screen (pending shipment) so the badge
+    // mirrors the same "pending orders" figure users see in the cards.
+    final pendingOrdersCount =
+        _metricPendingShipment > 0 ? _metricPendingShipment : providerPendingCount;
     final badgeLabel = pendingOrdersCount > 99 ? '99+' : '$pendingOrdersCount';
 
     return Scaffold(
@@ -363,40 +364,10 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
         child: ListView(
           padding: EdgeInsets.fromLTRB(16, 8 + MediaQuery.of(context).padding.top, 16, 24),
           children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: theme.colorScheme.surfaceContainerHigh,
-                  child: ClipOval(
-                    child: (storeLogoUrl != null && storeLogoUrl.isNotEmpty)
-                        ? Image.network(
-                            storeLogoUrl,
-                            width: 36,
-                            height: 36,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Icon(
-                              Icons.storefront_rounded,
-                              size: 20,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          )
-                        : Icon(
-                            Icons.storefront_rounded,
-                            size: 20,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  storeName.isNotEmpty ? storeName : 'DukaNest',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: AppTheme.primaryDark,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const Spacer(),
+            DashboardPageHeader(
+              title: 'Order Fulfillment',
+              subtitle: "Manage and process your store's incoming orders.",
+              actions: [
                 IconButton(
                   icon: Badge(
                     isLabelVisible: pendingOrdersCount > 0,
@@ -406,22 +377,6 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
                   onPressed: () => context.push('/notifications'),
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Order Fulfillment',
-              style: theme.textTheme.headlineMedium?.copyWith(
-                color: AppTheme.primaryDark,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              "Manage and process your store's incoming orders.",
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w500,
-              ),
             ),
             const SizedBox(height: 16),
             _OrdersDataSourceBadge(isLiveData: _isLiveData),
