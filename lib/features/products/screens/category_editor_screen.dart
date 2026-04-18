@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/widgets/form_error_highlight.dart';
 import '../data/categories_repository.dart';
 import '../providers/categories_list_provider.dart';
 
@@ -25,7 +26,8 @@ class CategoryEditorScreen extends ConsumerStatefulWidget {
   ConsumerState<CategoryEditorScreen> createState() => _CategoryEditorScreenState();
 }
 
-class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen> {
+class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
+    with FormErrorHighlightMixin {
   final _nameController = TextEditingController();
   final _picker = ImagePicker();
 
@@ -139,11 +141,13 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen> {
     if (_saving) return;
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a category name')),
+      reportFieldError(
+        fieldId: 'name',
+        message: 'Please enter a category name.',
       );
       return;
     }
+    clearAllFieldErrors();
 
     setState(() => _saving = true);
     try {
@@ -273,30 +277,52 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: _nameController,
-                    onChanged: (_) => setState(() {}),
-                    style: GoogleFonts.inter(fontSize: 15),
-                    decoration: InputDecoration(
-                      hintText: 'Enter category name',
-                      filled: true,
-                      fillColor: AppTheme.surfaceContainerLow,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: AppTheme.primary.withValues(alpha: 0.2),
-                          width: 2,
+                  KeyedSubtree(
+                    key: keyFor('name'),
+                    child: Builder(builder: (context) {
+                      final invalid = isFieldInvalid('name');
+                      final errorColor = theme.colorScheme.error;
+                      return TextField(
+                        controller: _nameController,
+                        onChanged: (_) {
+                          clearFieldError('name');
+                          setState(() {});
+                        },
+                        style: GoogleFonts.inter(fontSize: 15),
+                        decoration: InputDecoration(
+                          hintText: 'Enter category name',
+                          filled: true,
+                          fillColor: invalid
+                              ? errorColor.withValues(alpha: 0.06)
+                              : AppTheme.surfaceContainerLow,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: invalid
+                                ? BorderSide(color: errorColor, width: 1.5)
+                                : BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: invalid
+                                ? BorderSide(color: errorColor, width: 1.5)
+                                : BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: invalid
+                                  ? errorColor
+                                  : AppTheme.primary.withValues(alpha: 0.2),
+                              width: 2,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
                         ),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                    ),
+                      );
+                    }),
                   ),
                   const SizedBox(height: 24),
                   Text(

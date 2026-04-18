@@ -14,6 +14,7 @@ import '../../../core/api/api_client.dart';
 import '../../../core/auth/token_storage.dart';
 import '../../../core/providers/store_identity_provider.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../../../core/widgets/form_error_highlight.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../../onboarding/providers/auth_provider.dart';
 import '../providers/dashboard_settings_provider.dart';
@@ -26,7 +27,8 @@ class StoreIdentityScreen extends ConsumerStatefulWidget {
   ConsumerState<StoreIdentityScreen> createState() => _StoreIdentityScreenState();
 }
 
-class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
+class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
+    with FormErrorHighlightMixin {
   final _storeName = TextEditingController();
   final _domain = TextEditingController();
   final _phoneLocal = TextEditingController();
@@ -155,6 +157,30 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
 
   Future<void> _save() async {
     if (_saving) return;
+    if (_storeName.text.trim().isEmpty) {
+      reportFieldError(
+        fieldId: 'storeName',
+        message: 'Store name is required.',
+      );
+      return;
+    }
+    if (_domain.text.trim().isEmpty) {
+      reportFieldError(
+        fieldId: 'domain',
+        message: 'Store domain is required.',
+      );
+      return;
+    }
+    final supportEmail = _supportEmail.text.trim();
+    if (supportEmail.isNotEmpty &&
+        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(supportEmail)) {
+      reportFieldError(
+        fieldId: 'supportEmail',
+        message: 'Enter a valid support email address.',
+      );
+      return;
+    }
+    clearAllFieldErrors();
     setState(() => _saving = true);
     try {
       if (_logoImageUrl != null && _logoImageUrl!.isNotEmpty) {
@@ -399,22 +425,32 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
     }
   }
 
-  InputDecoration _fieldDeco(ThemeData theme, {String? hint}) {
+  InputDecoration _fieldDeco(ThemeData theme, {String? hint, bool isInvalid = false}) {
+    final errorColor = theme.colorScheme.error;
+    final outlineColor = isInvalid
+        ? errorColor
+        : theme.colorScheme.outlineVariant.withValues(alpha: 0.45);
+    final width = isInvalid ? 1.5 : 1.0;
     return InputDecoration(
       hintText: hint,
       filled: true,
-      fillColor: theme.colorScheme.surfaceContainer,
+      fillColor: isInvalid
+          ? errorColor.withValues(alpha: 0.06)
+          : theme.colorScheme.surfaceContainer,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45)),
+        borderSide: BorderSide(color: outlineColor, width: width),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45)),
+        borderSide: BorderSide(color: outlineColor, width: width),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
+        borderSide: BorderSide(
+          color: isInvalid ? errorColor : theme.colorScheme.primary,
+          width: 1.5,
+        ),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
@@ -478,20 +514,34 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _label(theme, 'Store Name'),
-                TextField(
-                  controller: _storeName,
-                  decoration: _fieldDeco(theme),
+                KeyedSubtree(
+                  key: keyFor('storeName'),
+                  child: TextField(
+                    controller: _storeName,
+                    onChanged: (_) => clearFieldError('storeName'),
+                    decoration: _fieldDeco(
+                      theme,
+                      isInvalid: isFieldInvalid('storeName'),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 _label(theme, 'Store Domain'),
-                TextField(
-                  controller: _domain,
-                  decoration: _fieldDeco(theme).copyWith(
-                    suffixText: '.dukanest.com',
-                    suffixStyle: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: theme.colorScheme.onSurfaceVariant,
+                KeyedSubtree(
+                  key: keyFor('domain'),
+                  child: TextField(
+                    controller: _domain,
+                    onChanged: (_) => clearFieldError('domain'),
+                    decoration: _fieldDeco(
+                      theme,
+                      isInvalid: isFieldInvalid('domain'),
+                    ).copyWith(
+                      suffixText: '.dukanest.com',
+                      suffixStyle: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ),
@@ -664,11 +714,18 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _label(theme, 'Support Email'),
-                TextField(
-                  controller: _supportEmail,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: _fieldDeco(theme).copyWith(
-                    prefixIcon: Icon(Icons.mail_outline_rounded, color: theme.colorScheme.onSurfaceVariant, size: 22),
+                KeyedSubtree(
+                  key: keyFor('supportEmail'),
+                  child: TextField(
+                    controller: _supportEmail,
+                    keyboardType: TextInputType.emailAddress,
+                    onChanged: (_) => clearFieldError('supportEmail'),
+                    decoration: _fieldDeco(
+                      theme,
+                      isInvalid: isFieldInvalid('supportEmail'),
+                    ).copyWith(
+                      prefixIcon: Icon(Icons.mail_outline_rounded, color: theme.colorScheme.onSurfaceVariant, size: 22),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),

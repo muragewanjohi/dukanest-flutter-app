@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../../../core/widgets/form_error_highlight.dart';
 import '../providers/dashboard_settings_provider.dart';
 
 /// Tax Settings — Stitch: Tax Settings (Mobile) (cfb73a5c3d7646ef8c811e474c6c7b33).
@@ -16,7 +17,8 @@ class TaxSettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<TaxSettingsScreen> createState() => _TaxSettingsScreenState();
 }
 
-class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen> {
+class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
+    with FormErrorHighlightMixin {
   bool _taxEnabled = true;
   final _defaultRate = TextEditingController(text: '0.00');
   bool _taxInclusive = true;
@@ -71,6 +73,18 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen> {
 
   Future<void> _save() async {
     if (_saving) return;
+    if (_taxEnabled) {
+      final raw = _defaultRate.text.trim();
+      final parsed = num.tryParse(raw);
+      if (raw.isEmpty || parsed == null || parsed < 0 || parsed > 100) {
+        reportFieldError(
+          fieldId: 'defaultRate',
+          message: 'Enter a tax rate between 0 and 100.',
+        );
+        return;
+      }
+    }
+    clearAllFieldErrors();
     setState(() => _saving = true);
     try {
       final rate = num.tryParse(_defaultRate.text.trim());
@@ -107,11 +121,28 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen> {
     }
   }
 
-  InputDecoration _fieldDeco(ThemeData theme) {
+  InputDecoration _fieldDeco(ThemeData theme, {bool isInvalid = false}) {
+    final errorColor = theme.colorScheme.error;
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: isInvalid
+          ? BorderSide(color: errorColor, width: 1.5)
+          : BorderSide.none,
+    );
     return InputDecoration(
       filled: true,
-      fillColor: theme.colorScheme.surfaceContainerLow,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      fillColor: isInvalid
+          ? errorColor.withValues(alpha: 0.06)
+          : theme.colorScheme.surfaceContainerLow,
+      border: border,
+      enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: isInvalid ? errorColor : theme.colorScheme.primary,
+          width: 1.5,
+        ),
+      ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
@@ -258,17 +289,24 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      TextField(
-                        controller: _defaultRate,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: _fieldDeco(theme).copyWith(
-                          suffix: Padding(
-                            padding: const EdgeInsets.only(right: 16, top: 14),
-                            child: Text(
-                              '%',
-                              style: GoogleFonts.inter(
-                                fontWeight: FontWeight.w500,
-                                color: theme.colorScheme.onSurfaceVariant,
+                      KeyedSubtree(
+                        key: keyFor('defaultRate'),
+                        child: TextField(
+                          controller: _defaultRate,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          onChanged: (_) => clearFieldError('defaultRate'),
+                          decoration: _fieldDeco(
+                            theme,
+                            isInvalid: isFieldInvalid('defaultRate'),
+                          ).copyWith(
+                            suffix: Padding(
+                              padding: const EdgeInsets.only(right: 16, top: 14),
+                              child: Text(
+                                '%',
+                                style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w500,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
                               ),
                             ),
                           ),

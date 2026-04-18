@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../../../core/widgets/form_error_highlight.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../providers/dashboard_settings_provider.dart';
 
@@ -17,7 +18,8 @@ class ShippingDeliveryScreen extends ConsumerStatefulWidget {
   ConsumerState<ShippingDeliveryScreen> createState() => _ShippingDeliveryScreenState();
 }
 
-class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen> {
+class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
+    with FormErrorHighlightMixin {
   bool _localDelivery = true;
   bool _nationwide = true;
   bool _storePickup = false;
@@ -58,6 +60,33 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
 
   Future<void> _save() async {
     if (_saving) return;
+    final flatRaw = _flatRate.text.trim();
+    final flatParsed = num.tryParse(flatRaw);
+    if (flatRaw.isEmpty || flatParsed == null || flatParsed < 0) {
+      reportFieldError(
+        fieldId: 'flatRate',
+        message: 'Enter a flat shipping rate (0 or more).',
+      );
+      return;
+    }
+    final freeRaw = _freeOver.text.trim();
+    if (freeRaw.isNotEmpty && (num.tryParse(freeRaw) ?? -1) < 0) {
+      reportFieldError(
+        fieldId: 'freeOver',
+        message: 'Free-shipping threshold must be 0 or more.',
+      );
+      return;
+    }
+    final daysRaw = _handlingDays.text.trim();
+    final daysParsed = int.tryParse(daysRaw);
+    if (daysRaw.isEmpty || daysParsed == null || daysParsed < 0) {
+      reportFieldError(
+        fieldId: 'handlingDays',
+        message: 'Enter handling time in whole days (0 or more).',
+      );
+      return;
+    }
+    clearAllFieldErrors();
     setState(() => _saving = true);
     try {
       final flat = num.tryParse(_flatRate.text.trim()) ?? 0;
@@ -101,12 +130,34 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     }
   }
 
-  InputDecoration _fieldDeco(ThemeData theme, {String? hint, Widget? prefixIcon}) {
+  InputDecoration _fieldDeco(
+    ThemeData theme, {
+    String? hint,
+    Widget? prefixIcon,
+    bool isInvalid = false,
+  }) {
+    final errorColor = theme.colorScheme.error;
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: isInvalid
+          ? BorderSide(color: errorColor, width: 1.5)
+          : BorderSide.none,
+    );
     return InputDecoration(
       hintText: hint,
       filled: true,
-      fillColor: theme.colorScheme.surfaceContainerLow,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      fillColor: isInvalid
+          ? errorColor.withValues(alpha: 0.06)
+          : theme.colorScheme.surfaceContainerLow,
+      border: border,
+      enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: isInvalid ? errorColor : theme.colorScheme.primary,
+          width: 1.5,
+        ),
+      ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       prefixIcon: prefixIcon,
     );
@@ -237,17 +288,22 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                         ),
                       ),
                       const SizedBox(height: 8),
-                      TextField(
-                        controller: _flatRate,
-                        keyboardType: TextInputType.number,
-                        decoration: _fieldDeco(
-                          theme,
-                          hint: 'e.g. 250',
-                          prefixIcon: Padding(
-                            padding: const EdgeInsets.only(left: 12, right: 4),
-                            child: Center(
-                              widthFactor: 1,
-                              child: Text('KES', style: GoogleFonts.inter(color: theme.colorScheme.outline, fontSize: 14)),
+                      KeyedSubtree(
+                        key: keyFor('flatRate'),
+                        child: TextField(
+                          controller: _flatRate,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => clearFieldError('flatRate'),
+                          decoration: _fieldDeco(
+                            theme,
+                            hint: 'e.g. 250',
+                            isInvalid: isFieldInvalid('flatRate'),
+                            prefixIcon: Padding(
+                              padding: const EdgeInsets.only(left: 12, right: 4),
+                              child: Center(
+                                widthFactor: 1,
+                                child: Text('KES', style: GoogleFonts.inter(color: theme.colorScheme.outline, fontSize: 14)),
+                              ),
                             ),
                           ),
                         ),
@@ -262,10 +318,18 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                         ),
                       ),
                       const SizedBox(height: 8),
-                      TextField(
-                        controller: _freeOver,
-                        keyboardType: TextInputType.number,
-                        decoration: _fieldDeco(theme, hint: 'e.g. 5000 (0 to disable)'),
+                      KeyedSubtree(
+                        key: keyFor('freeOver'),
+                        child: TextField(
+                          controller: _freeOver,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => clearFieldError('freeOver'),
+                          decoration: _fieldDeco(
+                            theme,
+                            hint: 'e.g. 5000 (0 to disable)',
+                            isInvalid: isFieldInvalid('freeOver'),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -287,10 +351,18 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                         ),
                       ),
                       const SizedBox(height: 8),
-                      TextField(
-                        controller: _handlingDays,
-                        keyboardType: TextInputType.number,
-                        decoration: _fieldDeco(theme, hint: 'e.g. 1'),
+                      KeyedSubtree(
+                        key: keyFor('handlingDays'),
+                        child: TextField(
+                          controller: _handlingDays,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => clearFieldError('handlingDays'),
+                          decoration: _fieldDeco(
+                            theme,
+                            hint: 'e.g. 1',
+                            isInvalid: isFieldInvalid('handlingDays'),
+                          ),
+                        ),
                       ),
                     ],
                   ),

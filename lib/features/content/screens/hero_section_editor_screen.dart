@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../../../core/widgets/form_error_highlight.dart';
 
 /// Edit Hero Section — Stitch: Edit Hero Section (Mobile) (438af177a59b4d84b3285b46a0c5f086).
 class HeroSectionEditorScreen extends StatefulWidget {
@@ -17,7 +18,8 @@ class HeroSectionEditorScreen extends StatefulWidget {
   State<HeroSectionEditorScreen> createState() => _HeroSectionEditorScreenState();
 }
 
-class _HeroSectionEditorScreenState extends State<HeroSectionEditorScreen> {
+class _HeroSectionEditorScreenState extends State<HeroSectionEditorScreen>
+    with FormErrorHighlightMixin {
   final _title = TextEditingController(text: 'Step into Style...');
   final _subtitle = TextEditingController();
   final _description = TextEditingController();
@@ -42,19 +44,55 @@ class _HeroSectionEditorScreenState extends State<HeroSectionEditorScreen> {
   }
 
   void _save() {
+    if (_title.text.trim().isEmpty) {
+      reportFieldError(
+        fieldId: 'title',
+        message: 'Hero title is required.',
+      );
+      return;
+    }
+    if (_ctaText.text.trim().isEmpty) {
+      reportFieldError(
+        fieldId: 'ctaText',
+        message: 'Call-to-action button text is required.',
+      );
+      return;
+    }
+    if (_ctaLink.text.trim().isEmpty) {
+      reportFieldError(
+        fieldId: 'ctaLink',
+        message: 'Call-to-action button link is required.',
+      );
+      return;
+    }
+    clearAllFieldErrors();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Hero section saved (demo)')),
     );
     context.pop();
   }
 
-  InputDecoration _inputDeco(ThemeData theme) {
+  InputDecoration _inputDeco(ThemeData theme, {bool isInvalid = false}) {
+    final errorColor = theme.colorScheme.error;
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: isInvalid
+          ? BorderSide(color: errorColor, width: 1.5)
+          : BorderSide.none,
+    );
     return InputDecoration(
       filled: true,
-      fillColor: theme.colorScheme.surfaceContainerLowest,
-      border: OutlineInputBorder(
+      fillColor: isInvalid
+          ? errorColor.withValues(alpha: 0.06)
+          : theme.colorScheme.surfaceContainerLowest,
+      border: border,
+      enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(
+          color: isInvalid ? errorColor : theme.colorScheme.primary,
+          width: 1.5,
+        ),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     );
@@ -172,10 +210,17 @@ class _HeroSectionEditorScreenState extends State<HeroSectionEditorScreen> {
               children: [
                 _fieldLabel('Title'),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: _title,
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14),
-                  decoration: _inputDeco(theme).copyWith(hintText: 'Hero Title'),
+                KeyedSubtree(
+                  key: keyFor('title'),
+                  child: TextField(
+                    controller: _title,
+                    onChanged: (_) => clearFieldError('title'),
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14),
+                    decoration: _inputDeco(
+                      theme,
+                      isInvalid: isFieldInvalid('title'),
+                    ).copyWith(hintText: 'Hero Title'),
+                  ),
                 ),
                 const SizedBox(height: 18),
                 _fieldLabel('Subtitle'),
@@ -403,20 +448,34 @@ class _HeroSectionEditorScreenState extends State<HeroSectionEditorScreen> {
               children: [
                 _fieldLabel('Button Text'),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: _ctaText,
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14),
-                  decoration: _inputDeco(theme).copyWith(hintText: 'CTA Label'),
+                KeyedSubtree(
+                  key: keyFor('ctaText'),
+                  child: TextField(
+                    controller: _ctaText,
+                    onChanged: (_) => clearFieldError('ctaText'),
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14),
+                    decoration: _inputDeco(
+                      theme,
+                      isInvalid: isFieldInvalid('ctaText'),
+                    ).copyWith(hintText: 'CTA Label'),
+                  ),
                 ),
                 const SizedBox(height: 18),
                 _fieldLabel('Button Link'),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: _ctaLink,
-                  style: GoogleFonts.inter(fontSize: 14),
-                  decoration: _inputDeco(theme).copyWith(
-                    hintText: 'e.g. /shop',
-                    prefixIcon: Icon(Icons.link, color: theme.colorScheme.outline, size: 22),
+                KeyedSubtree(
+                  key: keyFor('ctaLink'),
+                  child: TextField(
+                    controller: _ctaLink,
+                    onChanged: (_) => clearFieldError('ctaLink'),
+                    style: GoogleFonts.inter(fontSize: 14),
+                    decoration: _inputDeco(
+                      theme,
+                      isInvalid: isFieldInvalid('ctaLink'),
+                    ).copyWith(
+                      hintText: 'e.g. /shop',
+                      prefixIcon: Icon(Icons.link, color: theme.colorScheme.outline, size: 22),
+                    ),
                   ),
                 ),
               ],

@@ -103,6 +103,44 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   DateTime? _lastSyncedAt;
   bool _hasSeenRefreshHint = false;
 
+  /// Tracks the single field currently flagged as invalid so we can highlight
+  /// it in red and scroll it into view. Cleared when the user edits the field
+  /// or another save attempt succeeds.
+  String? _errorFieldId;
+  final Map<String, GlobalKey> _fieldKeys = <String, GlobalKey>{};
+
+  GlobalKey _keyFor(String fieldId) =>
+      _fieldKeys.putIfAbsent(fieldId, () => GlobalKey(debugLabel: 'field:$fieldId'));
+
+  bool _isInvalid(String fieldId) => _errorFieldId == fieldId;
+
+  void _clearErrorFor(String fieldId) {
+    if (_errorFieldId == fieldId && mounted) {
+      setState(() => _errorFieldId = null);
+    }
+  }
+
+  void _scrollToFieldKey(String fieldId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      BuildContext? ctx = _fieldKeys[fieldId]?.currentContext;
+      if (ctx == null) {
+        // Variant sub-fields (e.g. `variant_0_stock`, `variant_0_price`) live
+        // inside the variant tile — fall back to scrolling to that tile.
+        final m = RegExp(r'^(variant_\d+)_').firstMatch(fieldId);
+        if (m != null) {
+          ctx = _fieldKeys[m.group(1)!]?.currentContext;
+        }
+      }
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+        alignment: 0.2,
+      );
+    });
+  }
+
   static String _valueLabel(ProductAttribute a, String raw) {
     return AttributeValueFormat.shortLabel(raw, a.displayType);
   }
@@ -1005,39 +1043,80 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     return double.tryParse(digits) ?? 0;
   }
 
-  String? _validateBeforeSave() {
+  ({String fieldId, String message})? _validateBeforeSave() {
     final name = _name.text.trim();
-    if (name.isEmpty) return 'Product name is required.';
+    if (name.isEmpty) {
+      return (fieldId: 'name', message: 'Product name is required.');
+    }
 
     final stockRaw = _stock.text.trim();
     if (stockRaw.isNotEmpty && int.tryParse(stockRaw) == null) {
-      return 'Stock must be a whole number.';
+      return (fieldId: 'stock', message: 'Stock must be a whole number.');
     }
 
     final regular = _toDouble(_regularPrice.text);
     final sale = _toDouble(_salePrice.text);
     final primaryPrice = regular > 0 ? regular : sale;
     if (primaryPrice <= 0) {
-      return 'Enter a regular price or sale price greater than 0.';
+      return (
+        fieldId: 'regularPrice',
+        message: 'Enter a regular price or sale price greater than 0.',
+      );
     }
     if (regular > 0 && sale > regular) {
-      return 'Sale price cannot be greater than regular price.';
+      return (
+        fieldId: 'salePrice',
+        message: 'Sale price cannot be greater than regular price.',
+      );
     }
 
     for (var i = 0; i < _variantLines.length; i++) {
       final line = _variantLines[i];
+      final variantLabel = line.optionSummary.trim().isEmpty
+          ? 'variant ${i + 1}'
+          : '"${line.optionSummary}"';
       if (line.options.isEmpty) {
-        return 'Variant ${i + 1} is missing selected attributes.';
+        return (
+          fieldId: 'variant_${i}_price',
+          message: 'Variant ${i + 1} is missing selected attributes.',
+        );
+      }
+      final variantStockRaw = line.stock.text.trim();
+      if (variantStockRaw.isEmpty) {
+        return (
+          fieldId: 'variant_${i}_stock',
+          message: 'Stock for $variantLabel is required.',
+        );
+      }
+      final variantStock = int.tryParse(variantStockRaw);
+      if (variantStock == null) {
+        return (
+          fieldId: 'variant_${i}_stock',
+          message: 'Stock for $variantLabel must be a whole number.',
+        );
+      }
+      if (variantStock < 0) {
+        return (
+          fieldId: 'variant_${i}_stock',
+          message: 'Stock for $variantLabel cannot be negative.',
+        );
       }
       final variantRegular = _toDouble(line.regularPrice.text);
       final variantSale = _toDouble(line.salePrice.text);
       final variantPrimaryPrice =
           variantRegular > 0 ? variantRegular : variantSale;
       if (variantPrimaryPrice <= 0) {
-        return 'Add a price for variant ${i + 1}.';
+        return (
+          fieldId: 'variant_${i}_price',
+          message: 'Add a price for $variantLabel. Tap the pencil icon to edit.',
+        );
       }
       if (variantRegular > 0 && variantSale > variantRegular) {
-        return 'Variant ${i + 1} sale price cannot be greater than regular price.';
+        return (
+          fieldId: 'variant_${i}_price',
+          message:
+              'Sale price for $variantLabel cannot be greater than regular price.',
+        );
       }
     }
 
@@ -1195,15 +1274,69 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     if (e is DioException) {
       final data = e.response?.data;
       if (data is Map) {
+        final fromDetails = _formatApiErrorDetails(data);
+        if (fromDetails != null) return fromDetails;
         final msg = data['message'];
         if (msg is String && msg.isNotEmpty) return msg;
         final err = data['error'];
-        if (err is Map && err['message'] is String) return err['message'] as String;
+        if (err is Map && err['message'] is String) {
+          return err['message'] as String;
+        }
         if (err is String && err.isNotEmpty) return err;
       }
       if (e.message != null && e.message!.isNotEmpty) return e.message!;
     }
     return e.toString();
+  }
+
+  /// Pulls a friendly multi-line description out of a structured backend
+  /// error response of the shape:
+  ///
+  /// ```json
+  /// {
+  ///   "success": false,
+  ///   "error": {
+  ///     "code": "VALIDATION_ERROR",
+  ///     "message": "Validation error",
+  ///     "details": [
+  ///       {"field": "attributes", "message": "Invalid input: expected array, received object"}
+  ///     ]
+  ///   }
+  /// }
+  /// ```
+  ///
+  /// Returns `null` when no details could be parsed.
+  String? _formatApiErrorDetails(Map data) {
+    final err = data['error'];
+    if (err is! Map) return null;
+    final details = err['details'];
+    if (details is! List || details.isEmpty) return null;
+
+    final headline = (err['message'] is String && (err['message'] as String).isNotEmpty)
+        ? err['message'] as String
+        : 'Validation error';
+
+    final lines = <String>[];
+    for (final entry in details) {
+      if (entry is! Map) continue;
+      final field = (entry['field'] ?? entry['path'] ?? '').toString().trim();
+      final message = (entry['message'] ?? entry['error'] ?? '').toString().trim();
+      if (field.isEmpty && message.isEmpty) continue;
+      if (field.isEmpty) {
+        lines.add('• $message');
+      } else if (message.isEmpty) {
+        lines.add('• $field');
+      } else {
+        lines.add('• $field — $message');
+      }
+    }
+    if (lines.isEmpty) return null;
+    if (lines.length == 1) {
+      // Inline form when there's only one issue, e.g.
+      // "Validation error: attributes — Invalid input: expected array, received object"
+      return '$headline: ${lines.first.replaceFirst('• ', '')}';
+    }
+    return '$headline:\n${lines.join('\n')}';
   }
 
   Future<ImageSource?> _showPhotoSourcePicker() async {
@@ -1306,13 +1439,23 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
 
   Future<void> _saveProduct() async {
     if (_isSaving) return;
-    final validationError = _validateBeforeSave();
-    if (validationError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(validationError)),
-      );
+    final validation = _validateBeforeSave();
+    if (validation != null) {
+      setState(() => _errorFieldId = validation.fieldId);
+      _scrollToFieldKey(validation.fieldId);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(validation.message),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
       return;
     }
+    setState(() => _errorFieldId = null);
     final name = _name.text.trim();
 
     var sku = _sku.text.trim();
@@ -1386,17 +1529,27 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       context.pop();
     } on DioException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_formatSaveError(e))),
-      );
+      _showSaveErrorSnack(_formatSaveError(e));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_formatSaveError(e))),
-      );
+      _showSaveErrorSnack(_formatSaveError(e));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  void _showSaveErrorSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 6),
+        ),
+      );
   }
 
   Future<void> _pickPhoto(ImageSource source) async {
@@ -1674,12 +1827,20 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _LabeledField(
-                        label: 'Product Name',
-                        child: TextField(
-                          controller: _name,
-                          style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-                          decoration: _fieldDeco(theme, hint: 'Enter product name'),
+                      KeyedSubtree(
+                        key: _keyFor('name'),
+                        child: _LabeledField(
+                          label: 'Product Name',
+                          child: TextField(
+                            controller: _name,
+                            onChanged: (_) => _clearErrorFor('name'),
+                            style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                            decoration: _fieldDeco(
+                              theme,
+                              hint: 'Enter product name',
+                              isInvalid: _isInvalid('name'),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -1797,16 +1958,21 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: _LabeledField(
-                              label: 'Stock',
-                              child: TextField(
-                                controller: _stock,
-                                keyboardType: TextInputType.number,
-                                enabled: !hasVariants,
-                                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                                decoration: _inventoryFieldDeco(
-                                  theme,
-                                  hint: hasVariants ? 'Managed by variants' : '0',
+                            child: KeyedSubtree(
+                              key: _keyFor('stock'),
+                              child: _LabeledField(
+                                label: 'Stock',
+                                child: TextField(
+                                  controller: _stock,
+                                  keyboardType: TextInputType.number,
+                                  enabled: !hasVariants,
+                                  onChanged: (_) => _clearErrorFor('stock'),
+                                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                                  decoration: _inventoryFieldDeco(
+                                    theme,
+                                    hint: hasVariants ? 'Managed by variants' : '0',
+                                    isInvalid: _isInvalid('stock'),
+                                  ),
                                 ),
                               ),
                             ),
@@ -1832,17 +1998,29 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                   children: [
                     Expanded(
                       child: _PriceField(
+                        key: _keyFor('regularPrice'),
                         label: 'REGULAR PRICE',
                         controller: _regularPrice,
                         accent: theme.colorScheme.onSurfaceVariant,
+                        isInvalid: _isInvalid('regularPrice'),
+                        onChanged: (_) {
+                          _clearErrorFor('regularPrice');
+                          _clearErrorFor('salePrice');
+                        },
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: _PriceField(
+                        key: _keyFor('salePrice'),
                         label: 'SALE PRICE',
                         controller: _salePrice,
                         accent: AppTheme.primary,
+                        isInvalid: _isInvalid('salePrice'),
+                        onChanged: (_) {
+                          _clearErrorFor('regularPrice');
+                          _clearErrorFor('salePrice');
+                        },
                       ),
                     ),
                   ],
@@ -1942,17 +2120,38 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                 ..._variantLines.asMap().entries.map((e) {
                                   final i = e.key;
                                   final line = e.value;
+                                  final stockId = 'variant_${i}_stock';
+                                  final priceId = 'variant_${i}_price';
+                                  final invalidStock = _isInvalid(stockId);
+                                  final invalidPrice = _isInvalid(priceId);
+                                  String? rowError;
+                                  if (invalidStock) {
+                                    rowError = 'Stock is required for this variant.';
+                                  } else if (invalidPrice) {
+                                    rowError =
+                                        'Price is required. Tap the pencil icon to edit.';
+                                  }
                                   return Padding(
+                                    key: _keyFor('variant_$i'),
                                     padding: const EdgeInsets.only(bottom: 10),
                                     child: _VariantRowTile(
                                       line: line,
-                                      onEdit: () => _openEditVariantSheet(line),
+                                      onEdit: () {
+                                        _clearErrorFor(priceId);
+                                        _openEditVariantSheet(line);
+                                      },
                                       onRemove: () {
+                                        _clearErrorFor(stockId);
+                                        _clearErrorFor(priceId);
                                         setState(() {
                                           line.dispose();
                                           _variantLines.removeAt(i);
                                         });
                                       },
+                                      invalidStock: invalidStock,
+                                      invalidPrice: invalidPrice,
+                                      errorMessage: rowError,
+                                      onStockChanged: (_) => _clearErrorFor(stockId),
                                     ),
                                   );
                                 }),
@@ -2083,25 +2282,43 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     );
   }
 
-  InputDecoration _fieldDeco(ThemeData theme, {String? hint}) {
+  InputDecoration _fieldDeco(ThemeData theme, {String? hint, bool isInvalid = false}) {
+    final errorColor = theme.colorScheme.error;
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: isInvalid
+          ? BorderSide(color: errorColor, width: 1.5)
+          : BorderSide.none,
+    );
     return InputDecoration(
       hintText: hint,
       filled: true,
-      fillColor: theme.colorScheme.surfaceContainerLow,
-      border: OutlineInputBorder(
+      fillColor: isInvalid
+          ? errorColor.withValues(alpha: 0.06)
+          : theme.colorScheme.surfaceContainerLow,
+      border: border,
+      enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(
+          color: isInvalid ? errorColor : theme.colorScheme.primary,
+          width: 1.5,
+        ),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     );
   }
 
   /// Stronger contrast vs `_CardShell` so SKU/stock read as inputs, not bare background.
-  InputDecoration _inventoryFieldDeco(ThemeData theme, {String? hint}) {
+  InputDecoration _inventoryFieldDeco(ThemeData theme, {String? hint, bool isInvalid = false}) {
+    final errorColor = theme.colorScheme.error;
     final idle = OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
       borderSide: BorderSide(
-        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+        color: isInvalid
+            ? errorColor
+            : theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+        width: isInvalid ? 1.5 : 1,
       ),
     );
     return InputDecoration(
@@ -2110,12 +2327,17 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
       ),
       filled: true,
-      fillColor: theme.colorScheme.surfaceContainerHighest,
+      fillColor: isInvalid
+          ? errorColor.withValues(alpha: 0.06)
+          : theme.colorScheme.surfaceContainerHighest,
       border: idle,
       enabledBorder: idle,
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
+        borderSide: BorderSide(
+          color: isInvalid ? errorColor : theme.colorScheme.primary,
+          width: 1.5,
+        ),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     );
@@ -2199,25 +2421,31 @@ class _LabeledField extends StatelessWidget {
 
 class _PriceField extends StatelessWidget {
   const _PriceField({
+    super.key,
     required this.label,
     required this.controller,
     required this.accent,
+    this.isInvalid = false,
+    this.onChanged,
   });
 
   final String label;
   final TextEditingController controller;
   final Color accent;
+  final bool isInvalid;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final errorColor = theme.colorScheme.error;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
           style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+            color: isInvalid ? errorColor : theme.colorScheme.onSurfaceVariant,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.8,
           ),
@@ -2225,8 +2453,13 @@ class _PriceField extends StatelessWidget {
         const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerLowest,
+            color: isInvalid
+                ? errorColor.withValues(alpha: 0.06)
+                : theme.colorScheme.surfaceContainerLowest,
             borderRadius: BorderRadius.circular(10),
+            border: isInvalid
+                ? Border.all(color: errorColor, width: 1.5)
+                : null,
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
@@ -2238,6 +2471,7 @@ class _PriceField extends StatelessWidget {
           child: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
+            onChanged: onChanged,
             style: theme.textTheme.titleSmall?.copyWith(
               color: accent,
               fontWeight: FontWeight.w800,
@@ -2389,22 +2623,36 @@ class _VariantRowTile extends StatelessWidget {
     required this.line,
     required this.onEdit,
     required this.onRemove,
+    this.invalidStock = false,
+    this.invalidPrice = false,
+    this.errorMessage,
+    this.onStockChanged,
   });
 
   final _VariantLine line;
   final VoidCallback onEdit;
   final VoidCallback onRemove;
+  final bool invalidStock;
+  final bool invalidPrice;
+  final String? errorMessage;
+  final ValueChanged<String>? onStockChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasError = invalidStock || invalidPrice;
+    final errorColor = theme.colorScheme.error;
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
+        color: hasError
+            ? errorColor.withValues(alpha: 0.04)
+            : theme.colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(12),
-        border: const Border(
-          left: BorderSide(color: AppTheme.primary, width: 4),
-        ),
+        border: hasError
+            ? Border.all(color: errorColor, width: 1.5)
+            : const Border(
+                left: BorderSide(color: AppTheme.primary, width: 4),
+              ),
       ),
       padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
       child: Column(
@@ -2418,7 +2666,7 @@ class _VariantRowTile extends StatelessWidget {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.primaryDark,
+                    color: hasError ? errorColor : AppTheme.primaryDark,
                   ),
                 ),
               ),
@@ -2434,6 +2682,25 @@ class _VariantRowTile extends StatelessWidget {
               ),
             ],
           ),
+          if (hasError && (errorMessage?.isNotEmpty ?? false)) ...[
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.error_outline, size: 16, color: errorColor),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    errorMessage!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: errorColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
@@ -2483,7 +2750,9 @@ class _VariantRowTile extends StatelessWidget {
                     Text(
                       'Stock',
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: invalidStock
+                            ? errorColor
+                            : theme.colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.5,
                       ),
@@ -2492,8 +2761,9 @@ class _VariantRowTile extends StatelessWidget {
                     TextField(
                       controller: line.stock,
                       keyboardType: TextInputType.number,
+                      onChanged: onStockChanged,
                       style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                      decoration: _variantFieldDeco(theme),
+                      decoration: _variantFieldDeco(theme, isInvalid: invalidStock),
                     ),
                   ],
                 ),
@@ -2505,21 +2775,30 @@ class _VariantRowTile extends StatelessWidget {
     );
   }
 
-  static InputDecoration _variantFieldDeco(ThemeData theme) {
+  static InputDecoration _variantFieldDeco(ThemeData theme, {bool isInvalid = false}) {
+    final errorColor = theme.colorScheme.error;
     final idle = OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
       borderSide: BorderSide(
-        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+        color: isInvalid
+            ? errorColor
+            : theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+        width: isInvalid ? 1.5 : 1,
       ),
     );
     return InputDecoration(
       filled: true,
-      fillColor: theme.colorScheme.surfaceContainerHighest,
+      fillColor: isInvalid
+          ? errorColor.withValues(alpha: 0.06)
+          : theme.colorScheme.surfaceContainerHighest,
       border: idle,
       enabledBorder: idle,
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
+        borderSide: BorderSide(
+          color: isInvalid ? errorColor : theme.colorScheme.primary,
+          width: 1.5,
+        ),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     );

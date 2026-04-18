@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../../../core/widgets/form_error_highlight.dart';
 import '../providers/delivery_zones_provider.dart';
 
 /// Arguments when opening the editor from the manage-zones list (optional).
@@ -41,7 +42,8 @@ class DeliveryZoneEditorScreen extends ConsumerStatefulWidget {
   ConsumerState<DeliveryZoneEditorScreen> createState() => _DeliveryZoneEditorScreenState();
 }
 
-class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScreen> {
+class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScreen>
+    with FormErrorHighlightMixin {
   late final TextEditingController _name;
   late final TextEditingController _fee;
   late final TextEditingController _freeOver;
@@ -92,11 +94,39 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
   Future<void> _save() async {
     final name = _name.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a zone name')),
+      reportFieldError(
+        fieldId: 'name',
+        message: 'Enter a zone name.',
       );
       return;
     }
+    final feeRaw = _fee.text.trim();
+    final fee = num.tryParse(feeRaw);
+    if (feeRaw.isEmpty || fee == null || fee < 0) {
+      reportFieldError(
+        fieldId: 'fee',
+        message: 'Enter a valid delivery fee (0 or more).',
+      );
+      return;
+    }
+    final freeRaw = _freeOver.text.trim();
+    if (freeRaw.isNotEmpty && (num.tryParse(freeRaw) ?? -1) < 0) {
+      reportFieldError(
+        fieldId: 'freeOver',
+        message: 'Free-shipping threshold must be 0 or more.',
+      );
+      return;
+    }
+    final daysRaw = _handlingDays.text.trim();
+    final days = int.tryParse(daysRaw);
+    if (daysRaw.isEmpty || days == null || days < 0) {
+      reportFieldError(
+        fieldId: 'handlingDays',
+        message: 'Enter handling time in whole days (0 or more).',
+      );
+      return;
+    }
+    clearAllFieldErrors();
     if (_saving) return;
     setState(() => _saving = true);
     final api = ref.read(apiClientProvider);
@@ -159,12 +189,34 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
     );
   }
 
-  InputDecoration _fieldDeco(ThemeData theme, {String? hint, Widget? prefixIcon}) {
+  InputDecoration _fieldDeco(
+    ThemeData theme, {
+    String? hint,
+    Widget? prefixIcon,
+    bool isInvalid = false,
+  }) {
+    final errorColor = theme.colorScheme.error;
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: isInvalid
+          ? BorderSide(color: errorColor, width: 1.5)
+          : BorderSide.none,
+    );
     return InputDecoration(
       hintText: hint,
       filled: true,
-      fillColor: theme.colorScheme.surfaceContainerLow,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      fillColor: isInvalid
+          ? errorColor.withValues(alpha: 0.06)
+          : theme.colorScheme.surfaceContainerLow,
+      border: border,
+      enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: isInvalid ? errorColor : theme.colorScheme.primary,
+          width: 1.5,
+        ),
+      ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       prefixIcon: prefixIcon,
     );
@@ -290,10 +342,18 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                         ),
                       ),
                       const SizedBox(height: 8),
-                      TextField(
-                        controller: _name,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: _fieldDeco(theme, hint: 'e.g. Nairobi Metro'),
+                      KeyedSubtree(
+                        key: keyFor('name'),
+                        child: TextField(
+                          controller: _name,
+                          textCapitalization: TextCapitalization.words,
+                          onChanged: (_) => clearFieldError('name'),
+                          decoration: _fieldDeco(
+                            theme,
+                            hint: 'e.g. Nairobi Metro',
+                            isInvalid: isFieldInvalid('name'),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -372,17 +432,22 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                         ),
                       ),
                       const SizedBox(height: 8),
-                      TextField(
-                        controller: _fee,
-                        keyboardType: TextInputType.number,
-                        decoration: _fieldDeco(
-                          theme,
-                          hint: 'e.g. 200',
-                          prefixIcon: Padding(
-                            padding: const EdgeInsets.only(left: 12, right: 4),
-                            child: Center(
-                              widthFactor: 1,
-                              child: Text('KES', style: GoogleFonts.inter(color: theme.colorScheme.outline, fontSize: 14)),
+                      KeyedSubtree(
+                        key: keyFor('fee'),
+                        child: TextField(
+                          controller: _fee,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => clearFieldError('fee'),
+                          decoration: _fieldDeco(
+                            theme,
+                            hint: 'e.g. 200',
+                            isInvalid: isFieldInvalid('fee'),
+                            prefixIcon: Padding(
+                              padding: const EdgeInsets.only(left: 12, right: 4),
+                              child: Center(
+                                widthFactor: 1,
+                                child: Text('KES', style: GoogleFonts.inter(color: theme.colorScheme.outline, fontSize: 14)),
+                              ),
                             ),
                           ),
                         ),
@@ -397,10 +462,18 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                         ),
                       ),
                       const SizedBox(height: 8),
-                      TextField(
-                        controller: _freeOver,
-                        keyboardType: TextInputType.number,
-                        decoration: _fieldDeco(theme, hint: '0 = not offered in this zone'),
+                      KeyedSubtree(
+                        key: keyFor('freeOver'),
+                        child: TextField(
+                          controller: _freeOver,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => clearFieldError('freeOver'),
+                          decoration: _fieldDeco(
+                            theme,
+                            hint: '0 = not offered in this zone',
+                            isInvalid: isFieldInvalid('freeOver'),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -422,10 +495,18 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                         ),
                       ),
                       const SizedBox(height: 8),
-                      TextField(
-                        controller: _handlingDays,
-                        keyboardType: TextInputType.number,
-                        decoration: _fieldDeco(theme, hint: 'e.g. 1'),
+                      KeyedSubtree(
+                        key: keyFor('handlingDays'),
+                        child: TextField(
+                          controller: _handlingDays,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => clearFieldError('handlingDays'),
+                          decoration: _fieldDeco(
+                            theme,
+                            hint: 'e.g. 1',
+                            isInvalid: isFieldInvalid('handlingDays'),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 20),
                       _switchRow(

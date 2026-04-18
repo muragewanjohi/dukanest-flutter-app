@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../../../core/widgets/form_error_highlight.dart';
 
 /// Edit / create blog post — Stitch: Edit Blog Post (Refined) (518f2f427af54eb38a97196c5dd1a986).
 /// Full-screen route: no duplicate bottom nav (Stitch mock nav omitted in app).
@@ -18,7 +19,8 @@ class BlogPostEditorScreen extends StatefulWidget {
   State<BlogPostEditorScreen> createState() => _BlogPostEditorScreenState();
 }
 
-class _BlogPostEditorScreenState extends State<BlogPostEditorScreen> {
+class _BlogPostEditorScreenState extends State<BlogPostEditorScreen>
+    with FormErrorHighlightMixin {
   static const _featuredImageUrl =
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCIrd3l2JengENcu3661cT8M8paT4CLmmCZQyFx6nOD9vOzT2r00FEXBuyqTgI5J2Ncn1xEr2spbOAFRIMnQ-qXbWCU_55LQXmEhwwaXDbanaU6rbljzRd1rMXv2lKJoQevKPFyEtuH2MG_qFqGsx1bX3dR3S978mArlTc0LGPcr6SJUzhENEnpqpR6i5dwR5DE-v3F9BifYth4gkGPZdXghRmOTlZYALj_v910AhZBhMYXu_aZZyt8bX4dcYkDU9Y7wAiyiGajJQmz';
 
@@ -91,6 +93,21 @@ class _BlogPostEditorScreenState extends State<BlogPostEditorScreen> {
   }
 
   void _save() {
+    if (_title.text.trim().isEmpty) {
+      reportFieldError(
+        fieldId: 'title',
+        message: 'Post title is required.',
+      );
+      return;
+    }
+    if (_body.text.trim().isEmpty) {
+      reportFieldError(
+        fieldId: 'body',
+        message: 'Add some content for the post.',
+      );
+      return;
+    }
+    clearAllFieldErrors();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Post saved (demo)')),
     );
@@ -118,14 +135,33 @@ class _BlogPostEditorScreenState extends State<BlogPostEditorScreen> {
     );
   }
 
-  InputDecoration _filledDeco(ThemeData theme, {String? hint, EdgeInsetsGeometry? contentPadding}) {
+  InputDecoration _filledDeco(
+    ThemeData theme, {
+    String? hint,
+    EdgeInsetsGeometry? contentPadding,
+    bool isInvalid = false,
+  }) {
+    final errorColor = theme.colorScheme.error;
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: isInvalid
+          ? BorderSide(color: errorColor, width: 1.5)
+          : BorderSide.none,
+    );
     return InputDecoration(
       hintText: hint,
       filled: true,
-      fillColor: theme.colorScheme.surfaceContainerLow,
-      border: OutlineInputBorder(
+      fillColor: isInvalid
+          ? errorColor.withValues(alpha: 0.06)
+          : theme.colorScheme.surfaceContainerLow,
+      border: border,
+      enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(
+          color: isInvalid ? errorColor : theme.colorScheme.primary,
+          width: 1.5,
+        ),
       ),
       contentPadding: contentPadding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       hintStyle: TextStyle(color: theme.colorScheme.outline.withValues(alpha: 0.45)),
@@ -168,16 +204,30 @@ class _BlogPostEditorScreenState extends State<BlogPostEditorScreen> {
           _FeaturedImageCard(imageUrl: _imageUrl, onChangeImage: _changeImage),
           const SizedBox(height: 24),
           _sectionLabel('Post Title'),
-          TextField(
-            controller: _title,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurface,
-            ),
-            decoration: _filledDeco(theme, hint: 'Enter post title...').copyWith(
-              fillColor: theme.colorScheme.surfaceContainerHighest,
-            ),
+          KeyedSubtree(
+            key: keyFor('title'),
+            child: Builder(builder: (context) {
+              final invalid = isFieldInvalid('title');
+              final errorColor = theme.colorScheme.error;
+              return TextField(
+                controller: _title,
+                onChanged: (_) => clearFieldError('title'),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+                decoration: _filledDeco(
+                  theme,
+                  hint: 'Enter post title...',
+                  isInvalid: invalid,
+                ).copyWith(
+                  fillColor: invalid
+                      ? errorColor.withValues(alpha: 0.06)
+                      : theme.colorScheme.surfaceContainerHighest,
+                ),
+              );
+            }),
           ),
           const SizedBox(height: 22),
           _sectionLabel('Category'),
@@ -212,10 +262,18 @@ class _BlogPostEditorScreenState extends State<BlogPostEditorScreen> {
           const SizedBox(height: 22),
           _sectionLabel('Post Content'),
           Container(
+            key: keyFor('body'),
             decoration: BoxDecoration(
-              color: AppTheme.surfaceContainerLow,
+              color: isFieldInvalid('body')
+                  ? theme.colorScheme.error.withValues(alpha: 0.04)
+                  : AppTheme.surfaceContainerLow,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35)),
+              border: Border.all(
+                color: isFieldInvalid('body')
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+                width: isFieldInvalid('body') ? 1.5 : 1,
+              ),
             ),
             clipBehavior: Clip.antiAlias,
             child: Column(
@@ -272,6 +330,7 @@ class _BlogPostEditorScreenState extends State<BlogPostEditorScreen> {
                   minLines: 10,
                   maxLines: null,
                   keyboardType: TextInputType.multiline,
+                  onChanged: (_) => clearFieldError('body'),
                   style: GoogleFonts.inter(
                     fontSize: 16,
                     height: 1.45,

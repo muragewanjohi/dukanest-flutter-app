@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../../../core/widgets/form_error_highlight.dart';
 import 'sales_list_screen.dart';
 
 class SalesEditorScreen extends ConsumerStatefulWidget {
@@ -40,7 +41,8 @@ class _SaleProduct {
   final String imageUrl;
 }
 
-class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen> {
+class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
+    with FormErrorHighlightMixin {
   final _saleName = TextEditingController();
   final _note = TextEditingController();
   final _startCtrl = TextEditingController();
@@ -245,9 +247,31 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen> {
 
   Future<void> _save() async {
     if (_saleName.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sale name is required')));
+      reportFieldError(
+        fieldId: 'name',
+        message: 'Sale name is required.',
+      );
       return;
     }
+    if (_end.isBefore(_start)) {
+      reportFieldError(
+        fieldId: 'end',
+        message: 'End date cannot be before start date.',
+      );
+      return;
+    }
+    for (var i = 0; i < _products.length; i++) {
+      final raw = _products[i].salePriceCtrl.text.trim();
+      final price = double.tryParse(raw);
+      if (raw.isEmpty || price == null || price <= 0) {
+        reportFieldError(
+          fieldId: 'product_$i',
+          message: 'Sale price for "${_products[i].name}" must be greater than 0.',
+        );
+        return;
+      }
+    }
+    clearAllFieldErrors();
     setState(() => _saving = true);
     try {
       final api = ref.read(apiClientProvider);
@@ -323,11 +347,53 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
-          TextField(controller: _saleName, decoration: const InputDecoration(labelText: 'Sale name')),
+          KeyedSubtree(
+            key: keyFor('name'),
+            child: TextField(
+              controller: _saleName,
+              onChanged: (_) => clearFieldError('name'),
+              decoration: _saleFieldDeco(
+                theme,
+                'Sale name',
+                isInvalid: isFieldInvalid('name'),
+              ),
+            ),
+          ),
           const SizedBox(height: 10),
-          TextField(controller: _startCtrl, readOnly: true, onTap: () => _pickDate(true), decoration: const InputDecoration(labelText: 'Start date')),
+          KeyedSubtree(
+            key: keyFor('start'),
+            child: TextField(
+              controller: _startCtrl,
+              readOnly: true,
+              onTap: () {
+                clearFieldError('start');
+                clearFieldError('end');
+                _pickDate(true);
+              },
+              decoration: _saleFieldDeco(
+                theme,
+                'Start date',
+                isInvalid: isFieldInvalid('start'),
+              ),
+            ),
+          ),
           const SizedBox(height: 10),
-          TextField(controller: _endCtrl, readOnly: true, onTap: () => _pickDate(false), decoration: const InputDecoration(labelText: 'End date')),
+          KeyedSubtree(
+            key: keyFor('end'),
+            child: TextField(
+              controller: _endCtrl,
+              readOnly: true,
+              onTap: () {
+                clearFieldError('end');
+                _pickDate(false);
+              },
+              decoration: _saleFieldDeco(
+                theme,
+                'End date',
+                isInvalid: isFieldInvalid('end'),
+              ),
+            ),
+          ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
             initialValue: _status,
@@ -361,10 +427,20 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen> {
           else
             ...List.generate(_products.length, (i) {
               final p = _products[i];
+              final fieldId = 'product_$i';
+              final invalid = isFieldInvalid(fieldId);
+              final errorColor = theme.colorScheme.error;
               return Container(
+                key: keyFor(fieldId),
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(
+                  color: invalid ? errorColor.withValues(alpha: 0.04) : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: invalid
+                      ? Border.all(color: errorColor, width: 1.5)
+                      : null,
+                ),
                 child: Row(
                   children: [
                     ClipRRect(
@@ -394,17 +470,34 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen> {
                             child: TextField(
                               controller: p.salePriceCtrl,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(isDense: true, labelText: 'Sale price', prefixText: 'KES '),
+                              onChanged: (_) => clearFieldError(fieldId),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                labelText: 'Sale price',
+                                prefixText: 'KES ',
+                                labelStyle: invalid
+                                    ? TextStyle(color: errorColor)
+                                    : null,
+                                enabledBorder: invalid
+                                    ? UnderlineInputBorder(
+                                        borderSide: BorderSide(
+                                            color: errorColor, width: 1.5),
+                                      )
+                                    : null,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
                     IconButton(
-                      onPressed: () => setState(() {
-                        final removed = _products.removeAt(i);
-                        removed.salePriceCtrl.dispose();
-                      }),
+                      onPressed: () {
+                        clearFieldError(fieldId);
+                        setState(() {
+                          final removed = _products.removeAt(i);
+                          removed.salePriceCtrl.dispose();
+                        });
+                      },
                       icon: Icon(Icons.remove_circle_outline, color: theme.colorScheme.error),
                     ),
                   ],
@@ -427,6 +520,31 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen> {
           ],
         ],
       ),
+    );
+  }
+
+  InputDecoration _saleFieldDeco(
+    ThemeData theme,
+    String label, {
+    bool isInvalid = false,
+  }) {
+    final errorColor = theme.colorScheme.error;
+    final border = isInvalid
+        ? UnderlineInputBorder(
+            borderSide: BorderSide(color: errorColor, width: 1.5),
+          )
+        : null;
+    return InputDecoration(
+      labelText: label,
+      labelStyle: isInvalid ? TextStyle(color: errorColor) : null,
+      filled: isInvalid,
+      fillColor: isInvalid ? errorColor.withValues(alpha: 0.06) : null,
+      enabledBorder: border,
+      focusedBorder: isInvalid
+          ? UnderlineInputBorder(
+              borderSide: BorderSide(color: errorColor, width: 1.5),
+            )
+          : null,
     );
   }
 }

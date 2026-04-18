@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../../../core/widgets/form_error_highlight.dart';
 import '../../settings/providers/dashboard_settings_provider.dart';
 import '../data/attribute_value_format.dart';
 import '../data/attributes_repository.dart';
@@ -46,7 +47,8 @@ class _DraftPlainRow {
   void dispose() => value.dispose();
 }
 
-class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen> {
+class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
+    with FormErrorHighlightMixin {
   final _nameController = TextEditingController();
   final _descController = TextEditingController();
 
@@ -271,18 +273,43 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen> {
   Future<void> _save() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter an attribute name')),
+      reportFieldError(
+        fieldId: 'name',
+        message: 'Enter an attribute name.',
       );
       return;
     }
     final values = _serializeForStorage();
     if (values.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add at least one option value')),
+      reportFieldError(
+        fieldId: 'values',
+        message: 'Add at least one option value.',
       );
       return;
     }
+    final isColor = _displayType == AttributeDisplayType.color;
+    if (isColor) {
+      for (var i = 0; i < _colorRows.length; i++) {
+        if (_colorRows[i].label.text.trim().isEmpty) {
+          reportFieldError(
+            fieldId: 'value_$i',
+            message: 'Enter a label for value ${i + 1}.',
+          );
+          return;
+        }
+      }
+    } else {
+      for (var i = 0; i < _plainRows.length; i++) {
+        if (_plainRows[i].value.text.trim().isEmpty) {
+          reportFieldError(
+            fieldId: 'value_$i',
+            message: 'Enter value ${i + 1}.',
+          );
+          return;
+        }
+      }
+    }
+    clearAllFieldErrors();
 
     if (_saving) return;
     setState(() => _saving = true);
@@ -438,9 +465,17 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
         children: [
-          TextField(
-            controller: _nameController,
-            decoration: _deco('Name', 'e.g. Color, Material'),
+          KeyedSubtree(
+            key: keyFor('name'),
+            child: TextField(
+              controller: _nameController,
+              onChanged: (_) => clearFieldError('name'),
+              decoration: _deco(
+                'Name',
+                'e.g. Color, Material',
+                isInvalid: isFieldInvalid('name'),
+              ),
+            ),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -488,35 +523,89 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen> {
           const SizedBox(height: 24),
           _examplesBox(),
           const SizedBox(height: 24),
-          Row(
-            children: [
-              Text(
-                'Values',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.primaryDark,
+          KeyedSubtree(
+            key: keyFor('values'),
+            child: Builder(builder: (context) {
+              final invalid = isFieldInvalid('values');
+              final errorColor = Theme.of(context).colorScheme.error;
+              return Container(
+                padding: invalid ? const EdgeInsets.all(12) : EdgeInsets.zero,
+                decoration: invalid
+                    ? BoxDecoration(
+                        color: errorColor.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: errorColor, width: 1.5),
+                      )
+                    : null,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Values',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: invalid ? errorColor : AppTheme.primaryDark,
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: () {
+                            clearFieldError('values');
+                            setState(() {
+                              if (isColor) {
+                                _colorRows.add(_DraftColorRow());
+                              } else {
+                                _plainRows.add(_DraftPlainRow());
+                              }
+                            });
+                          },
+                          icon: const Icon(Icons.add, size: 20),
+                          label: const Text('Add value'),
+                        ),
+                      ],
+                    ),
+                    if (invalid) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.error_outline,
+                                size: 16, color: errorColor),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Add at least one option value.',
+                                style: TextStyle(
+                                  color: errorColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else
+                      const SizedBox(height: 8),
+                    if (isColor)
+                      ..._colorRows
+                          .asMap()
+                          .entries
+                          .map((e) => _colorRowTile(e.key, e.value)),
+                    if (!isColor)
+                      ..._plainRows
+                          .asMap()
+                          .entries
+                          .map((e) => _plainRowTile(e.key, e.value)),
+                  ],
                 ),
-              ),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: () {
-                  setState(() {
-                    if (isColor) {
-                      _colorRows.add(_DraftColorRow());
-                    } else {
-                      _plainRows.add(_DraftPlainRow());
-                    }
-                  });
-                },
-                icon: const Icon(Icons.add, size: 20),
-                label: const Text('Add value'),
-              ),
-            ],
+              );
+            }),
           ),
-          const SizedBox(height: 8),
-          if (isColor) ..._colorRows.asMap().entries.map((e) => _colorRowTile(e.key, e.value)),
-          if (!isColor) ..._plainRows.asMap().entries.map((e) => _plainRowTile(e.key, e.value)),
         ],
       ),
       bottomNavigationBar: SafeArea(
@@ -555,7 +644,10 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen> {
   }
 
   Widget _colorRowTile(int index, _DraftColorRow row) {
+    final fieldId = 'value_$index';
+    final invalid = isFieldInvalid(fieldId);
     return Padding(
+      key: keyFor(fieldId),
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -563,8 +655,11 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen> {
           Expanded(
             child: TextField(
               controller: row.label,
-              decoration: _deco('Label', 'e.g. Red'),
-              onChanged: (_) => setState(() {}),
+              decoration: _deco('Label', 'e.g. Red', isInvalid: invalid),
+              onChanged: (_) {
+                clearFieldError(fieldId);
+                setState(() {});
+              },
             ),
           ),
           const SizedBox(width: 12),
@@ -606,7 +701,10 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen> {
 
   Widget _plainRowTile(int index, _DraftPlainRow row) {
     final isNumber = _displayType == AttributeDisplayType.number;
+    final fieldId = 'value_$index';
+    final invalid = isFieldInvalid(fieldId);
     return Padding(
+      key: keyFor(fieldId),
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -618,7 +716,12 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen> {
               inputFormatters: isNumber
                   ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))]
                   : null,
-              decoration: _deco(isNumber ? 'Value' : 'Value', isNumber ? 'e.g. 200g, 500g' : 'e.g. Cotton'),
+              onChanged: (_) => clearFieldError(fieldId),
+              decoration: _deco(
+                isNumber ? 'Value' : 'Value',
+                isNumber ? 'e.g. 200g, 500g' : 'e.g. Cotton',
+                isInvalid: invalid,
+              ),
             ),
           ),
           if (_plainRows.length > 1)
@@ -644,15 +747,29 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen> {
     return luminance > 0.5 ? AppTheme.primaryDark : Colors.white;
   }
 
-  static InputDecoration _deco(String label, String hint) {
+  InputDecoration _deco(String label, String hint, {bool isInvalid = false}) {
+    final errorColor = Theme.of(context).colorScheme.error;
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: isInvalid
+          ? BorderSide(color: errorColor, width: 1.5)
+          : BorderSide.none,
+    );
     return InputDecoration(
       labelText: label,
       hintText: hint,
       filled: true,
-      fillColor: AppTheme.surfaceContainerLow,
-      border: OutlineInputBorder(
+      fillColor: isInvalid
+          ? errorColor.withValues(alpha: 0.06)
+          : AppTheme.surfaceContainerLow,
+      border: border,
+      enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(
+          color: isInvalid ? errorColor : AppTheme.primary,
+          width: 1.5,
+        ),
       ),
     );
   }

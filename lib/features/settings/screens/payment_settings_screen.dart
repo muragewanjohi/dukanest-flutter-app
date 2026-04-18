@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../../../core/widgets/form_error_highlight.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../providers/dashboard_settings_provider.dart';
 
@@ -23,7 +24,8 @@ enum _PayTiming { beforeDelivery, afterDelivery, either }
 
 enum _MpesaMethod { sendMoney, buyGoods, paybill, pochi }
 
-class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
+class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
+    with FormErrorHighlightMixin {
   _PayTiming _timing = _PayTiming.afterDelivery;
   bool _cashEnabled = true;
   bool _mpesaEnabled = true;
@@ -129,11 +131,60 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
 
   Future<void> _save() async {
     if (!_cashEnabled && !_mpesaEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enable cash or M-Pesa before saving.')),
+      reportFieldError(
+        fieldId: 'paymentMethods',
+        message: 'Enable cash or M-Pesa before saving.',
       );
       return;
     }
+    if (_mpesaEnabled) {
+      switch (_mpesaMethod) {
+        case _MpesaMethod.sendMoney:
+          if (_sendMoneyPhone.text.trim().isEmpty) {
+            reportFieldError(
+              fieldId: 'sendMoneyPhone',
+              message: 'Enter the M-Pesa Send Money phone number.',
+            );
+            return;
+          }
+          break;
+        case _MpesaMethod.buyGoods:
+          if (_tillNumber.text.trim().isEmpty) {
+            reportFieldError(
+              fieldId: 'tillNumber',
+              message: 'Enter your Till Number.',
+            );
+            return;
+          }
+          break;
+        case _MpesaMethod.paybill:
+          if (_paybillNumber.text.trim().isEmpty) {
+            reportFieldError(
+              fieldId: 'paybillNumber',
+              message: 'Enter your Paybill Number.',
+            );
+            return;
+          }
+          if (_accountNumber.text.trim().isEmpty) {
+            reportFieldError(
+              fieldId: 'accountNumber',
+              message: 'Enter the Paybill Account Number.',
+            );
+            return;
+          }
+          break;
+        case _MpesaMethod.pochi:
+          if (_pochiPhone.text.trim().isEmpty) {
+            reportFieldError(
+              fieldId: 'pochiPhone',
+              message: 'Enter your Pochi la Biashara phone number.',
+            );
+            return;
+          }
+          break;
+      }
+    }
+    clearAllFieldErrors();
     if (_saving) return;
     setState(() => _saving = true);
     try {
@@ -203,13 +254,34 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
     }
   }
 
-  InputDecoration _inputDeco(ThemeData theme, {required String hint}) {
+  InputDecoration _inputDeco(
+    ThemeData theme, {
+    required String hint,
+    bool isInvalid = false,
+  }) {
+    final errorColor = theme.colorScheme.error;
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: isInvalid
+          ? BorderSide(color: errorColor, width: 1.5)
+          : BorderSide.none,
+    );
     return InputDecoration(
       hintText: hint,
       hintStyle: GoogleFonts.inter(color: theme.colorScheme.outlineVariant),
       filled: true,
-      fillColor: theme.colorScheme.surfaceContainerLow,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      fillColor: isInvalid
+          ? errorColor.withValues(alpha: 0.06)
+          : theme.colorScheme.surfaceContainerLow,
+      border: border,
+      enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: isInvalid ? errorColor : theme.colorScheme.primary,
+          width: 1.5,
+        ),
+      ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
@@ -586,10 +658,18 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        TextField(
-                          controller: _sendMoneyPhone,
-                          keyboardType: TextInputType.phone,
-                          decoration: _inputDeco(theme, hint: '0712 345 678'),
+                        KeyedSubtree(
+                          key: keyFor('sendMoneyPhone'),
+                          child: TextField(
+                            controller: _sendMoneyPhone,
+                            keyboardType: TextInputType.phone,
+                            onChanged: (_) => clearFieldError('sendMoneyPhone'),
+                            decoration: _inputDeco(
+                              theme,
+                              hint: '0712 345 678',
+                              isInvalid: isFieldInvalid('sendMoneyPhone'),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -604,10 +684,18 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 12),
-                        TextField(
-                          controller: _tillNumber,
-                          keyboardType: TextInputType.number,
-                          decoration: _inputDeco(theme, hint: 'Enter Till Number (e.g., 123456)'),
+                        KeyedSubtree(
+                          key: keyFor('tillNumber'),
+                          child: TextField(
+                            controller: _tillNumber,
+                            keyboardType: TextInputType.number,
+                            onChanged: (_) => clearFieldError('tillNumber'),
+                            decoration: _inputDeco(
+                              theme,
+                              hint: 'Enter Till Number (e.g., 123456)',
+                              isInvalid: isFieldInvalid('tillNumber'),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -622,16 +710,32 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 12),
-                        TextField(
-                          controller: _paybillNumber,
-                          keyboardType: TextInputType.number,
-                          decoration: _inputDeco(theme, hint: 'Enter Paybill Number (e.g., 123456)'),
+                        KeyedSubtree(
+                          key: keyFor('paybillNumber'),
+                          child: TextField(
+                            controller: _paybillNumber,
+                            keyboardType: TextInputType.number,
+                            onChanged: (_) => clearFieldError('paybillNumber'),
+                            decoration: _inputDeco(
+                              theme,
+                              hint: 'Enter Paybill Number (e.g., 123456)',
+                              isInvalid: isFieldInvalid('paybillNumber'),
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 12),
-                        TextField(
-                          controller: _accountNumber,
-                          keyboardType: TextInputType.text,
-                          decoration: _inputDeco(theme, hint: 'Enter Account Number'),
+                        KeyedSubtree(
+                          key: keyFor('accountNumber'),
+                          child: TextField(
+                            controller: _accountNumber,
+                            keyboardType: TextInputType.text,
+                            onChanged: (_) => clearFieldError('accountNumber'),
+                            decoration: _inputDeco(
+                              theme,
+                              hint: 'Enter Account Number',
+                              isInvalid: isFieldInvalid('accountNumber'),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -646,10 +750,18 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 12),
-                        TextField(
-                          controller: _pochiPhone,
-                          keyboardType: TextInputType.phone,
-                          decoration: _inputDeco(theme, hint: 'Enter Phone Number (e.g., 0712345678)'),
+                        KeyedSubtree(
+                          key: keyFor('pochiPhone'),
+                          child: TextField(
+                            controller: _pochiPhone,
+                            keyboardType: TextInputType.phone,
+                            onChanged: (_) => clearFieldError('pochiPhone'),
+                            decoration: _inputDeco(
+                              theme,
+                              hint: 'Enter Phone Number (e.g., 0712345678)',
+                              isInvalid: isFieldInvalid('pochiPhone'),
+                            ),
+                          ),
                         ),
                       ],
                     ),
