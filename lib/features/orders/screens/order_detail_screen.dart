@@ -261,6 +261,11 @@ class OrderDetailScreen extends ConsumerWidget {
     }).toList();
 
     final status = _pickString(raw, ['status'], fallback: 'pending').toLowerCase();
+    final paymentStatus = _pickString(
+      raw,
+      ['paymentStatus', 'payment_status', 'payment'],
+      fallback: 'pending',
+    ).toLowerCase();
     final timeline = <_TimelineStep>[
       const _TimelineStep(
         title: 'Order Received',
@@ -374,6 +379,8 @@ class OrderDetailScreen extends ConsumerWidget {
     return _OrderDetailData(
       apiId: apiId.isEmpty ? code : apiId,
       code: code,
+      status: status,
+      paymentStatus: paymentStatus,
       itemsCategorySubtitle: '${lineItems.length} items',
       premiumCustomer: false,
       lineItems: lineItems,
@@ -414,6 +421,235 @@ class OrderDetailScreen extends ConsumerWidget {
         _toast(context, 'Update failed: $e');
       }
     }
+  }
+
+  Future<void> _patchOrderUpdate(
+    BuildContext context,
+    WidgetRef ref, {
+    required String apiId,
+    required String status,
+    required String paymentStatus,
+  }) async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final body = <String, dynamic>{
+        'status': status,
+        'payment_status': paymentStatus,
+      };
+      final r = await api.patchOrder(apiId, body);
+      if (!r.success) {
+        throw StateError(r.error?.message ?? 'Update failed');
+      }
+      ref.invalidate(orderDetailProvider(orderKey));
+      ref.invalidate(pendingOrdersCountProvider);
+      if (context.mounted) {
+        _toast(context, 'Order updated');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        _toast(context, 'Update failed: $e');
+      }
+    }
+  }
+
+  static const List<String> _orderStatusOptions = <String>[
+    'pending',
+    'processing',
+    'shipped',
+    'delivered',
+    'cancelled',
+    'refunded',
+  ];
+
+  static const List<String> _paymentStatusOptions = <String>[
+    'pending',
+    'paid',
+    'failed',
+    'refunded',
+  ];
+
+  String _normalizeOrderStatus(String value) {
+    final raw = value.trim().toLowerCase();
+    if (_orderStatusOptions.contains(raw)) return raw;
+    if (raw.contains('process')) return 'processing';
+    if (raw.contains('ship')) return 'shipped';
+    if (raw.contains('deliver')) return 'delivered';
+    if (raw.contains('cancel')) return 'cancelled';
+    if (raw.contains('refund')) return 'refunded';
+    return 'pending';
+  }
+
+  String _normalizePaymentStatus(String value) {
+    final raw = value.trim().toLowerCase();
+    if (_paymentStatusOptions.contains(raw)) return raw;
+    if (raw.contains('paid') || raw.contains('success')) return 'paid';
+    if (raw.contains('refund')) return 'refunded';
+    if (raw.contains('fail')) return 'failed';
+    return 'pending';
+  }
+
+  String _statusLabel(String value) {
+    final v = value.trim().toLowerCase();
+    if (v.isEmpty) return '';
+    return '${v[0].toUpperCase()}${v.substring(1)}';
+  }
+
+  Future<void> _openProcessOrderDialog(
+    BuildContext context,
+    WidgetRef ref,
+    _OrderDetailData data,
+  ) async {
+    var selectedStatus = _normalizeOrderStatus(data.status);
+    var selectedPaymentStatus = _normalizePaymentStatus(data.paymentStatus);
+    var isSaving = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            Future<void> onConfirm() async {
+              setSheetState(() => isSaving = true);
+              await _patchOrderUpdate(
+                context,
+                ref,
+                apiId: data.apiId,
+                status: selectedStatus,
+                paymentStatus: selectedPaymentStatus,
+              );
+              if (context.mounted && sheetContext.mounted) {
+                Navigator.of(sheetContext).pop();
+              }
+            }
+
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  12,
+                  16,
+                  16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.outlineVariant,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Process Order',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.primaryDark,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Select the order and payment status, then confirm.',
+                      style: GoogleFonts.inter(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Order Status',
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        color: AppTheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedStatus,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
+                      items: _orderStatusOptions
+                          .map((s) => DropdownMenuItem(value: s, child: Text(_statusLabel(s))))
+                          .toList(),
+                      onChanged: isSaving
+                          ? null
+                          : (v) {
+                              if (v == null) return;
+                              setSheetState(() => selectedStatus = v);
+                            },
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Payment Status',
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        color: AppTheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedPaymentStatus,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
+                      items: _paymentStatusOptions
+                          .map((s) => DropdownMenuItem(value: s, child: Text(_statusLabel(s))))
+                          .toList(),
+                      onChanged: isSaving
+                          ? null
+                          : (v) {
+                              if (v == null) return;
+                              setSheetState(() => selectedPaymentStatus = v);
+                            },
+                    ),
+                    const SizedBox(height: 18),
+                    FilledButton(
+                      onPressed: isSaving ? null : onConfirm,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.primaryDark,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: isSaving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : Text(
+                              'Confirm Update',
+                              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _openMap(BuildContext context, String address) async {
@@ -1151,7 +1387,7 @@ class OrderDetailScreen extends ConsumerWidget {
                   ),
                   const Spacer(),
                   FilledButton(
-                    onPressed: () => _patchOrderStatus(context, ref, 'processing', apiId: data.apiId),
+                    onPressed: () => _openProcessOrderDialog(context, ref, data),
                     style: FilledButton.styleFrom(
                       backgroundColor: AppTheme.primaryDark,
                       foregroundColor: Colors.white,
@@ -1391,6 +1627,8 @@ class _OrderDetailData {
   const _OrderDetailData({
     required this.apiId,
     required this.code,
+    required this.status,
+    required this.paymentStatus,
     required this.itemsCategorySubtitle,
     required this.premiumCustomer,
     required this.lineItems,
@@ -1409,6 +1647,8 @@ class _OrderDetailData {
   /// [code] when the API didn't return a separate `id` field.
   final String apiId;
   final String code;
+  final String status;
+  final String paymentStatus;
   final String itemsCategorySubtitle;
   final bool premiumCustomer;
   final List<_LineItem> lineItems;

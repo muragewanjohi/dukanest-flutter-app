@@ -316,8 +316,15 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> uploadMedia(FormData formData) async {
-    final response = await _dio.post('/media/upload', data: formData);
+  Future<ApiResponse<dynamic>> uploadMedia(
+    FormData formData, {
+    ProgressCallback? onSendProgress,
+  }) async {
+    final response = await _dio.post(
+      '/media/upload',
+      data: formData,
+      onSendProgress: onSendProgress,
+    );
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
@@ -436,10 +443,17 @@ class ApiClient {
   Future<ApiResponse<dynamic>> getSales({
     int page = 1,
     int limit = 20,
+    String search = '',
+    String? status,
   }) async {
     final response = await _dio.get(
       '/dashboard/sales',
-      queryParameters: {'page': page, 'limit': limit},
+      queryParameters: {
+        'page': page,
+        'limit': limit,
+        if (search.isNotEmpty) 'search': search,
+        if (status != null && status.isNotEmpty) 'status': status,
+      },
     );
     return ApiResponse.fromJson(response.data, (json) => json);
   }

@@ -202,13 +202,13 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
             else ...[
               _FeaturedSaleCard(
                 title: contentSaleTitle(snap.sales.first),
-                onEdit: () => context.push('/sales-editor'),
+                onEdit: () => context.push('/sales'),
               ),
               if (snap.sales.length > 1) ...[
                 const SizedBox(height: 12),
                 _OutlinedSaleCard(
                   title: contentSaleTitle(snap.sales[1]),
-                  onEdit: () => context.push('/sales-editor'),
+                  onEdit: () => context.push('/sales'),
                 ),
               ],
             ],

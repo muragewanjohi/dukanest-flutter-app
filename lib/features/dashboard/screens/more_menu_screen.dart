@@ -64,7 +64,7 @@ class MoreMenuScreen extends ConsumerWidget {
             iconBackground: const Color(0x66FFDAD6),
             title: 'Sales & Promotions',
             subtitle: 'Create discount codes, flash sales, and campaign banners.',
-            onTap: () => context.push('/sales-editor'),
+            onTap: () => context.push('/sales'),
           ),
           const SizedBox(height: 22),
           _MoreItem(

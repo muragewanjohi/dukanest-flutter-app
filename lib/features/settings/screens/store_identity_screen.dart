@@ -49,6 +49,13 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
   int _logoCacheEpoch = 0;
   String? _lastHydratedStoreSignature;
 
+  bool _uploadingLogo = false;
+  /// 0..1 send progress for the in-flight logo upload, or null when total size is unknown / not uploading.
+  double? _logoUploadProgress;
+  /// True when the user explicitly removed the logo (X button) so the next save
+  /// must persist the cleared value instead of leaving the server logo untouched.
+  bool _logoClearedByUser = false;
+
   static const _businessTypeOptions = [
     'Retail',
     'Wholesale',
@@ -126,6 +133,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
     if (prevLogo != _logoImageUrl) {
       _logoCacheEpoch++;
     }
+    _logoClearedByUser = false;
   }
 
   static String _storeSectionSignature(Map<String, dynamic>? s) {
@@ -176,10 +184,19 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
         storePatch['phone'] = phoneE164;
         storePatch['store_phone'] = phoneE164;
       }
-      if (_logoImageUrl != null && _logoImageUrl!.isNotEmpty) {
-        final logo = _logoImageUrl!.trim();
+      final logo = _logoImageUrl?.trim() ?? '';
+      final shouldPersistLogo = logo.isNotEmpty || _logoClearedByUser;
+      if (shouldPersistLogo) {
+        // Cover every key variant the backend / storefront may read.
+        // The web storefront resolves the logo from the `store_logo` static
+        // option (see docs/backend-context/flutter_apis.md), so surface it
+        // both nested under `store` and at the top level for whichever
+        // shape the settings normalizer expects.
         storePatch['logoUrl'] = logo;
         storePatch['logo_url'] = logo;
+        storePatch['logo'] = logo;
+        storePatch['storeLogo'] = logo;
+        storePatch['store_logo'] = logo;
       }
       final body = <String, dynamic>{
         'store': storePatch,
@@ -188,6 +205,13 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
         'selling': _sellingCategory,
         'selling_category': _sellingCategory,
         'sellingCategory': _sellingCategory,
+        if (shouldPersistLogo) ...{
+          'store_logo': logo,
+          'storeLogo': logo,
+          'static_options': {
+            'store_logo': logo,
+          },
+        },
       };
       final r = await api.patchDashboardSettings(body);
       if (!mounted) return;
@@ -220,6 +244,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
             logoUrl: _logoImageUrl,
           );
       ref.invalidate(storeIdentityProvider);
+      _logoClearedByUser = false;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Changes saved')),
@@ -236,8 +261,13 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
   }
 
   Future<void> _pickAndUploadLogo() async {
+    if (_uploadingLogo) return;
     final file = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 2048);
     if (!mounted || file == null) return;
+    setState(() {
+      _uploadingLogo = true;
+      _logoUploadProgress = 0;
+    });
     try {
       final api = ref.read(apiClientProvider);
       final form = FormData.fromMap({
@@ -246,7 +276,15 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
           filename: file.path.replaceAll(r'\', '/').split('/').last,
         ),
       });
-      final r = await api.uploadMedia(form);
+      final r = await api.uploadMedia(
+        form,
+        onSendProgress: (sent, total) {
+          if (!mounted) return;
+          setState(() {
+            _logoUploadProgress = total > 0 ? sent / total : null;
+          });
+        },
+      );
       if (!mounted) return;
       if (!r.success || r.data == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -294,7 +332,23 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
           SnackBar(content: Text('Upload failed: $e')),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _uploadingLogo = false;
+          _logoUploadProgress = null;
+        });
+      }
     }
+  }
+
+  void _clearLogo() {
+    if (_uploadingLogo) return;
+    setState(() {
+      _logoImageUrl = null;
+      _logoCacheEpoch++;
+      _logoClearedByUser = true;
+    });
   }
 
   Future<void> _confirmDeleteAccount() async {
@@ -482,73 +536,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
             theme: theme,
             icon: Icons.branding_watermark_outlined,
             title: 'Store Logo',
-            child: Material(
-              color: theme.colorScheme.surfaceContainer.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
-                onTap: _pickAndUploadLogo,
-                borderRadius: BorderRadius.circular(16),
-                child: CustomPaint(
-                  painter: _DashedRectPainter(
-                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-                    radius: 16,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 32),
-                    child: Column(
-                      children: [
-                        ClipOval(
-                          child: _logoImageUrl != null && _logoImageUrl!.isNotEmpty
-                              ? CachedNetworkImage(
-                                  imageUrl: _logoImageUrl!,
-                                  cacheKey: 'store_logo_${_logoImageUrl}_$_logoCacheEpoch',
-                                  width: 64,
-                                  height: 64,
-                                  fit: BoxFit.cover,
-                                  errorWidget: (_, __, ___) => Container(
-                                    width: 64,
-                                    height: 64,
-                                    decoration: const BoxDecoration(
-                                      color: Colors.white,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(Icons.store_rounded,
-                                        color: theme.colorScheme.primary, size: 32),
-                                  ),
-                                )
-                              : Container(
-                                  width: 64,
-                                  height: 64,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.06),
-                                        blurRadius: 8,
-                                      ),
-                                    ],
-                                  ),
-                                  child: Icon(Icons.upload_file_rounded,
-                                      color: theme.colorScheme.primary, size: 32),
-                                ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Upload Store Logo',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'PNG, JPG up to 5MB (512x512px)',
-                          style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            child: _buildLogoUploader(theme),
           ),
           _SectionCard(
             theme: theme,
@@ -720,6 +708,163 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen> {
                 elevation: 4,
                 shadowColor: theme.colorScheme.primary.withValues(alpha: 0.35),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogoUploader(ThemeData theme) {
+    final hasLogo = _logoImageUrl != null && _logoImageUrl!.isNotEmpty;
+    final progress = _logoUploadProgress;
+    final progressPercent = progress != null ? (progress * 100).clamp(0, 100).toInt() : null;
+
+    Widget centerVisual;
+    if (_uploadingLogo) {
+      centerVisual = SizedBox(
+        width: 64,
+        height: 64,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(
+              width: 64,
+              height: 64,
+              child: CircularProgressIndicator(
+                value: progress,
+                strokeWidth: 4,
+                color: theme.colorScheme.primary,
+                backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.15),
+              ),
+            ),
+            if (progressPercent != null)
+              Text(
+                '$progressPercent%',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+          ],
+        ),
+      );
+    } else if (hasLogo) {
+      centerVisual = Stack(
+        clipBehavior: Clip.none,
+        children: [
+          ClipOval(
+            child: CachedNetworkImage(
+              imageUrl: _logoImageUrl!,
+              cacheKey: 'store_logo_${_logoImageUrl}_$_logoCacheEpoch',
+              width: 72,
+              height: 72,
+              fit: BoxFit.cover,
+              errorWidget: (_, __, ___) => Container(
+                width: 72,
+                height: 72,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.store_rounded,
+                    color: theme.colorScheme.primary, size: 32),
+              ),
+            ),
+          ),
+          Positioned(
+            top: -4,
+            right: -4,
+            child: Material(
+              color: theme.colorScheme.error,
+              shape: const CircleBorder(),
+              elevation: 2,
+              child: InkWell(
+                onTap: _clearLogo,
+                customBorder: const CircleBorder(),
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(Icons.close_rounded, color: Colors.white, size: 16),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      centerVisual = Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        child: Icon(Icons.upload_file_rounded,
+            color: theme.colorScheme.primary, size: 32),
+      );
+    }
+
+    final String headline;
+    final String hint;
+    if (_uploadingLogo) {
+      headline = progressPercent != null ? 'Uploading… $progressPercent%' : 'Uploading…';
+      hint = 'Please keep this screen open until the upload completes.';
+    } else if (hasLogo) {
+      headline = 'Tap to replace logo';
+      hint = 'Tap the X to remove the current logo.';
+    } else {
+      headline = 'Upload Store Logo';
+      hint = 'PNG, JPG up to 5MB (512x512px)';
+    }
+
+    return Material(
+      color: theme.colorScheme.surfaceContainer.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: _uploadingLogo ? null : _pickAndUploadLogo,
+        borderRadius: BorderRadius.circular(16),
+        child: CustomPaint(
+          painter: _DashedRectPainter(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            radius: 16,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+            child: Column(
+              children: [
+                centerVisual,
+                const SizedBox(height: 16),
+                Text(
+                  headline,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  hint,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                ),
+                if (_uploadingLogo) ...[
+                  const SizedBox(height: 16),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 6,
+                      color: theme.colorScheme.primary,
+                      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ),

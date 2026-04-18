@@ -33,6 +33,7 @@ import '../features/content/screens/content_management_screen.dart';
 import '../features/content/screens/blog_post_editor_screen.dart';
 import '../features/content/screens/page_editor_screen.dart';
 import '../features/content/screens/hero_section_editor_screen.dart';
+import '../features/sales/screens/sales_list_screen.dart';
 import '../features/sales/screens/sales_editor_screen.dart';
 import '../features/customers/screens/customers_list_screen.dart';
 import '../features/onboarding/providers/auth_provider.dart';
@@ -219,8 +220,21 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const HeroSectionEditorScreen(),
       ),
       GoRoute(
-        path: '/sales-editor',
-        builder: (context, state) => const SalesEditorScreen(),
+        path: '/sales',
+        builder: (context, state) => const SalesListScreen(),
+        routes: [
+          GoRoute(
+            path: 'new',
+            builder: (context, state) => const SalesEditorScreen(),
+          ),
+          GoRoute(
+            path: 'edit/:id',
+            builder: (context, state) {
+              final id = Uri.decodeComponent(state.pathParameters['id']!);
+              return SalesEditorScreen(saleId: id);
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: '/categories',

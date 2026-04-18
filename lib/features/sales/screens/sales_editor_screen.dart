@@ -1,85 +1,90 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import 'sales_list_screen.dart';
 
-/// Edit Sale — Stitch: Sales Editor (8792636371ab4a40bf1c564d2419a238).
-/// Full-screen route: no dashboard bottom bar (Stitch mock nav omitted in app).
-class SalesEditorScreen extends StatefulWidget {
-  const SalesEditorScreen({super.key});
+class SalesEditorScreen extends ConsumerStatefulWidget {
+  const SalesEditorScreen({super.key, this.saleId});
+
+  final String? saleId;
+
+  bool get isCreate => saleId == null || saleId!.isEmpty;
 
   @override
-  State<SalesEditorScreen> createState() => _SalesEditorScreenState();
+  ConsumerState<SalesEditorScreen> createState() => _SalesEditorScreenState();
 }
 
 class _SaleProduct {
   _SaleProduct({
+    required this.productId,
+    required this.saleItemId,
     required this.name,
     required this.original,
     required this.salePriceCtrl,
     required this.imageUrl,
   });
 
+  final String productId;
+  final String saleItemId;
   final String name;
   final double original;
   final TextEditingController salePriceCtrl;
   final String imageUrl;
 }
 
-class _SalesEditorScreenState extends State<SalesEditorScreen> {
-  late List<_SaleProduct> _products;
+class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen> {
+  final _saleName = TextEditingController();
+  final _note = TextEditingController();
+  final _startCtrl = TextEditingController();
+  final _endCtrl = TextEditingController();
 
-  final _saleName = TextEditingController(text: 'Summer Solstice Clearance');
-  final _startDateDisplay = TextEditingController();
-  final _endDateDisplay = TextEditingController();
-  DateTime _startDate = DateTime(2024, 6, 21);
-  DateTime _endDate = DateTime(2024, 6, 30);
-  final _note = TextEditingController(
-    text: 'Focusing on top sellers for the summer clearance event.',
-  );
+  DateTime _start = DateTime.now();
+  DateTime _end = DateTime.now().add(const Duration(days: 7));
+  String _status = 'draft';
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
+  List<_SaleProduct> _products = [];
 
-  static const _imgWatch =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCTdqT2--QFc1OdPIKI-h3R2mEYccgcTIHLF1ZekF7QiOEDoscpw7-9pASVFGIvqNQJduHOI2zQpRj3byf8DoIIC6-Q0GmxnqwPnE3nG6YOye6cgEmhO4zLdv3KEZ9PRWUNSxIj14CAecSnTaxEJQCThCTX0ssquqtvIZ52XNfI3HunQ_S_iEeYebG0AwgbHZV8tUNRs6WV9KQXJW2O43MRhToJrEHNII8lOsImOgbd9FSY21vPe4Ki_qrs-N7q4ZG6Iuqrk30LJHoy';
-  static const _imgHeadphones =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAr-TmD6bGqu7rrVKDnk7OFvWhKhzveE6EznZuL2-_ZY_mp671PETbsHtzy5eNf2O7eTdxqhpPzRYw5_UZO2sGo_zjRWpNOKPSz9BV2zTXqFEolQ4RtYTxjGsFPwmvuQVMgGSp6k6iMCW3RTXbb7Vr6R1Q2Yt9HjQx1bUj_2gTZwy_nMMSW2vrxBpJ5bcsQJKfzYZgRekijnhRahlpcOujZ9niGdL51_REMchFgi7wrIBlo2q6wDjLg_55DWg7pxwDEuQM7rCMjp80M';
-  static const _imgSneakers =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCg9j4DS723vZU5EZSqm0rCQMfAlHp7eWXJsYQxSJOcGwE8VmA2x-DRtKxTfThhvcy8yy4PZUbsa5daRKC1iP9WuqCDHqUak94QTIgavReecYmdPz3-TsOC9dNNlrI5uP4KPmhe2khcRgdFnH5O_cRMzhiP62s8pFYfkjIZo_bwVO-noV1YOmUP3Xp0modw-IPc6HXyvL_WId893rs57e0dwmsf5Ke3gclK9CH44B0bLDFW5KzomcKpzHW5M_5ucC45UxiAkEk-anEG';
+  static String _pickString(Map<String, dynamic> map, List<String> keys, {String fallback = ''}) {
+    for (final k in keys) {
+      final v = map[k];
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+      if (v is num) return v.toString();
+    }
+    return fallback;
+  }
 
-  static final _dateFmt = DateFormat.yMMMMd();
+  static double _pickDouble(Map<String, dynamic> map, List<String> keys, {double fallback = 0}) {
+    for (final k in keys) {
+      final v = map[k];
+      if (v is num) return v.toDouble();
+      if (v is String) {
+        final n = double.tryParse(v.trim());
+        if (n != null) return n;
+      }
+    }
+    return fallback;
+  }
 
-  void _syncDateFields() {
-    _startDateDisplay.text = _dateFmt.format(_startDate);
-    _endDateDisplay.text = _dateFmt.format(_endDate);
+  void _syncDates() {
+    _startCtrl.text = '${_start.year}-${_start.month.toString().padLeft(2, '0')}-${_start.day.toString().padLeft(2, '0')}';
+    _endCtrl.text = '${_end.year}-${_end.month.toString().padLeft(2, '0')}-${_end.day.toString().padLeft(2, '0')}';
   }
 
   @override
   void initState() {
     super.initState();
-    _syncDateFields();
-    _products = [
-      _SaleProduct(
-        name: 'Minimalist Chrono Watch',
-        original: 120,
-        salePriceCtrl: TextEditingController(text: '89.00'),
-        imageUrl: _imgWatch,
-      ),
-      _SaleProduct(
-        name: 'Studio Wireless Gen 2',
-        original: 299,
-        salePriceCtrl: TextEditingController(text: '245.00'),
-        imageUrl: _imgHeadphones,
-      ),
-      _SaleProduct(
-        name: 'CloudRun Performance',
-        original: 85,
-        salePriceCtrl: TextEditingController(text: '65.00'),
-        imageUrl: _imgSneakers,
-      ),
-    ];
+    _syncDates();
+    _load();
   }
 
   @override
@@ -88,601 +93,529 @@ class _SalesEditorScreenState extends State<SalesEditorScreen> {
       p.salePriceCtrl.dispose();
     }
     _saleName.dispose();
-    _startDateDisplay.dispose();
-    _endDateDisplay.dispose();
     _note.dispose();
+    _startCtrl.dispose();
+    _endCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _pickDate({required bool isStart}) async {
-    final initial = isStart ? _startDate : _endDate;
+  Future<void> _load() async {
+    if (widget.isCreate) {
+      setState(() => _loading = false);
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.getSale(widget.saleId!);
+      if (!r.success || r.data == null) throw StateError(r.error?.message ?? 'Failed to load sale');
+      final payload = r.data;
+      if (payload is! Map<String, dynamic>) throw const FormatException('Invalid sale payload');
+      final raw = payload['sale'] ?? payload['item'] ?? payload['data'] ?? payload;
+      if (raw is! Map) throw const FormatException('Invalid sale record');
+      final sale = Map<String, dynamic>.from(raw);
+
+      _saleName.text = _pickString(sale, ['name', 'title'], fallback: 'Sale');
+      _note.text = _pickString(sale, ['description', 'note', 'notes']);
+      _status = _pickString(sale, ['status'], fallback: 'draft').toLowerCase();
+      _start = DateTime.tryParse(_pickString(sale, ['start_date', 'startDate'])) ?? DateTime.now();
+      _end = DateTime.tryParse(_pickString(sale, ['end_date', 'endDate'])) ?? _start.add(const Duration(days: 7));
+      _syncDates();
+
+      final itemsRaw = sale['product_sales'] ?? sale['productSales'] ?? sale['products'] ?? sale['items'];
+      final items = itemsRaw is List ? itemsRaw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : <Map<String, dynamic>>[];
+      _products = items.asMap().entries.map((entry) {
+        final i = entry.key;
+        final item = entry.value;
+        final nested = item['product'] is Map ? Map<String, dynamic>.from(item['product'] as Map) : <String, dynamic>{};
+        final name = _pickString(item, ['name', 'productName', 'title'], fallback: _pickString(nested, ['name', 'title'], fallback: 'Product ${i + 1}'));
+        final salePrice = _pickDouble(item, ['sale_price', 'salePrice', 'discount_price', 'discountPrice']);
+        final original = _pickDouble(item, ['original_price', 'originalPrice', 'price'], fallback: _pickDouble(nested, ['price']));
+        return _SaleProduct(
+          productId: _pickString(item, ['product_id', 'productId'], fallback: _pickString(nested, ['id', '_id'])),
+          saleItemId: _pickString(item, ['id', '_id', 'sale_item_id', 'saleItemId']),
+          name: name,
+          original: original,
+          salePriceCtrl: TextEditingController(text: salePrice.toStringAsFixed(2)),
+          imageUrl: _pickString(item, ['image', 'image_url', 'imageUrl'], fallback: _pickString(nested, ['image', 'imageUrl', 'thumbnail', 'thumbnailUrl'])),
+        );
+      }).toList();
+
+      setState(() => _loading = false);
+    } catch (e) {
+      setState(() {
+        _error = '$e';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _pickDate(bool start) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: initial,
+      initialDate: start ? _start : _end,
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
     if (picked == null || !mounted) return;
     setState(() {
-      if (isStart) {
-        _startDate = picked;
+      if (start) {
+        _start = picked;
+        if (_end.isBefore(_start)) _end = _start;
       } else {
-        _endDate = picked;
+        _end = picked;
       }
-      _syncDateFields();
+      _syncDates();
     });
   }
 
-  void _removeProduct(int index) {
-    setState(() {
-      final removed = _products.removeAt(index);
-      removed.salePriceCtrl.dispose();
-    });
-  }
-
-  void _addProduct() {
+  void _addCatalogProduct(Map<String, dynamic> raw) {
+    final id = _pickString(raw, ['id', '_id', 'sku']);
+    if (id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Product has no id/sku')));
+      return;
+    }
+    if (_products.any((p) => p.productId == id)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Product already in this sale')));
+      return;
+    }
+    final name = _pickString(raw, ['name', 'title'], fallback: 'Product');
+    final price = _pickDouble(raw, ['price', 'base_price', 'amount', 'regular_price']);
+    final nested = raw['product'] is Map ? Map<String, dynamic>.from(raw['product'] as Map) : <String, dynamic>{};
+    final image = _pickString(raw, ['thumbnail', 'thumbnail_url', 'image', 'image_url', 'imageUrl'],
+        fallback: _pickString(nested, ['thumbnail', 'image', 'image_url']));
     setState(() {
       _products.add(
         _SaleProduct(
-          name: 'New product',
-          original: 0,
-          salePriceCtrl: TextEditingController(text: '0.00'),
-          imageUrl: _imgWatch,
+          productId: id,
+          saleItemId: '',
+          name: name,
+          original: price,
+          salePriceCtrl: TextEditingController(text: price.toStringAsFixed(2)),
+          imageUrl: image,
         ),
       );
     });
   }
 
-  Future<void> _confirmDeleteSale() async {
+  Future<void> _openAddProductsSheet() async {
+    final existing = _products.map((p) => p.productId).where((id) => id.isNotEmpty).toSet();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * 0.62,
+            child: _SaleProductPicker(
+              existingProductIds: existing,
+              onPick: (map) {
+                Navigator.of(sheetContext).pop();
+                _addCatalogProduct(map);
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Map<String, dynamic> _payload() {
+    return {
+      'name': _saleName.text.trim(),
+      'description': _note.text.trim(),
+      'start_date': _start.toIso8601String(),
+      'end_date': _end.toIso8601String(),
+      'status': _status,
+      'product_sales': _products.map((p) => {
+            if (p.saleItemId.isNotEmpty) 'id': p.saleItemId,
+            if (p.productId.isNotEmpty) 'product_id': p.productId,
+            'sale_price': double.tryParse(p.salePriceCtrl.text.trim()) ?? 0,
+          }).toList(),
+    };
+  }
+
+  Future<void> _save() async {
+    if (_saleName.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sale name is required')));
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final result = widget.isCreate ? await api.createSale(_payload()) : await api.updateSale(widget.saleId!, _payload());
+      if (!result.success) throw StateError(result.error?.message ?? 'Save failed');
+      ref.read(salesListRefreshTokenProvider.notifier).state++;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sale saved')));
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _delete() async {
+    if (widget.isCreate) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete this sale?'),
-        content: const Text(
-          'This removes the sale campaign from your workspace (demo). This cannot be undone.',
-        ),
+        content: const Text('This action cannot be undone.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Delete', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            child: const Text('Delete'),
           ),
         ],
       ),
     );
-    if (ok == true && mounted) {
+    if (ok != true || !mounted) return;
+    final api = ref.read(apiClientProvider);
+    final r = await api.deleteSale(widget.saleId!);
+    if (!r.success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(r.error?.message ?? 'Delete failed')));
+      }
+      return;
+    }
+    ref.read(salesListRefreshTokenProvider.notifier).state++;
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sale deleted')));
       context.pop();
     }
-  }
-
-  void _save() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sale saved (demo)')),
-    );
-    context.pop();
-  }
-
-  InputDecoration _fieldDeco(ThemeData theme, {String? hint, Widget? suffix}) {
-    return InputDecoration(
-      hintText: hint,
-      filled: true,
-      fillColor: theme.colorScheme.surfaceContainerLow,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      suffixIcon: suffix,
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
+    final title = widget.isCreate ? 'New Sale' : 'Edit Sale';
+    if (_loading) {
+      return Scaffold(backgroundColor: AppTheme.surface, appBar: DashboardAppBar(title: title), body: const Center(child: CircularProgressIndicator()));
+    }
+    if (_error != null) {
+      return Scaffold(
+        backgroundColor: AppTheme.surface,
+        appBar: DashboardAppBar(title: title),
+        body: Center(child: Text(_error!)),
+      );
+    }
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: DashboardAppBar(
-        title: 'Edit Sale',
-        showDivider: true,
-        actions: [
-          TextButton(
-            onPressed: _save,
-            child: Text(
-              'Save',
-              style: GoogleFonts.plusJakartaSans(
-                fontWeight: FontWeight.w700,
-                color: AppTheme.primary,
-              ),
-            ),
-          ),
-        ],
+        title: title,
+        actions: [TextButton(onPressed: _saving ? null : _save, child: const Text('Save'))],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
+          TextField(controller: _saleName, decoration: const InputDecoration(labelText: 'Sale name')),
+          const SizedBox(height: 10),
+          TextField(controller: _startCtrl, readOnly: true, onTap: () => _pickDate(true), decoration: const InputDecoration(labelText: 'Start date')),
+          const SizedBox(height: 10),
+          TextField(controller: _endCtrl, readOnly: true, onTap: () => _pickDate(false), decoration: const InputDecoration(labelText: 'End date')),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            initialValue: _status,
+            decoration: const InputDecoration(labelText: 'Status'),
+            items: const [
+              DropdownMenuItem(value: 'draft', child: Text('Draft')),
+              DropdownMenuItem(value: 'active', child: Text('Active')),
+              DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
+              DropdownMenuItem(value: 'archived', child: Text('Archived')),
+            ],
+            onChanged: (v) => setState(() => _status = v ?? 'draft'),
+          ),
+          const SizedBox(height: 10),
+          TextField(controller: _note, maxLines: 3, decoration: const InputDecoration(labelText: 'Description')),
+          const SizedBox(height: 16),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
             children: [
               Expanded(
-                child: Text(
-                  'General Info',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.primaryDark,
-                    letterSpacing: -0.5,
-                  ),
-                ),
+                child: Text('Products in sale', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, color: AppTheme.primaryDark)),
               ),
-              Text(
-                'Step 1 of 2',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: theme.colorScheme.outline,
-                ),
+              OutlinedButton.icon(
+                onPressed: _saving ? null : _openAddProductsSheet,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add product'),
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          Text(
-            'Sale Name',
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _saleName,
-            style: GoogleFonts.inter(fontWeight: FontWeight.w500),
-            decoration: _fieldDeco(theme, hint: 'Enter sale name'),
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, c) {
-              final wide = c.maxWidth > 520;
-              if (wide) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 10),
+          if (_products.isEmpty)
+            Text('No products found in this sale.', style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant))
+          else
+            ...List.generate(_products.length, (i) {
+              final p = _products[i];
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                child: Row(
                   children: [
-                    Expanded(
-                      child: _dateField(
-                        theme,
-                        label: 'Start Date',
-                        controller: _startDateDisplay,
-                        icon: Icons.calendar_today_outlined,
-                        onPick: () => _pickDate(isStart: true),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        width: 52,
+                        height: 52,
+                        child: p.imageUrl.isEmpty
+                            ? ColoredBox(color: theme.colorScheme.surfaceContainerLow, child: const Icon(Icons.inventory_2_outlined))
+                            : CachedNetworkImage(
+                                imageUrl: p.imageUrl,
+                                fit: BoxFit.cover,
+                                errorWidget: (_, __, ___) => ColoredBox(color: theme.colorScheme.surfaceContainerLow, child: const Icon(Icons.image_not_supported_outlined)),
+                              ),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: _dateField(
-                        theme,
-                        label: 'End Date',
-                        controller: _endDateDisplay,
-                        icon: Icons.calendar_month_outlined,
-                        onPick: () => _pickDate(isStart: false),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(p.name, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+                          Text('Original: ${p.original.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
+                          const SizedBox(height: 6),
+                          SizedBox(
+                            width: 160,
+                            child: TextField(
+                              controller: p.salePriceCtrl,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(isDense: true, labelText: 'Sale price', prefixText: 'KES '),
+                            ),
+                          ),
+                        ],
                       ),
+                    ),
+                    IconButton(
+                      onPressed: () => setState(() {
+                        final removed = _products.removeAt(i);
+                        removed.salePriceCtrl.dispose();
+                      }),
+                      icon: Icon(Icons.remove_circle_outline, color: theme.colorScheme.error),
                     ),
                   ],
-                );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _dateField(
-                    theme,
-                    label: 'Start Date',
-                    controller: _startDateDisplay,
-                    icon: Icons.calendar_today_outlined,
-                    onPick: () => _pickDate(isStart: true),
-                  ),
-                  const SizedBox(height: 16),
-                  _dateField(
-                    theme,
-                    label: 'End Date',
-                    controller: _endDateDisplay,
-                    icon: Icons.calendar_month_outlined,
-                    onPick: () => _pickDate(isStart: false),
-                  ),
-                ],
+                ),
               );
-            },
+            }),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: _saving ? null : _save,
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryDark, foregroundColor: Colors.white),
+            child: _saving ? const CircularProgressIndicator(strokeWidth: 2) : const Text('Save sale'),
           ),
-          const SizedBox(height: 36),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Products',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.primaryDark,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-              ),
-              FilledButton.icon(
-                onPressed: _addProduct,
-                icon: const Icon(Icons.add_rounded, size: 20),
-                label: Text('Add Product', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13)),
-                style: FilledButton.styleFrom(
-                  backgroundColor: theme.colorScheme.secondaryContainer,
-                  foregroundColor: theme.colorScheme.onSecondaryContainer,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          if (_products.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: Text(
-                  'No products in this sale. Tap Add Product.',
-                  style: GoogleFonts.inter(color: AppTheme.onSurfaceVariant),
-                ),
-              ),
-            )
-          else
-            ...List.generate(_products.length, (i) => _productCard(context, theme, i)),
-          const SizedBox(height: 32),
-          LayoutBuilder(
-            builder: (context, c) {
-              if (c.maxWidth > 600) {
-                return IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(flex: 3, child: _revenueCard(theme)),
-                      const SizedBox(width: 16),
-                      Expanded(flex: 2, child: _quickNoteCard(theme)),
-                    ],
-                  ),
-                );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _revenueCard(theme),
-                  const SizedBox(height: 16),
-                  _quickNoteCard(theme),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 28),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Step 2 coming soon (demo)')),
-                );
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.primaryDark,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(
-                'Continue to step 2',
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-              ),
+          if (!widget.isCreate) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _saving ? null : _delete,
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Delete sale'),
             ),
-          ),
-          const SizedBox(height: 16),
-          OutlinedButton(
-            onPressed: _confirmDeleteSale,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: theme.colorScheme.error,
-              side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.15), width: 2),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.delete_outline_rounded, size: 20, color: theme.colorScheme.error),
-                const SizedBox(width: 8),
-                Text(
-                  'Delete sale',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          ],
         ],
       ),
     );
   }
+}
 
-  Widget _dateField(
-    ThemeData theme, {
-    required String label,
-    required TextEditingController controller,
-    required IconData icon,
-    required VoidCallback onPick,
-  }) {
+class _SaleProductPicker extends ConsumerStatefulWidget {
+  const _SaleProductPicker({
+    required this.existingProductIds,
+    required this.onPick,
+  });
+
+  final Set<String> existingProductIds;
+  final void Function(Map<String, dynamic> product) onPick;
+
+  @override
+  ConsumerState<_SaleProductPicker> createState() => _SaleProductPickerState();
+}
+
+class _SaleProductPickerState extends ConsumerState<_SaleProductPicker> {
+  final _search = TextEditingController();
+  Timer? _debounce;
+  List<Map<String, dynamic>> _results = [];
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _runSearch('');
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _runSearch(String q) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.getProducts(page: 1, limit: 40, search: q.trim());
+      if (!r.success) throw StateError(r.error?.message ?? 'Search failed');
+      final payload = r.data;
+      final root = payload is Map<String, dynamic> ? payload : <String, dynamic>{};
+      final raw = root['items'] ?? root['data'] ?? root['products'];
+      final list = raw is List
+          ? raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+          : <Map<String, dynamic>>[];
+      setState(() {
+        _results = list;
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = '$e';
+        _loading = false;
+      });
+    }
+  }
+
+  static String _title(Map<String, dynamic> p) {
+    for (final k in ['name', 'title', 'productName']) {
+      final v = p[k];
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+    }
+    return 'Product';
+  }
+
+  static String _id(Map<String, dynamic> p) {
+    for (final k in ['id', '_id', 'sku']) {
+      final v = p[k];
+      if (v != null && v.toString().trim().isNotEmpty) return v.toString().trim();
+    }
+    return '';
+  }
+
+  static String _priceLine(Map<String, dynamic> p) {
+    num? n;
+    for (final k in ['price', 'base_price', 'amount']) {
+      final v = p[k];
+      if (v is num) {
+        n = v;
+        break;
+      }
+      if (v is String) {
+        final parsed = num.tryParse(v.trim());
+        if (parsed != null) {
+          n = parsed;
+          break;
+        }
+      }
+    }
+    if (n == null) return '';
+    return 'KES ${n.toStringAsFixed(2)}';
+  }
+
+  static String? _thumb(Map<String, dynamic> p) {
+    for (final k in ['thumbnail', 'thumbnail_url', 'image', 'image_url', 'imageUrl']) {
+      final v = p[k];
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.onSurfaceVariant,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Text('Add product', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800)),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: TextField(
+            controller: _search,
+            decoration: InputDecoration(
+              hintText: 'Search catalog…',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onChanged: (v) {
+              _debounce?.cancel();
+              _debounce = Timer(const Duration(milliseconds: 350), () => _runSearch(v));
+            },
           ),
         ),
         const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          readOnly: true,
-          onTap: onPick,
-          style: GoogleFonts.inter(fontWeight: FontWeight.w500),
-          decoration: _fieldDeco(
-            theme,
-            suffix: IconButton(
-              icon: Icon(icon, color: theme.colorScheme.outline, size: 22),
-              onPressed: onPick,
-              tooltip: 'Choose date',
+        if (_loading)
+          const Expanded(child: Center(child: CircularProgressIndicator()))
+        else if (_error != null)
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(_error!, textAlign: TextAlign.center),
+              ),
             ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _productCard(BuildContext context, ThemeData theme, int i) {
-    final p = _products[i];
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Material(
-        color: Colors.white,
-        elevation: 0,
-        shadowColor: Colors.black12,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerLowest,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0C0528).withValues(alpha: 0.04),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: 80,
-                  height: 80,
-                  child: CachedNetworkImage(
-                    imageUrl: p.imageUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) => ColoredBox(color: theme.colorScheme.surfaceContainerLow),
-                    errorWidget: (_, __, ___) => ColoredBox(
-                      color: theme.colorScheme.surfaceContainerLow,
-                      child: const Icon(Icons.image_not_supported_outlined),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      p.name,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.onSurface,
-                        height: 1.25,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Original: \$${p.original.toStringAsFixed(2)}',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: theme.colorScheme.outline,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Sale Price:',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.primaryDark,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          width: 100,
-                          child: TextField(
-                            controller: p.salePriceCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14),
-                            decoration: InputDecoration(
-                              isDense: true,
-                              filled: true,
-                              fillColor: theme.colorScheme.surfaceContainerLow,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide.none,
+          )
+        else
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              itemCount: _results.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, i) {
+                final p = _results[i];
+                final id = _id(p);
+                final inSale = id.isNotEmpty && widget.existingProductIds.contains(id);
+                final thumb = _thumb(p);
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: thumb == null
+                          ? ColoredBox(color: theme.colorScheme.surfaceContainerLow, child: const Icon(Icons.inventory_2_outlined))
+                          : CachedNetworkImage(
+                              imageUrl: thumb,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => ColoredBox(
+                                color: theme.colorScheme.surfaceContainerLow,
+                                child: const Icon(Icons.image_not_supported_outlined),
                               ),
-                              prefixText: '\$ ',
-                              prefixStyle: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: AppTheme.outlineVariant,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: 'Remove product',
-                onPressed: () => _removeProduct(i),
-                icon: Icon(
-                  Icons.delete_outline_rounded,
-                  color: theme.colorScheme.error.withValues(alpha: 0.55),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _revenueCard(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppTheme.primary,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primary.withValues(alpha: 0.35),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          Positioned(
-            right: -28,
-            bottom: -28,
-            child: IgnorePointer(
-              child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.1),
-                ),
-              ),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Estimated Revenue Impact',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white.withValues(alpha: 0.75),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '+\$4,250.00',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Icon(Icons.trending_up_rounded, color: Colors.white.withValues(alpha: 0.9), size: 22),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '12% higher than last sale campaign',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        height: 1.35,
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontWeight: FontWeight.w500,
-                      ),
                     ),
                   ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _quickNoteCard(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            'QUICK NOTE',
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
-              color: theme.colorScheme.outline,
+                  title: Text(_title(p), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(
+                    _priceLine(p),
+                    style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                  trailing: inSale
+                      ? Text('Added', style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.outline))
+                      : const Icon(Icons.add_circle_outline),
+                  onTap: inSale || id.isEmpty ? null : () => widget.onPick(p),
+                );
+              },
             ),
           ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _note,
-            maxLines: 4,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontStyle: FontStyle.italic,
-              height: 1.45,
-              color: AppTheme.onSurfaceVariant,
-            ),
-            decoration: InputDecoration(
-              hintText: 'Note for your team…',
-              hintStyle: GoogleFonts.inter(color: theme.colorScheme.outline, fontStyle: FontStyle.italic),
-              border: InputBorder.none,
-              isDense: true,
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }
