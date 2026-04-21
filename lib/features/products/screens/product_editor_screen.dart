@@ -180,6 +180,13 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     return true;
   }
 
+  bool _isPlaceholderVariant(_VariantLine line) {
+    if (line.options.length != 1) return false;
+    final entry = line.options.entries.first;
+    return entry.key.trim().toLowerCase() == 'default' &&
+        entry.value.trim().toLowerCase() == 'standard';
+  }
+
   String _asString(dynamic value, {String fallback = ''}) {
     if (value is String && value.trim().isNotEmpty) return value;
     if (value is num) return value.toString();
@@ -458,6 +465,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     final selected = <String, String>{}; // attribute name -> chosen value label
     final regularPriceCtrl = TextEditingController(text: _regularPrice.text.trim());
     final salePriceCtrl = TextEditingController(text: _salePrice.text.trim());
+    final stockQtyCtrl = TextEditingController();
     final imageUrlCtrl = TextEditingController(
       text: _remoteImageUrls.isNotEmpty ? _remoteImageUrls.first : '',
     );
@@ -500,7 +508,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Select one value per attribute.',
+                        'Select at least one attribute value.',
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -602,6 +610,20 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                         ),
                       ),
                       const SizedBox(height: 10),
+                      TextField(
+                        controller: stockQtyCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Stock quantity',
+                          filled: true,
+                          fillColor: Theme.of(context).colorScheme.surfaceContainerLow,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(10),
@@ -678,12 +700,11 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                       const SizedBox(height: 8),
                       FilledButton(
                         onPressed: () {
-                          final missing = attrs.where((a) => selected[a.name] == null).toList();
-                          if (missing.isNotEmpty) {
+                          if (selected.isEmpty) {
                             ScaffoldMessenger.of(rootContext).showSnackBar(
-                              SnackBar(
+                              const SnackBar(
                                 content: Text(
-                                  'Select values for: ${missing.map((a) => a.name).join(', ')}',
+                                  'Select at least one attribute value for this variant.',
                                 ),
                               ),
                             );
@@ -713,6 +734,32 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             );
                             return;
                           }
+                          final variantStockRaw = stockQtyCtrl.text.trim();
+                          if (variantStockRaw.isEmpty) {
+                            ScaffoldMessenger.of(rootContext).showSnackBar(
+                              const SnackBar(
+                                content: Text('Stock quantity is required for each variant.'),
+                              ),
+                            );
+                            return;
+                          }
+                          final variantStock = int.tryParse(variantStockRaw);
+                          if (variantStock == null) {
+                            ScaffoldMessenger.of(rootContext).showSnackBar(
+                              const SnackBar(
+                                content: Text('Stock quantity must be a whole number.'),
+                              ),
+                            );
+                            return;
+                          }
+                          if (variantStock < 0) {
+                            ScaffoldMessenger.of(rootContext).showSnackBar(
+                              const SnackBar(
+                                content: Text('Stock quantity cannot be negative.'),
+                              ),
+                            );
+                            return;
+                          }
                           final combo = Map<String, String>.from(selected);
                           if (_variantLines.any((l) => _optionsEqual(l.options, combo))) {
                             Navigator.pop(ctx, false);
@@ -723,7 +770,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                           _variantLines.add(_VariantLine(
                             options: combo,
                             initialSku: '$base-V$idx',
-                            initialStock: '0',
+                            initialStock: variantStockRaw,
                             initialRegularPrice: regularPriceCtrl.text.trim(),
                             initialSalePrice: salePriceCtrl.text.trim(),
                             initialImageUrl: imageUrlCtrl.text.trim(),
@@ -759,6 +806,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     await Future<void>.delayed(const Duration(milliseconds: 300));
     regularPriceCtrl.dispose();
     salePriceCtrl.dispose();
+    stockQtyCtrl.dispose();
     imageUrlCtrl.dispose();
   }
 
@@ -767,6 +815,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     final selected = Map<String, String>.from(line.options);
     final regularCtrl = TextEditingController(text: line.regularPrice.text);
     final saleCtrl = TextEditingController(text: line.salePrice.text);
+    final stockCtrl = TextEditingController(text: line.stock.text);
     final imageCtrl = TextEditingController(text: line.imageUrl.text);
 
     await showModalBottomSheet<void>(
@@ -896,6 +945,20 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                         ),
                       ),
                       const SizedBox(height: 10),
+                      TextField(
+                        controller: stockCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Stock quantity',
+                          filled: true,
+                          fillColor: theme.colorScheme.surfaceContainerLow,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(10),
@@ -993,12 +1056,39 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             );
                             return;
                           }
+                          final variantStockRaw = stockCtrl.text.trim();
+                          if (variantStockRaw.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Stock quantity is required for each variant.'),
+                              ),
+                            );
+                            return;
+                          }
+                          final variantStock = int.tryParse(variantStockRaw);
+                          if (variantStock == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Stock quantity must be a whole number.'),
+                              ),
+                            );
+                            return;
+                          }
+                          if (variantStock < 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Stock quantity cannot be negative.'),
+                              ),
+                            );
+                            return;
+                          }
                           setState(() {
                             if (selected.isNotEmpty) {
                               line.options
                                 ..clear()
                                 ..addAll(selected);
                             }
+                            line.stock.text = variantStockRaw;
                             line.regularPrice.text = regularCtrl.text.trim();
                             line.salePrice.text = saleCtrl.text.trim();
                             line.imageUrl.text = imageCtrl.text.trim();
@@ -1034,6 +1124,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     await Future<void>.delayed(const Duration(milliseconds: 300));
     regularCtrl.dispose();
     saleCtrl.dispose();
+    stockCtrl.dispose();
     imageCtrl.dispose();
   }
 
@@ -1085,20 +1176,20 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       if (variantStockRaw.isEmpty) {
         return (
           fieldId: 'variant_${i}_stock',
-          message: 'Stock for $variantLabel is required.',
+          message: 'Stock quantity for $variantLabel is required.',
         );
       }
       final variantStock = int.tryParse(variantStockRaw);
       if (variantStock == null) {
         return (
           fieldId: 'variant_${i}_stock',
-          message: 'Stock for $variantLabel must be a whole number.',
+          message: 'Stock quantity for $variantLabel must be a whole number.',
         );
       }
       if (variantStock < 0) {
         return (
           fieldId: 'variant_${i}_stock',
-          message: 'Stock for $variantLabel cannot be negative.',
+          message: 'Stock quantity for $variantLabel cannot be negative.',
         );
       }
       final variantRegular = _toDouble(line.regularPrice.text);
@@ -1197,6 +1288,33 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     required double sale,
     required String imageUrl,
   }) {
+    final attrs = ref.read(dashboardAttributesProvider).valueOrNull ?? const <ProductAttribute>[];
+    final byName = <String, ProductAttribute>{
+      for (final a in attrs) a.name.trim().toLowerCase(): a,
+    };
+    final attributeArray = <Map<String, dynamic>>[];
+    for (final entry in line.options.entries) {
+      final key = entry.key.trim();
+      final value = entry.value.trim();
+      final attr = byName[key.toLowerCase()];
+      final attributeId = attr?.id.trim() ?? '';
+      final attributeValueId = attr?.valueIdByLabel[value]?.trim() ?? '';
+      if (attributeId.isEmpty || attributeValueId.isEmpty) {
+        // Skip unresolved options (e.g. placeholder Default: Standard).
+        continue;
+      }
+      attributeArray.add(<String, dynamic>{
+        'attribute_id': attributeId,
+        'attributeId': attributeId,
+        'attribute_value_id': attributeValueId,
+        'attributeValueId': attributeValueId,
+        'name': key,
+        'value': value,
+        'attribute_name': key,
+        'label': value,
+      });
+    }
+
     final payload = <String, dynamic>{
       'sku': line.sku.text.trim(),
       'stock': stock,
@@ -1204,8 +1322,9 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       'stock_quantity': stock,
       'quantity': stock,
       'options': Map<String, String>.from(line.options),
-      'attributes': Map<String, String>.from(line.options),
-      'attribute_values': Map<String, String>.from(line.options),
+      // Backend expects array-shaped attributes with ids.
+      'attributes': attributeArray,
+      'attribute_values': attributeArray,
     };
     if (regular > 0) {
       payload['price'] = regular;
@@ -1238,7 +1357,11 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   }
 
   Future<void> _syncVariantsForProduct(ApiClient api, String productId) async {
-    final existingLines = _variantLines
+    final syncLines = _variantLines
+        .where((line) => !(_variantLines.length > 1 && _isPlaceholderVariant(line)))
+        .toList();
+
+    final existingLines = syncLines
         .where((v) => (v.variantId ?? '').trim().isNotEmpty)
         .toList();
     final currentIds = existingLines.map((v) => v.variantId!.trim()).toSet();
@@ -1248,7 +1371,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       await api.deleteProductVariant(productId, removedId);
     }
 
-    for (final line in _variantLines) {
+    for (final line in syncLines) {
       final stock = int.tryParse(line.stock.text.trim()) ?? 0;
       final regular = _toDouble(line.regularPrice.text);
       final sale = _toDouble(line.salePrice.text);

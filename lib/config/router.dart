@@ -41,14 +41,20 @@ import '../core/auth/auth_state.dart';
 import '../core/providers/onboarding_seen_provider.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
+GoRouter? _previousRouter;
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
   final onboardingSeenState = ref.watch(onboardingSeenProvider);
+  final previousRouter = _previousRouter;
 
-  return GoRouter(
+  final router = GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/splash',
+    // Keep current location when Riverpod rebuilds the router due to auth/onboarding updates.
+    // This prevents briefly resetting to `/splash` during sign-in transitions.
+    initialLocation:
+        previousRouter?.routerDelegate.currentConfiguration.uri.toString() ??
+        '/splash',
     redirect: (context, state) {
       final isLoggingIn = state.matchedLocation == '/login';
       final isOnboarding = state.matchedLocation == '/onboarding';
@@ -341,4 +347,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+
+  _previousRouter = router;
+  return router;
 });

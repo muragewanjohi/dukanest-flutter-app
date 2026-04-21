@@ -140,16 +140,72 @@ class _OnboardingCarouselScreenState
                         // Feature showcase card — a preview of what the
                         // feature actually looks like in-app, matching the
                         // visual language of the landing page revenue card.
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 360),
-                          child: slide.showcase,
+                        Stack(
+                          alignment: Alignment.center,
+                          clipBehavior: Clip.none,
+                          children: [
+                            // Subtle radial glow to draw focus
+                            Positioned(
+                              top: 20,
+                              child: TweenAnimationBuilder<double>(
+                                key: ValueKey('glow_$index'),
+                                tween: Tween(begin: 0.0, end: 1.0),
+                                duration: const Duration(milliseconds: 1000),
+                                curve: Curves.easeOutCubic,
+                                builder: (context, value, child) {
+                                  return Opacity(
+                                    opacity: value,
+                                    child: Transform.scale(
+                                      scale: 0.8 + (0.2 * value),
+                                      child: child,
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  width: 260,
+                                  height: 260,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppTheme.primary.withValues(alpha: 0.12),
+                                        blurRadius: 100,
+                                        spreadRadius: 30,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            TweenAnimationBuilder<double>(
+                              key: ValueKey(index),
+                              tween: Tween(begin: 0.0, end: 1.0),
+                              duration: const Duration(milliseconds: 700),
+                              curve: Curves.easeOutCubic,
+                              builder: (context, value, child) {
+                                return Transform.translate(
+                                  offset: Offset(0, 24 * (1 - value)),
+                                  child: Opacity(
+                                    opacity: value,
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 360),
+                                child: slide.showcase,
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 48),
                         Text(
                           slide.title,
                           style: theme.textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w800,
                             color: colorScheme.secondary,
+                            fontSize: (theme.textTheme.headlineMedium?.fontSize ?? 28) * 1.15,
+                            letterSpacing: -0.5,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -158,7 +214,7 @@ class _OnboardingCarouselScreenState
                           slide.description,
                           style: theme.textTheme.bodyLarge?.copyWith(
                             color: colorScheme.onSurfaceVariant,
-                            height: 1.5,
+                            height: 1.6,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -181,9 +237,10 @@ class _OnboardingCarouselScreenState
                       _slides.length,
                       (index) => AnimatedContainer(
                         duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOutCubic,
                         margin: const EdgeInsets.symmetric(horizontal: 4.0),
                         height: 8,
-                        width: _currentIndex == index ? 24 : 8,
+                        width: _currentIndex == index ? 32 : 8,
                         decoration: BoxDecoration(
                           color: _currentIndex == index
                               ? colorScheme.primary
@@ -305,8 +362,32 @@ class _StoreShowcase extends StatelessWidget {
 
 /// Slide 2: an order card with a "New" status chip plus a stacked older
 /// order behind it and a floating "3 new orders" badge.
-class _OrdersShowcase extends StatelessWidget {
+class _OrdersShowcase extends StatefulWidget {
   const _OrdersShowcase();
+
+  @override
+  State<_OrdersShowcase> createState() => _OrdersShowcaseState();
+}
+
+class _OrdersShowcaseState extends State<_OrdersShowcase> {
+  bool _showBack = false;
+  bool _showFront = false;
+  bool _showBadge = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _triggerAnimations();
+  }
+
+  Future<void> _triggerAnimations() async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    if (mounted) setState(() => _showBack = true);
+    await Future.delayed(const Duration(milliseconds: 250));
+    if (mounted) setState(() => _showFront = true);
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (mounted) setState(() => _showBadge = true);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -316,14 +397,17 @@ class _OrdersShowcase extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           // Older order peeking behind.
-          Positioned(
-            top: 22,
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeOutCubic,
+            top: _showBack ? 22 : 40,
             left: 18,
             right: 18,
-            child: Transform.rotate(
-              angle: 0.055,
-              child: Opacity(
-                opacity: 0.55,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 500),
+              opacity: _showBack ? 0.55 : 0.0,
+              child: Transform.rotate(
+                angle: 0.055,
                 child: const _OrderCard(
                   orderId: 'DN-2839',
                   customer: 'Brian Otieno',
@@ -332,32 +416,47 @@ class _OrdersShowcase extends StatelessWidget {
                   status: 'Processing',
                   statusTone: _ChipTone.neutral,
                   dense: true,
+                  avatarColors: [Color(0xFF00C6FF), Color(0xFF0072FF)],
                 ),
               ),
             ),
           ),
           // Fresh order in focus.
-          const Positioned(
-            top: 96,
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeOutBack,
+            top: _showFront ? 96 : 130,
             left: 0,
             right: 0,
-            child: _OrderCard(
-              orderId: 'DN-2841',
-              customer: 'Jane Mwangi',
-              items: 3,
-              amount: 'KSh 4,200',
-              status: 'New',
-              statusTone: _ChipTone.primary,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 400),
+              opacity: _showFront ? 1.0 : 0.0,
+              child: const _OrderCard(
+                orderId: 'DN-2841',
+                customer: 'Jane Mwangi',
+                items: 3,
+                amount: 'KSh 4,200',
+                status: 'New',
+                statusTone: _ChipTone.urgent,
+                avatarColors: [Color(0xFFF77062), Color(0xFFFE5196)],
+              ),
             ),
           ),
           // Floating notification badge.
-          const Positioned(
-            top: -6,
-            left: 4,
-            child: _FloatingChip(
-              icon: Icons.notifications_active_rounded,
-              label: '3 new orders',
-              tone: _ChipTone.primary,
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.elasticOut,
+            top: _showBadge ? -6 : 10,
+            left: _showBadge ? 4 : 20,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 300),
+              opacity: _showBadge ? 1.0 : 0.0,
+              child: const _FloatingChip(
+                icon: Icons.notifications_active_rounded,
+                label: '3 new orders',
+                tone: _ChipTone.primary,
+                hasUnreadDot: true,
+              ),
             ),
           ),
         ],
@@ -369,12 +468,31 @@ class _OrdersShowcase extends StatelessWidget {
 /// Slide 3: a weekly sales bar chart with a KPI and trend chip. Uses bars
 /// (not the line used on the landing page) so the onboarding preview feels
 /// distinct from the landing page visual.
-class _AnalyticsShowcase extends StatelessWidget {
+class _AnalyticsShowcase extends StatefulWidget {
   const _AnalyticsShowcase();
 
+  @override
+  State<_AnalyticsShowcase> createState() => _AnalyticsShowcaseState();
+}
+
+class _AnalyticsShowcaseState extends State<_AnalyticsShowcase> {
   // Weekly sales in KSh thousands; Sat is highlighted as the peak.
-  static const List<double> _bars = [8, 12, 9, 14, 11, 18, 16];
+  static const List<double> _targetBars = [8, 12, 9, 14, 11, 18, 16];
   static const List<String> _days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+  bool _animateChart = false;
+  bool _showTrend = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) setState(() => _animateChart = true);
+    });
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) setState(() => _showTrend = true);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -398,32 +516,58 @@ class _AnalyticsShowcase extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                const _StatusChip(
-                  label: '+18.2%',
-                  tone: _ChipTone.positive,
-                  leadingIcon: Icons.trending_up_rounded,
+                AnimatedScale(
+                  scale: _showTrend ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 600),
+                  curve: Curves.elasticOut,
+                  child: const _StatusChip(
+                    label: '+18.2%',
+                    tone: _ChipTone.positive,
+                    leadingIcon: Icons.trending_up_rounded,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 4),
-            Text(
-              'KSh 92,450',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                color: AppTheme.primary,
-                height: 1.1,
-                letterSpacing: -0.5,
-              ),
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 30000.0, end: _animateChart ? 92450.0 : 30000.0),
+              duration: const Duration(milliseconds: 1400),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) {
+                final mainPortion = (value / 1000).floor();
+                final remainder = (value % 1000).toInt().toString().padLeft(3, '0');
+                return Text(
+                  'KSh $mainPortion,$remainder',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.primary,
+                    height: 1.1,
+                    letterSpacing: -0.5,
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 12),
             Expanded(
               child: BarChart(
+                swapAnimationDuration: const Duration(milliseconds: 1000),
+                swapAnimationCurve: Curves.easeOutCubic,
                 BarChartData(
                   maxY: 22,
                   minY: 0,
                   alignment: BarChartAlignment.spaceAround,
-                  gridData: const FlGridData(show: false),
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: 10,
+                    getDrawingHorizontalLine: (value) {
+                      return FlLine(
+                        color: colorScheme.outlineVariant.withValues(alpha: 0.15),
+                        strokeWidth: 1,
+                      );
+                    },
+                  ),
                   borderData: FlBorderData(show: false),
                   titlesData: FlTitlesData(
                     topTitles: const AxisTitles(
@@ -461,12 +605,12 @@ class _AnalyticsShowcase extends StatelessWidget {
                   ),
                   barTouchData: BarTouchData(enabled: false),
                   barGroups: [
-                    for (var i = 0; i < _bars.length; i++)
+                    for (var i = 0; i < _targetBars.length; i++)
                       BarChartGroupData(
                         x: i,
                         barRods: [
                           BarChartRodData(
-                            toY: _bars[i],
+                            toY: _animateChart ? _targetBars[i] : 0,
                             width: 14,
                             borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(6),
@@ -519,9 +663,9 @@ class _ShowcaseCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.shadow.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
+            color: AppTheme.primary.withValues(alpha: 0.12),
+            blurRadius: 32,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
@@ -639,6 +783,7 @@ class _OrderCard extends StatelessWidget {
     required this.amount,
     required this.status,
     required this.statusTone,
+    this.avatarColors,
     this.dense = false,
   });
 
@@ -648,6 +793,7 @@ class _OrderCard extends StatelessWidget {
   final String amount;
   final String status;
   final _ChipTone statusTone;
+  final List<Color>? avatarColors;
   final bool dense;
 
   @override
@@ -684,13 +830,16 @@ class _OrderCard extends StatelessWidget {
                 width: dense ? 28 : 32,
                 height: dense ? 28 : 32,
                 decoration: BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.1),
+                  gradient: avatarColors != null 
+                    ? LinearGradient(colors: avatarColors!, begin: Alignment.topLeft, end: Alignment.bottomRight)
+                    : null,
+                  color: avatarColors == null ? AppTheme.primary.withValues(alpha: 0.1) : null,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.person_rounded,
                   size: dense ? 16 : 18,
-                  color: AppTheme.primary,
+                  color: avatarColors != null ? Colors.white : AppTheme.primary,
                 ),
               ),
               const SizedBox(width: 8),
@@ -746,7 +895,7 @@ class _OrderCard extends StatelessWidget {
   }
 }
 
-enum _ChipTone { primary, positive, neutral }
+enum _ChipTone { primary, positive, neutral, urgent }
 
 class _StatusChip extends StatelessWidget {
   const _StatusChip({
@@ -797,6 +946,8 @@ class _StatusChip extends StatelessWidget {
         return (const Color(0xFFE6F7EC), const Color(0xFF0E8A3E));
       case _ChipTone.neutral:
         return (const Color(0xFFF0EFEF), AppTheme.secondary);
+      case _ChipTone.urgent:
+        return (const Color(0xFFFFF2E5), const Color(0xFFFF7A00));
     }
   }
 }
@@ -805,11 +956,13 @@ class _FloatingChip extends StatelessWidget {
   const _FloatingChip({
     required this.icon,
     required this.label,
+    this.hasUnreadDot = false,
     this.tone = _ChipTone.neutral,
   });
 
   final IconData icon;
   final String label;
+  final bool hasUnreadDot;
   final _ChipTone tone;
 
   @override
@@ -827,23 +980,42 @@ class _FloatingChip extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.shadow.withValues(alpha: 0.10),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+            color: AppTheme.primary.withValues(alpha: 0.10),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              color: bg,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 13, color: fg),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: bg,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 13, color: fg),
+              ),
+              if (hasUnreadDot)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF4C4C),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(width: 8),
           Text(
@@ -866,6 +1038,8 @@ class _FloatingChip extends StatelessWidget {
         return (const Color(0xFFE6F7EC), const Color(0xFF0E8A3E));
       case _ChipTone.neutral:
         return (AppTheme.primary.withValues(alpha: 0.12), AppTheme.primary);
+      case _ChipTone.urgent:
+        return (const Color(0xFFFFF2E5), const Color(0xFFFF7A00));
     }
   }
 }

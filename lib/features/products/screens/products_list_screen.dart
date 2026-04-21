@@ -13,6 +13,8 @@ import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/auth/token_storage.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
+import '../../../core/widgets/illustrated_empty_state.dart';
+import '../../../core/widgets/shimmer_list_loader.dart';
 import '../data/attributes_repository.dart';
 import '../data/categories_repository.dart';
 import '../providers/attributes_list_provider.dart';
@@ -602,6 +604,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   label: 'Edit',
                   onTap: () {
                     Navigator.pop(sheetContext);
+                    HapticFeedback.lightImpact();
                     final key = (product.id != null && product.id!.isNotEmpty)
                         ? product.id!
                         : product.sku;
@@ -619,6 +622,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   showDividerBelow: true,
                   onTap: () async {
                     Navigator.pop(sheetContext);
+                    HapticFeedback.lightImpact();
                     final id = product.id;
                     if (id == null || id.isEmpty) {
                       if (rootContext.mounted) {
@@ -628,6 +632,24 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                       }
                       return;
                     }
+                    
+                    final nextActive = !product.active;
+                    final nextStatus = nextActive ? 'Active' : 'Inactive';
+                    
+                    setState(() {
+                      final idx = _allProducts.indexWhere((p) => p.id == id);
+                      if (idx >= 0) {
+                        final old = _allProducts[idx];
+                        _allProducts[idx] = (
+                          id: old.id, name: old.name, meta: old.meta,
+                          status: nextStatus, active: nextActive,
+                          stock: old.stock, stockWarn: old.stockWarn, price: old.price,
+                          sku: old.sku, imageUrl: old.imageUrl, accentBar: old.accentBar
+                        );
+                        _products = _applyLocalFilters(_allProducts);
+                      }
+                    });
+                    
                     try {
                       final api = ref.read(apiClientProvider);
                       final next = product.active ? 'inactive' : 'active';
@@ -638,9 +660,8 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                       if (rootContext.mounted) {
                         _invalidateProductsCache();
                         ScaffoldMessenger.of(rootContext).showSnackBar(
-                          SnackBar(content: Text('${product.active ? 'Deactivated' : 'Activated'} ${product.name}')),
+                          SnackBar(content: Text('${nextActive ? 'Activated' : 'Deactivated'} ${product.name}')),
                         );
-                        await _loadProducts(pageOverride: _currentPage, forceRefresh: true);
                       }
                     } catch (e) {
                       if (rootContext.mounted) {
@@ -656,6 +677,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   label: 'Share on Facebook',
                   onTap: () {
                     Navigator.pop(sheetContext);
+                    HapticFeedback.lightImpact();
                     _launchExternal(
                       'https://www.facebook.com/sharer/sharer.php?u=$encodedUrl',
                     );
@@ -666,6 +688,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   label: 'Share on X',
                   onTap: () {
                     Navigator.pop(sheetContext);
+                    HapticFeedback.lightImpact();
                     _launchExternal(
                       'https://twitter.com/intent/tweet?url=$encodedUrl&text=${Uri.encodeComponent('Check out ${product.name}')}',
                     );
@@ -676,6 +699,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   label: 'Share on WhatsApp',
                   onTap: () {
                     Navigator.pop(sheetContext);
+                    HapticFeedback.lightImpact();
                     _launchExternal(
                       'https://wa.me/?text=${Uri.encodeComponent('${product.name} — $shareUrl')}',
                     );
@@ -686,6 +710,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   label: 'Share on Instagram',
                   onTap: () {
                     Navigator.pop(sheetContext);
+                    HapticFeedback.lightImpact();
                     SharePlus.instance.share(
                       ShareParams(text: '${product.name}\n$shareUrl'),
                     );
@@ -696,8 +721,9 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   label: 'Copy Link',
                   showDividerBelow: true,
                   onTap: () async {
+                    Navigator.pop(sheetContext);
+                    HapticFeedback.lightImpact();
                     await Clipboard.setData(ClipboardData(text: shareUrl));
-                    if (sheetContext.mounted) Navigator.pop(sheetContext);
                     if (rootContext.mounted) {
                       ScaffoldMessenger.of(rootContext).showSnackBar(
                         const SnackBar(content: Text('Link copied')),
@@ -711,6 +737,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   destructive: true,
                   onTap: () {
                     Navigator.pop(sheetContext);
+                    HapticFeedback.heavyImpact();
                     showDialog<void>(
                       context: rootContext,
                       builder: (ctx) => AlertDialog(
@@ -919,8 +946,8 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
               const SizedBox(height: 24),
               if (_isLoading)
                 const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: CircularProgressIndicator()),
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: ShimmerListLoader(itemCount: 8, height: 100),
                 )
               else if (_errorMessage != null)
                 Container(
@@ -937,17 +964,12 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   ),
                 )
               else if (products.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'No products found.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                const Padding(
+                  padding: EdgeInsets.only(top: 24),
+                  child: IllustratedEmptyState(
+                    icon: Icons.inventory_2_outlined,
+                    title: 'No products found',
+                    subtitle: 'Adjust your search filters or add a new product.',
                   ),
                 )
               else

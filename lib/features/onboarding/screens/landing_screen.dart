@@ -41,6 +41,7 @@ class LandingScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      SizedBox(height: compact ? 24 : 40),
                       Center(
                         child: Image.asset(
                           'assets/images/logo_with_name.png',
@@ -72,18 +73,19 @@ class LandingScreen extends StatelessWidget {
                       SizedBox(height: compact ? 18 : 26),
 
                       const _RevenueShowcaseCard(),
-                      SizedBox(height: compact ? 22 : 30),
+                      SizedBox(height: compact ? 32 : 48),
 
-                      _PrimarySignInButton(
-                        onPressed: () => context.push('/login'),
+                      _PrimaryStartTrialButton(
+                        onPressed: () => context.go('/register'),
                         compact: compact,
                       ),
                       SizedBox(height: compact ? 16 : 20),
 
-                      _CreateStoreCta(
-                        onPressed: () => context.push('/register'),
+                      _SecondarySignInButton(
+                        onPressed: () => context.go('/login'),
+                        compact: compact,
                       ),
-                      SizedBox(height: compact ? 8 : 12),
+                      SizedBox(height: compact ? 16 : 24),
                     ],
                   ),
                 ),
@@ -154,7 +156,7 @@ class _RevenueShowcaseCard extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE6F7EC),
+                  color: const Color(0xFFE8F5E9),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Row(
@@ -163,14 +165,14 @@ class _RevenueShowcaseCard extends StatelessWidget {
                     const Icon(
                       Icons.trending_up_rounded,
                       size: 14,
-                      color: Color(0xFF0E8A3E),
+                      color: Color(0xFF00C853),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       '+12.5%',
                       style: theme.textTheme.labelMedium?.copyWith(
-                        color: const Color(0xFF0E8A3E),
-                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF00C853),
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
@@ -198,15 +200,8 @@ class _RevenueShowcaseCard extends StatelessWidget {
                 maxX: (_points.length - 1).toDouble(),
                 minY: 0,
                 maxY: 30,
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: 7.5,
-                  getDrawingHorizontalLine: (_) => FlLine(
-                    color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-                    strokeWidth: 1,
-                    dashArray: const [4, 4],
-                  ),
+                gridData: const FlGridData(
+                  show: false,
                 ),
                 borderData: FlBorderData(show: false),
                 titlesData: FlTitlesData(
@@ -299,8 +294,8 @@ class _RevenueShowcaseCard extends StatelessWidget {
   }
 }
 
-class _PrimarySignInButton extends StatelessWidget {
-  const _PrimarySignInButton({
+class _PrimaryStartTrialButton extends StatelessWidget {
+  const _PrimaryStartTrialButton({
     required this.onPressed,
     required this.compact,
   });
@@ -310,125 +305,57 @@ class _PrimarySignInButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(999),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.primary.withValues(alpha: 0.3),
+            color: AppTheme.primaryDark.withValues(alpha: 0.15),
             blurRadius: 16,
             offset: const Offset(0, 8),
           ),
         ],
-        gradient: LinearGradient(
-          colors: [
-            colorScheme.primaryContainer,
-            colorScheme.primary,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          stops: const [0.0, 1.0],
-          transform: const GradientRotation(2.35619),
-        ),
       ),
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
+          backgroundColor: AppTheme.primaryDark,
+          foregroundColor: Colors.white,
           shadowColor: Colors.transparent,
-          padding: EdgeInsets.symmetric(vertical: compact ? 12 : 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+          ),
+          padding: EdgeInsets.symmetric(vertical: compact ? 16 : 18),
         ),
         child: const Text(
-          'Sign in',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          'Start Free Trial',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ),
     );
   }
 }
 
-/// Supersized version of the "Don't have a store?" card from [LoginScreen].
-/// Uses ~2x the vertical footprint with a larger icon badge, bigger title
-/// and longer subtitle — the landing page's primary acquisition CTA.
-class _CreateStoreCta extends StatelessWidget {
-  const _CreateStoreCta({required this.onPressed});
+class _SecondarySignInButton extends StatelessWidget {
+  const _SecondarySignInButton({
+    required this.onPressed,
+    required this.compact,
+  });
 
   final VoidCallback? onPressed;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Semantics(
-      label: "Don't have a store? Start your free trial. Opens registration.",
-      child: Material(
-        color: colorScheme.primaryContainer.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
-            child: Row(
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerLowest,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: colorScheme.primary.withValues(alpha: 0.08),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    Icons.storefront_outlined,
-                    color: colorScheme.primary,
-                    size: 30,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Don't have a store?",
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: colorScheme.onSurface,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Start your free trial — create your shop in minutes '
-                        'and start selling today.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Icon(
-                  Icons.arrow_forward_rounded,
-                  color: colorScheme.primary,
-                  size: 26,
-                ),
-              ],
-            ),
-          ),
-        ),
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        padding: EdgeInsets.symmetric(vertical: compact ? 16 : 18),
+        foregroundColor: AppTheme.primaryDark,
+      ),
+      child: const Text(
+        'Log into existing store',
+        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
       ),
     );
   }

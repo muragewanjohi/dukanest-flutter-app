@@ -142,14 +142,7 @@ String _dashboardGreetingName(AuthUser? user, String? storeName) {
   if (user?.name != null && user!.name!.trim().isNotEmpty) {
     return user.name!.trim();
   }
-  if (storeName != null && storeName.trim().isNotEmpty) {
-    return storeName.trim();
-  }
-  final email = user?.email ?? '';
-  final at = email.indexOf('@');
-  if (at > 0) return email.substring(0, at).trim();
-  if (email.isNotEmpty) return email;
-  return 'there';
+  return '';
 }
 
 List<double> _normalizeChartFractions(List<dynamic>? raw, {int length = 7}) {
@@ -680,7 +673,7 @@ class DashboardScreen extends ConsumerWidget {
           padding: EdgeInsets.fromLTRB(24, 8 + MediaQuery.of(context).padding.top, 24, 120),
           children: [
           DashboardPageHeader(
-            title: 'Welcome back, $greetingName',
+            title: greetingName.isEmpty ? 'Welcome back' : 'Welcome back, $greetingName',
             actions: [
               IconButton.filledTonal(
                 onPressed: () => refreshDashboard(),
@@ -701,93 +694,86 @@ class DashboardScreen extends ConsumerWidget {
               ),
             ],
           ),
-          if ((displayStoreName != null && displayStoreName.trim().isNotEmpty) ||
-              (storeUrl != null && storeUrl.trim().isNotEmpty)) ...[
+          if (storeUrl != null && storeUrl.trim().isNotEmpty) ...[
             const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (displayStoreName != null && displayStoreName.trim().isNotEmpty)
-                        Text(
-                          displayStoreName,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.primaryDark,
-                          ),
-                        ),
-                      if (storeUrl != null && storeUrl.trim().isNotEmpty)
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                storeUrl,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              tooltip: 'Copy store URL',
-                              onPressed: () {
-                                final u = storeUrl.trim();
-                                Clipboard.setData(ClipboardData(text: u)).then((_) {
-                                  if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Store URL copied')),
-                                  );
-                                });
-                              },
-                              icon: const Icon(Icons.copy_rounded, size: 18),
-                              style: IconButton.styleFrom(
-                                visualDensity: VisualDensity.compact,
-                                foregroundColor: AppTheme.primaryDark,
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.link_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      storeUrl,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                ),
-                if (storeUrl != null && storeUrl.trim().isNotEmpty)
-                  FilledButton.icon(
-                    onPressed: () {
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () {
+                      final u = storeUrl.trim();
+                      Clipboard.setData(ClipboardData(text: u)).then((_) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Store URL copied')),
+                        );
+                      });
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      child: Icon(Icons.copy_rounded, size: 16, color: AppTheme.primaryDark),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(width: 1, height: 16, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () {
                       final u = storeUrl.trim();
                       final name = (displayStoreName ?? 'my store').trim();
-                      final shareText =
-                          'Shop with $name on DukaNest.\nBrowse products and order here: $u';
+                      final shareText = 'Shop with $name on DukaNest.\nBrowse products and order here: $u';
                       SharePlus.instance.share(ShareParams(text: shareText)).then((_) {
-                        ref
-                            .read(dashboardLocalStepCompletionsProvider.notifier)
-                            .markComplete(DashboardOnboardingStepKeys.shareStore);
+                        ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(DashboardOnboardingStepKeys.shareStore);
                         _postGettingStartedShare(ref);
                       });
                     },
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppTheme.primaryDark,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      child: Icon(Icons.share_outlined, size: 16, color: AppTheme.primaryDark),
                     ),
-                    icon: const Icon(Icons.share_outlined, size: 16),
-                    label: const Text('Share'),
                   ),
-              ],
+                ],
+              ),
             ),
           ],
           const SizedBox(height: 32),
-          _OverviewDataSourceBadge(isLiveData: isLiveData),
-          const SizedBox(height: 6),
-          Text(
-            '${_lastUpdatedLabel(lastSyncedAt)} • Pull down to refresh',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: isLiveData ? const Color(0xFF22C55E) : const Color(0xFFEAB308),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${_lastUpdatedLabel(lastSyncedAt)} • Pull down to refresh',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
           if (!allOnboardingComplete) ...[
             const SizedBox(height: 12),
@@ -947,8 +933,11 @@ class DashboardScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: AppTheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(12),
-        border: const Border(
-          left: BorderSide(color: AppTheme.primaryDark, width: 4),
+        border: Border(
+          left: const BorderSide(color: AppTheme.primaryDark, width: 4),
+          top: BorderSide(color: AppTheme.outlineVariant.withValues(alpha: 0.2)),
+          right: BorderSide(color: AppTheme.outlineVariant.withValues(alpha: 0.2)),
+          bottom: BorderSide(color: AppTheme.outlineVariant.withValues(alpha: 0.2)),
         ),
       ),
       padding: const EdgeInsets.all(24),
@@ -995,6 +984,7 @@ class DashboardScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: AppTheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.outlineVariant.withValues(alpha: 0.2)),
       ),
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -1234,7 +1224,10 @@ class DashboardScreen extends ConsumerWidget {
                       ),
                       child: Text(
                         'View Orders',
-                        style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ],
@@ -1548,7 +1541,10 @@ class _OnboardingStepCarouselCard extends StatelessWidget {
               ),
               child: Text(
                 step.actionLabel,
-                style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
               ),
             ),
           ),
@@ -1558,49 +1554,7 @@ class _OnboardingStepCarouselCard extends StatelessWidget {
   }
 }
 
-class _OverviewDataSourceBadge extends StatelessWidget {
-  const _OverviewDataSourceBadge({required this.isLiveData});
 
-  final bool isLiveData;
-
-  @override
-  Widget build(BuildContext context) {
-    final bg = isLiveData ? const Color(0xFFD1FAE5) : const Color(0xFFFFF4E5);
-    final fg = isLiveData ? const Color(0xFF065F46) : const Color(0xFF9A3412);
-    final label = isLiveData ? 'LIVE OVERVIEW DATA' : 'FALLBACK OVERVIEW DATA';
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: fg.withValues(alpha: 0.25)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isLiveData ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
-              size: 14,
-              color: fg,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.7,
-                color: fg,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _WeeklyRevenueBar extends StatelessWidget {
   const _WeeklyRevenueBar({

@@ -29,12 +29,24 @@ ProductAttribute productAttributeFromApi(Map<String, dynamic> m) {
   final valuesRaw =
       m['values'] ?? m['attributeValues'] ?? m['attribute_values'] ?? m['items'] ?? const [];
   final values = <String>[];
+  final valueIdByLabel = <String, String>{};
   if (valuesRaw is List) {
     for (final v in valuesRaw) {
       if (v is Map) {
         final vm = Map<String, dynamic>.from(v);
         final label = (vm['value'] ?? vm['name'] ?? '').toString();
         if (label.isEmpty) continue;
+        final valueId = (vm['id'] ??
+                vm['valueId'] ??
+                vm['value_id'] ??
+                vm['attributeValueId'] ??
+                vm['attribute_value_id'] ??
+                '')
+            .toString()
+            .trim();
+        if (valueId.isNotEmpty) {
+          valueIdByLabel[label] = valueId;
+        }
         final cc = (vm['colorCode'] ?? vm['color_code'] ?? '').toString().trim();
         if (cc.isNotEmpty) {
           final hex = cc.startsWith('#') ? cc : '#$cc';
@@ -53,6 +65,7 @@ ProductAttribute productAttributeFromApi(Map<String, dynamic> m) {
     description: desc,
     values: values,
     displayType: displayType,
+    valueIdByLabel: valueIdByLabel,
   );
 }
 

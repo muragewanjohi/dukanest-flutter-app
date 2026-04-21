@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'dart:async';
 import '../../../config/app_config.dart';
+import '../../../core/auth/auth_state.dart';
 import '../../../core/auth/google_sign_in_config.dart';
 import '../providers/auth_provider.dart';
 
@@ -19,9 +21,47 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _obscurePassword = true;
+  int _signInStageIndex = 0;
+  Timer? _signInStageTimer;
+
+  static const List<String> _signInStages = [
+    'Signing you in...',
+    'Loading your store dashboard...',
+    'Finalizing your session...',
+  ];
+
+  void _startSignInProgress() {
+    _signInStageTimer?.cancel();
+    _signInStageIndex = 0;
+    _signInStageTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_signInStageIndex < _signInStages.length - 1) {
+          _signInStageIndex += 1;
+        }
+      });
+    });
+  }
+
+  void _stopSignInProgress() {
+    _signInStageTimer?.cancel();
+    _signInStageTimer = null;
+    _signInStageIndex = 0;
+  }
+
+  bool get _isEmailValid {
+    final value = _emailController.text.trim();
+    return value.isNotEmpty && value.contains('@');
+  }
+
+  bool get _isPasswordValid => _passwordController.text.isNotEmpty;
+
+  bool get _canSubmitWithEmailPassword => _isEmailValid && _isPasswordValid;
 
   @override
   void dispose() {
+    _signInStageTimer?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -29,13 +69,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    
-    setState(() => _isLoading = true);
-    await ref.read(authProvider.notifier).login(
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
-    if(mounted) setState(() => _isLoading = false);
+
+    setState(() {
+      _isLoading = true;
+      _startSignInProgress();
+    });
+    try {
+      await ref.read(authProvider.notifier).login(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+      final status = ref.read(authProvider).status;
+      if (mounted) {
+        if (status == AuthStatus.authenticated) {
+          context.go('/dashboard');
+        } else if (status == AuthStatus.awaitingMfa) {
+          context.go('/mfa');
+        }
+      }
+    } finally {
+      _stopSignInProgress();
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _handleGoogleSignIn() async {
@@ -55,7 +110,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _startSignInProgress();
+    });
     try {
       await ensureGoogleSignInInitialized();
       final account = await GoogleSignIn.instance.authenticate(
@@ -64,6 +122,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final auth = account.authentication;
       if (auth.idToken != null) {
         await ref.read(authProvider.notifier).googleSignIn(auth.idToken!);
+        final status = ref.read(authProvider).status;
+        if (mounted && status == AuthStatus.authenticated) {
+          context.go('/dashboard');
+        }
       }
     } on GoogleSignInException catch (e) {
       if (mounted &&
@@ -80,6 +142,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
       }
     } finally {
+      _stopSignInProgress();
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -132,30 +195,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       backgroundColor: colorScheme.surface,
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxHeight < 760;
-            final horizontalPadding = compact ? 20.0 : 24.0;
-            final verticalPadding = compact ? 16.0 : 24.0;
-            final logoHeight = compact ? 44.0 : 56.0;
+        child: Stack(
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxHeight < 760;
+                final horizontalPadding = compact ? 20.0 : 24.0;
+                final verticalPadding = compact ? 16.0 : 24.0;
+                final logoHeight = compact ? 44.0 : 56.0;
 
-            return Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 500),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: horizontalPadding,
-                    vertical: verticalPadding,
-                  ),
-                  child: Form(
-                    key: _formKey,
-                    child: SingleChildScrollView(
-                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: constraints.maxHeight - (verticalPadding * 2),
-                        ),
-                        child: Column(
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 500),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: horizontalPadding,
+                        vertical: verticalPadding,
+                      ),
+                      child: Form(
+                        key: _formKey,
+                        child: SingleChildScrollView(
+                          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: constraints.maxHeight - (verticalPadding * 2),
+                            ),
+                            child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                     // Top Logo
@@ -187,8 +252,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                     // Google — elevated, high-contrast secondary CTA (distinct from email form).
                     Material(
-                      elevation: 2,
-                      shadowColor: colorScheme.shadow.withValues(alpha: 0.18),
+                      elevation: 1,
+                      shadowColor: colorScheme.shadow.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                       color: colorScheme.surface,
                       child: InkWell(
@@ -198,8 +263,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: colorScheme.outline.withValues(alpha: 0.55),
-                              width: 1.5,
+                              color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                              width: 1.0,
                             ),
                             color: colorScheme.surfaceContainerLowest,
                           ),
@@ -240,6 +305,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Expanded(child: Divider(color: colorScheme.outlineVariant.withValues(alpha: 0.5))),
                       ],
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Continue with Google or enter a valid email and password.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                     SizedBox(height: compact ? 14 : 20),
 
                     if (authState.error != null) ...[
@@ -263,11 +336,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     _buildFieldLabel('Email'),
                     TextFormField(
                       controller: _emailController,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      onChanged: (_) => setState(() {}),
                       keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(
                         hintText: 'you@example.com',
                         prefixIcon: Icon(Icons.email_outlined),
-                        suffixIcon: Icon(Icons.more_horiz, size: 20, color: Colors.grey),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) return 'Please enter your email';
@@ -280,11 +354,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     _buildFieldLabel('Password'),
                     TextFormField(
                       controller: _passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      onChanged: (_) => setState(() {}),
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
                         hintText: '••••••••',
-                        prefixIcon: Icon(Icons.lock_outline),
-                        suffixIcon: Icon(Icons.more_horiz, size: 20, color: Colors.grey),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                            size: 20,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _obscurePassword = !_obscurePassword;
+                            });
+                          },
+                        ),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) return 'Please enter your password';
@@ -295,7 +382,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () => context.push('/reset-password'),
+                        onPressed: () => context.go('/reset-password'),
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 8.0),
                         ),
@@ -308,28 +395,47 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Container(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: colorScheme.primary.withValues(alpha: 0.3),
-                            blurRadius: 16,
-                            offset: const Offset(0, 8),
-                          )
-                        ],
-                        gradient: LinearGradient(
-                          colors: [
-                            colorScheme.primaryContainer, 
-                            colorScheme.primary,          
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          stops: const [0.0, 1.0],
-                          transform: const GradientRotation(2.35619),
-                        ),
+                        boxShadow: !_isLoading
+                            ? [
+                                BoxShadow(
+                                  color: colorScheme.primary.withValues(alpha: 0.3),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 8),
+                                )
+                              ]
+                            : null,
+                        gradient: !_isLoading
+                            ? LinearGradient(
+                                colors: [
+                                  colorScheme.primaryContainer,
+                                  colorScheme.primary,
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                stops: const [0.0, 1.0],
+                                transform: const GradientRotation(2.35619),
+                              )
+                            : LinearGradient(
+                                colors: [
+                                  colorScheme.primary.withValues(alpha: 0.15),
+                                  colorScheme.primary.withValues(alpha: 0.25),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                        border: !_isLoading
+                            ? null
+                            : Border.all(
+                                color: colorScheme.primary.withValues(alpha: 0.1),
+                              ),
                       ),
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _submit,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
+                          foregroundColor: !_isLoading
+                              ? Colors.white
+                              : colorScheme.primary.withValues(alpha: 0.6),
                           shadowColor: Colors.transparent,
                           padding: EdgeInsets.symmetric(vertical: compact ? 12 : 14),
                         ),
@@ -351,7 +457,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         color: colorScheme.primaryContainer.withValues(alpha: 0.28),
                         borderRadius: BorderRadius.circular(14),
                         child: InkWell(
-                          onTap: _isLoading ? null : () => context.push('/register'),
+                          onTap: _isLoading ? null : () => context.go('/register'),
                           borderRadius: BorderRadius.circular(14),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
@@ -398,15 +504,67 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                     SizedBox(height: compact ? 14 : 18),
-                        ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+              },
+            ),
+            if (_isLoading)
+              Positioned.fill(
+                child: AbsorbPointer(
+                  child: ColoredBox(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    child: Center(
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 24),
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surface,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.12),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            LinearProgressIndicator(
+                              minHeight: 6,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              _signInStages[_signInStageIndex],
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: colorScheme.secondary,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Please wait while we prepare your dashboard.',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-            );
-          },
+          ],
         ),
       ),
     );

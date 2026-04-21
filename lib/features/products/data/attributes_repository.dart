@@ -25,6 +25,7 @@ class ProductAttribute {
     required this.description,
     required this.values,
     required this.displayType,
+    this.valueIdByLabel = const {},
   });
 
   final String id;
@@ -32,6 +33,7 @@ class ProductAttribute {
   String description;
   List<String> values;
   AttributeDisplayType displayType;
+  final Map<String, String> valueIdByLabel;
 }
 
 class AttributesRepository {

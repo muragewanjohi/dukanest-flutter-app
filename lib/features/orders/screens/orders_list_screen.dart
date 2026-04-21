@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
+import '../../../core/widgets/illustrated_empty_state.dart';
+import '../../../core/widgets/shimmer_list_loader.dart';
 import '../providers/pending_orders_count_provider.dart';
 
 /// Order Fulfillment — Stitch layout (metrics, chips, order cards, processing goal).
@@ -379,7 +381,26 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            _OrdersDataSourceBadge(isLiveData: _isLiveData),
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _isLiveData ? const Color(0xFF22C55E) : const Color(0xFFEAB308),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _isLiveData ? 'LIVE ORDERS DATA' : 'FALLBACK / NO LIVE DATA',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -432,8 +453,8 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
             const SizedBox(height: 14),
             if (_isLoading)
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: CircularProgressIndicator()),
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: ShimmerListLoader(itemCount: 6, height: 80),
               )
             else if (_errorMessage != null)
               Container(
@@ -468,18 +489,10 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
                 ),
               )
             else if (orders.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'No orders found for the selected filter.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
+              const IllustratedEmptyState(
+                icon: Icons.inbox_outlined,
+                title: 'No orders found',
+                subtitle: 'No orders found for the selected filter.',
               )
             else
               ...orders.map((order) {
@@ -496,7 +509,7 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
                   ),
                 );
               }),
-            if (!_isLoading && _errorMessage == null) ...[
+            if (!_isLoading && _errorMessage == null && _totalItems > 0) ...[
               const SizedBox(height: 12),
               _OrdersPaginationBar(
                 currentPage: _currentPage,
@@ -513,8 +526,6 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
               processed: _goalProcessed,
               total: _goalTotal,
             ),
-            const SizedBox(height: 12),
-            const _QuickActionsCard(),
           ],
         ),
       ),
@@ -678,6 +689,7 @@ class _MetricCardActiveToday extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.outlineVariant.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -718,6 +730,7 @@ class _MetricCardPendingShipment extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
