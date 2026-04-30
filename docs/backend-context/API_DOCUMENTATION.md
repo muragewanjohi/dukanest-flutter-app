@@ -447,6 +447,30 @@ DELETE /api/products/{id}
 
 **Authentication:** Tenant admin/staff
 
+### Remove Demo Products
+```http
+DELETE /api/products/demo
+DELETE /api/v1/mobile/dashboard/products/demo
+```
+
+**Authentication:** Tenant admin/staff
+
+Removes products marked with `metadata.is_demo = true` for the current tenant. Products that have never appeared in orders are deleted. Demo products already referenced by orders are archived instead so historical order records remain intact.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "matchedCount": 10,
+    "deletedCount": 8,
+    "archivedCount": 2,
+    "removedCount": 10,
+    "message": "Demo products removed successfully"
+  }
+}
+```
+
 ### Upload Product Image
 ```http
 POST /api/products/upload
@@ -1954,6 +1978,120 @@ Response includes pagination metadata:
   }
 }
 ```
+
+---
+
+## Finance (COGS, Expenses, P&L)
+
+### Product and Variant Cost Fields
+
+Product and variant payloads now support `cost_price` (nullable, `>= 0`) to track cost of goods.
+
+- Product create/update endpoints:
+  - `POST /api/products`
+  - `PUT/PATCH /api/products/:id`
+  - `POST /api/v1/mobile/dashboard/products`
+  - `PUT/PATCH /api/v1/mobile/dashboard/products/:id`
+- Variant create/update endpoints:
+  - `POST /api/products/:id/variants`
+  - `PUT/PATCH /api/products/:id/variants/:variantId`
+  - `POST /api/v1/mobile/dashboard/products/:id/variants`
+  - `PUT/PATCH /api/v1/mobile/dashboard/products/:id/variants/:variantId`
+
+When an order is created, checkout snapshots COGS into `order_products`:
+
+- `unit_cost_at_sale`
+- `cogs_total`
+
+This preserves historical margin accuracy even if product costs change later.
+
+### Expenses API (Web)
+
+#### List Expenses
+```http
+GET /api/expenses?page=1&limit=20&start_date=2026-01-01&end_date=2026-01-31&category=fuel
+```
+
+Optional filters: `start_date`, `end_date`, `category`, `category_id`.
+
+#### Expense Categories
+```http
+GET /api/expense-categories
+POST /api/expense-categories
+GET /api/expense-categories/:id
+PATCH /api/expense-categories/:id
+DELETE /api/expense-categories/:id
+```
+
+Create category body:
+
+```json
+{
+  "name": "Fuel",
+  "slug": "fuel",
+  "description": "Fuel and transport costs"
+}
+```
+
+#### Create Expense
+```http
+POST /api/expenses
+Content-Type: application/json
+```
+
+```json
+{
+  "expense_date": "2026-01-18",
+  "category_id": "expense-category-uuid",
+  "amount": 1250,
+  "tax_amount": 0,
+  "payment_method": "mpesa",
+  "reference": "META-ADS-001",
+  "notes": "January boosted posts"
+}
+```
+
+#### Update/Delete Expense
+```http
+PATCH /api/expenses/:id
+DELETE /api/expenses/:id
+```
+
+Use `category_id` for tenant-specific categories. For backwards compatibility, `category` can also be sent as an existing category slug.
+
+### P&L API (Web)
+
+```http
+GET /api/analytics/pnl?start_date=2026-01-01&end_date=2026-01-31
+```
+
+Response fields:
+- `grossRevenue`
+- `refundsDiscounts`
+- `netRevenue`
+- `cogs`
+- `grossProfit`
+- `operatingExpenses`
+- `netProfit`
+- `grossMarginPercent`
+- `netMarginPercent`
+
+### Mobile Finance APIs
+
+- `GET /api/v1/mobile/dashboard/analytics/pnl`
+- `GET /api/v1/mobile/dashboard/expense-categories`
+- `POST /api/v1/mobile/dashboard/expense-categories`
+- `GET /api/v1/mobile/dashboard/expense-categories/:id`
+- `PATCH /api/v1/mobile/dashboard/expense-categories/:id`
+- `DELETE /api/v1/mobile/dashboard/expense-categories/:id`
+- `GET /api/v1/mobile/dashboard/expenses`
+- `POST /api/v1/mobile/dashboard/expenses`
+- `PATCH /api/v1/mobile/dashboard/expenses/:id`
+- `DELETE /api/v1/mobile/dashboard/expenses/:id`
+
+These use the standard mobile envelope:
+- success: `{ \"success\": true, \"data\": {...}, \"pagination\"?: {...} }`
+- error: `{ \"success\": false, \"error\": { \"code\", \"message\", \"details?\" } }`
 
 ---
 

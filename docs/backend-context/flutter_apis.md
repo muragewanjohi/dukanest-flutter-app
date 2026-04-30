@@ -50,6 +50,7 @@ These paths are relative to **`/api/v1/mobile`** (full URL example: `https://www
 | PATCH | `/dashboard/orders/:id` | Same as web `PUT /api/orders/:id`: `status` and/or `payment_status`, optional `notes`, tracking |
 | GET | `/dashboard/products` | Paginated; see API_MULTI_STORE_CHANGES |
 | POST | `/dashboard/products` | Create product (`createProductSchema`); respects plan limits + `canEditData` |
+| DELETE | `/dashboard/products/demo` | Remove active demo products; ordered demo products are archived |
 | GET | `/dashboard/products/:id` | Product + variants |
 | PUT/PATCH | `/dashboard/products/:id` | Update (`updateProductSchema`) |
 | DELETE | `/dashboard/products/:id` | Delete + cache invalidation |
@@ -88,6 +89,16 @@ These paths are relative to **`/api/v1/mobile`** (full URL example: `https://www
 | PUT/PATCH | `/dashboard/pages/:id` | Update page (`updatePageSchema`); revalidates storefront paths |
 | DELETE | `/dashboard/pages/:id` | Delete; **blocked** for slugs `home`, `about`, `contact` |
 | GET | `/dashboard/analytics` | Optional `?days=` (1–365, default **30**) |
+| GET | `/dashboard/analytics/pnl` | Profit & Loss summary (`start_date`, `end_date`) |
+| GET | `/dashboard/expense-categories` | List tenant expense categories |
+| POST | `/dashboard/expense-categories` | Create tenant expense category (`name`, optional `slug`, `description`) |
+| GET | `/dashboard/expense-categories/:id` | Get expense category |
+| PATCH | `/dashboard/expense-categories/:id` | Update expense category |
+| DELETE | `/dashboard/expense-categories/:id` | Delete expense category if unused |
+| GET | `/dashboard/expenses` | Paginated expense ledger list |
+| POST | `/dashboard/expenses` | Create expense (`category_id` or existing category slug) |
+| PATCH | `/dashboard/expenses/:id` | Update expense, including `category_id`/category |
+| DELETE | `/dashboard/expenses/:id` | Delete expense |
 | GET | `/dashboard/sales` | **List** promotions/sales (paginated) |
 | POST | `/dashboard/sales` | Create sale |
 | GET | `/dashboard/sales/:id` | Sale + `product_sales` |
@@ -269,6 +280,312 @@ Public (non-mobile base): `GET /api/tenants/check-subdomain`, `POST /api/tenants
 - **No variants:** send/edit `stock_quantity` on the product (`POST`/`PATCH /dashboard/products`).
 - **Has variants:** treat product-level `stock_quantity` as read-only and manage stock on variant rows.
 - Backend auto-syncs product stock from variant totals after variant create/update/delete.
+
+#### Product cost fields for P&L
+
+- `cost_price` is now supported for both products and variants.
+- Flutter should send/read:
+  - product: `cost_price` in create/update payloads
+  - variant: `cost_price` in create/update payloads
+- Backend snapshots COGS at checkout (`unit_cost_at_sale`, `cogs_total`) so historical margins remain correct.
+
+---
+
+## Flutter implementation details: expense categories and demo products
+
+This section documents the latest backend changes that affect the Flutter tenant app.
+
+### 1) Expense categories
+
+Expense categories are now tenant-specific. Flutter should stop treating expense categories as a fixed enum and instead load them from the API.
+
+#### Endpoints
+
+Use the mobile base URL `/api/v1/mobile`.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/dashboard/expense-categories` | List default + custom tenant expense categories |
+| POST | `/dashboard/expense-categories` | Create custom expense category |
+| GET | `/dashboard/expense-categories/:id` | Get one expense category |
+| PATCH | `/dashboard/expense-categories/:id` | Update category name/slug/description |
+| DELETE | `/dashboard/expense-categories/:id` | Delete category if unused |
+
+#### Suggested Flutter files
+
+Add or update these files in the Flutter app:
+
+| File | Change |
+|------|--------|
+| `lib/core/api/api_client.dart` | Add expense category CRUD methods and send `category_id` on expenses |
+| `lib/features/analytics/screens/expenses_screen.dart` | Replace fixed category list with API-loaded categories |
+| `lib/features/analytics/models/expense_category.dart` | Add `ExpenseCategory` model if the screen is split into typed models |
+| `lib/features/analytics/models/expense.dart` | Add `categoryId` and `categoryDetails` if expenses are typed |
+| `lib/features/analytics/widgets/expense_category_picker.dart` | Optional reusable picker backed by API data |
+| `lib/features/analytics/screens/expense_categories_screen.dart` | Optional management screen for custom categories |
+
+#### ExpenseCategory model shape
+
+```dart
+class ExpenseCategory {
+  final String id;
+  final String tenantId;
+  final String name;
+  final String slug;
+  final String? description;
+  final bool isDefault;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+}
+```
+
+JSON field mapping:
+
+| Dart field | API JSON field |
+|------------|----------------|
+| `id` | `id` |
+| `tenantId` | `tenant_id` |
+| `name` | `name` |
+| `slug` | `slug` |
+| `description` | `description` |
+| `isDefault` | `is_default` |
+| `createdAt` | `created_at` |
+| `updatedAt` | `updated_at` |
+
+#### Expense model changes
+
+Add:
+
+```dart
+final String? categoryId;
+final ExpenseCategory? categoryDetails;
+```
+
+JSON field mapping:
+
+| Dart field | API JSON field |
+|------------|----------------|
+| `categoryId` | `category_id` |
+| `categoryDetails` | `category_details` |
+
+`category` may still appear as a legacy/category slug string. Prefer displaying `categoryDetails.name` when present, then fallback to `category`.
+
+#### Create category request
+
+```http
+POST /api/v1/mobile/dashboard/expense-categories
+Content-Type: application/json
+Authorization: Bearer <accessToken>
+```
+
+```json
+{
+  "name": "Fuel",
+  "slug": "fuel",
+  "description": "Fuel and transport costs"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "category": {
+      "id": "uuid",
+      "tenant_id": "uuid",
+      "name": "Fuel",
+      "slug": "fuel",
+      "description": "Fuel and transport costs",
+      "is_default": false
+    }
+  }
+}
+```
+
+#### Create expense request
+
+Prefer `category_id`:
+
+```http
+POST /api/v1/mobile/dashboard/expenses
+Content-Type: application/json
+Authorization: Bearer <accessToken>
+```
+
+```json
+{
+  "expense_date": "2026-01-18",
+  "category_id": "expense-category-uuid",
+  "amount": 1250,
+  "tax_amount": 0,
+  "payment_method": "mpesa",
+  "reference": "META-ADS-001",
+  "notes": "January boosted posts"
+}
+```
+
+Legacy fallback is still accepted if the category slug exists:
+
+```json
+{
+  "expense_date": "2026-01-18",
+  "category": "fuel",
+  "amount": 1250
+}
+```
+
+#### Update expense category
+
+To correct a wrongly selected category:
+
+```http
+PATCH /api/v1/mobile/dashboard/expenses/:id
+Content-Type: application/json
+Authorization: Bearer <accessToken>
+```
+
+```json
+{
+  "category_id": "new-expense-category-uuid"
+}
+```
+
+You can update category and amount in the same request:
+
+```json
+{
+  "category_id": "new-expense-category-uuid",
+  "amount": 1320,
+  "notes": "Corrected category and amount"
+}
+```
+
+#### UI behavior
+
+- On expense create/edit screen load categories with `GET /dashboard/expense-categories`.
+- Show default categories and custom categories in the same picker.
+- Add a quick “Create category” action if the merchant cannot find a category.
+- After creating a category, insert it into the local list and select it immediately.
+- Send `category_id` for create/update.
+- If `DELETE /dashboard/expense-categories/:id` returns an error, show the message. Categories used by expenses cannot be deleted.
+
+### 2) Demo product cleanup
+
+Starter/demo products are marked by the backend with product metadata:
+
+```json
+{
+  "metadata": {
+    "is_demo": true,
+    "source": "starter_pack_ai",
+    "demo_type": "onboarding_starter_pack"
+  }
+}
+```
+
+The mobile app does not need to send this metadata for normal merchant-created products. It is added by onboarding/demo seed flows.
+
+#### Endpoint
+
+```http
+DELETE /api/v1/mobile/dashboard/products/demo
+Authorization: Bearer <accessToken>
+```
+
+Behavior:
+
+- Active demo products with no order history are deleted.
+- Demo products already referenced by orders are archived, not deleted.
+- The getting-started checklist is complete when no active demo products remain.
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "matchedCount": 10,
+    "deletedCount": 8,
+    "archivedCount": 2,
+    "removedCount": 10,
+    "message": "Demo products removed successfully"
+  }
+}
+```
+
+#### Suggested Flutter files
+
+| File | Change |
+|------|--------|
+| `lib/features/products/data/product_api.dart` | Add `removeDemoProducts()` calling `DELETE /dashboard/products/demo` |
+| `lib/features/products/repositories/product_repository.dart` | Expose remove demo products action |
+| `lib/features/products/models/remove_demo_products_result.dart` | Parse cleanup response |
+| `lib/features/dashboard/models/getting_started_item.dart` | Ensure it supports `id`, `label`, `description`, `completed`, `href`, `cta`, `priority` |
+| `lib/features/dashboard/widgets/getting_started_card.dart` | If item id is `demo_products`, show button that calls cleanup API |
+| `lib/features/dashboard/screens/dashboard_screen.dart` | Refresh checklist/products after cleanup |
+
+#### RemoveDemoProductsResult model shape
+
+```dart
+class RemoveDemoProductsResult {
+  final int matchedCount;
+  final int deletedCount;
+  final int archivedCount;
+  final int removedCount;
+  final String message;
+}
+```
+
+#### Getting-started item
+
+`GET /dashboard/getting-started` can now return:
+
+```json
+{
+  "id": "demo_products",
+  "label": "Remove demo products",
+  "description": "Clear sample products once your real catalog is ready",
+  "completed": false,
+  "href": "/products",
+  "cta": "Remove demo products",
+  "priority": 8
+}
+```
+
+Flutter handling:
+
+- Render it like other checklist items.
+- If `id == "demo_products"` and `completed == false`, CTA should call `DELETE /dashboard/products/demo`.
+- After success, refresh:
+  - `GET /dashboard/getting-started`
+  - `GET /dashboard/products`
+- Success copy can use `removedCount`, `deletedCount`, and `archivedCount`.
+
+Example message:
+
+```dart
+if (result.archivedCount > 0) {
+  showSuccess(
+    'Removed ${result.deletedCount} demo products and archived ${result.archivedCount} used in orders.',
+  );
+} else {
+  showSuccess('Removed ${result.deletedCount} demo products.');
+}
+```
+
+### 3) Implementation checklist
+
+1. Add `ExpenseCategory` and `RemoveDemoProductsResult` models.
+2. Update `Expense` parsing for `category_id` and `category_details`.
+3. Add expense category CRUD methods to the expense API/repository.
+4. Replace any hard-coded expense category enum/dropdown with API-loaded categories.
+5. Send `category_id` when creating/updating expenses.
+6. Add “create category” flow from the expense form or a category management screen.
+7. Add `removeDemoProducts()` to product API/repository.
+8. Update getting-started UI to handle `demo_products`.
+9. Refresh dashboard/products after demo cleanup.
 
 ---
 

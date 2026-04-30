@@ -4384,6 +4384,50 @@
 					"response": []
 				},
 				{
+					"name": "Mobile Dashboard Products (Remove Demo)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Remove demo products response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('removedCount');",
+									"    pm.expect(jsonData.data).to.have.property('deletedCount');",
+									"    pm.expect(jsonData.data).to.have.property('archivedCount');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/products/demo",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"products",
+								"demo"
+							]
+						},
+						"description": "Remove active demo products for the tenant. Demo products referenced by orders are archived instead of deleted."
+					},
+					"response": []
+				},
+				{
 					"name": "Mobile Dashboard Orders",
 					"event": [
 						{
@@ -4762,6 +4806,348 @@
 							]
 						},
 						"description": "Aggregated analytics for the tenant (default window: 30 days)."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard P&L",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"P&L response shape\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('grossRevenue');",
+									"    pm.expect(jsonData.data).to.have.property('netProfit');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/analytics/pnl?start_date=2026-01-01&end_date=2026-01-31",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"analytics",
+								"pnl"
+							],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2026-01-01"
+								},
+								{
+									"key": "end_date",
+									"value": "2026-01-31"
+								}
+							]
+						},
+						"description": "Profit and Loss summary for the selected period."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Expense Categories (List)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/expense-categories",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"expense-categories"
+							]
+						},
+						"description": "List tenant expense categories. The response includes default categories and any custom categories created by the store."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Expense Categories (Create)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Fuel\",\n  \"slug\": \"fuel\",\n  \"description\": \"Fuel and transport costs\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/expense-categories",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"expense-categories"
+							]
+						},
+						"description": "Create a tenant-specific expense category. Use the returned category.id as expense_category_id when creating or updating expenses."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Expense Categories (Detail)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/expense-categories/{{expense_category_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"expense-categories",
+								"{{expense_category_id}}"
+							]
+						},
+						"description": "Get one tenant expense category by ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Expense Categories (Update)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Fuel & Transport\",\n  \"description\": \"Fuel, taxi, and delivery transport costs\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/expense-categories/{{expense_category_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"expense-categories",
+								"{{expense_category_id}}"
+							]
+						},
+						"description": "Update an expense category. If the slug changes, linked expenses are updated to keep their category value in sync."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Expense Categories (Delete)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/expense-categories/{{expense_category_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"expense-categories",
+								"{{expense_category_id}}"
+							]
+						},
+						"description": "Delete an expense category. Categories currently used by expenses cannot be deleted."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Expenses (List)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/expenses?page=1&limit=20&start_date=2026-01-01&end_date=2026-01-31&category=fuel",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"expenses"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								},
+								{
+									"key": "start_date",
+									"value": "2026-01-01",
+									"description": "Optional. Include expenses on or after this date."
+								},
+								{
+									"key": "end_date",
+									"value": "2026-01-31",
+									"description": "Optional. Include expenses on or before this date."
+								},
+								{
+									"key": "category",
+									"value": "fuel",
+									"description": "Optional. Category slug, including custom slugs."
+								},
+								{
+									"key": "category_id",
+									"value": "",
+									"description": "Optional. Filter by expense category ID."
+								}
+							]
+						},
+						"description": "List expense ledger records for the tenant. Optional filters: start_date, end_date, category, category_id."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Expenses (Create)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"expense_date\": \"2026-01-18\",\n  \"category_id\": \"{{expense_category_id}}\",\n  \"amount\": 1250,\n  \"tax_amount\": 0,\n  \"payment_method\": \"mpesa\",\n  \"reference\": \"META-ADS-001\",\n  \"notes\": \"January boosted posts\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/expenses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"expenses"
+							]
+						},
+						"description": "Create a tenant expense record for P&L. Pass category_id for tenant-specific categories, or pass category as an existing category slug."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Expenses (Update)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"category_id\": \"{{expense_category_id}}\",\n  \"amount\": 1320,\n  \"notes\": \"Updated spend\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/expenses/{{expense_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"expenses",
+								"{{expense_id}}"
+							]
+						},
+						"description": "Update an existing expense record. Send only the fields that need correction, for example category_id, amount, or notes."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Expenses (Delete)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/expenses/{{expense_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"expenses",
+								"{{expense_id}}"
+							]
+						},
+						"description": "Delete an existing expense record for the current tenant."
 					},
 					"response": []
 				},

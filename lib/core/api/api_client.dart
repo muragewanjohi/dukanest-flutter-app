@@ -22,10 +22,12 @@ final dioProvider = Provider<Dio>((ref) {
     dio.interceptors.add(
       LogInterceptor(
         request: true,
-        requestHeader: true,
-        requestBody: true,
-        responseHeader: true,
-        responseBody: true,
+        // Never print auth headers, request bodies, or response bodies. Debug
+        // consoles are easy to share and previously exposed bearer tokens.
+        requestHeader: false,
+        requestBody: false,
+        responseHeader: false,
+        responseBody: false,
         error: true,
       ),
     );
@@ -73,7 +75,8 @@ class ApiClient {
       'search': search,
       if (status != null && status.isNotEmpty) 'status': status,
     };
-    final response = await _dio.get('/dashboard/products', queryParameters: query);
+    final response =
+        await _dio.get('/dashboard/products', queryParameters: query);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
@@ -96,9 +99,11 @@ class ApiClient {
       'limit': limit,
       'search': search,
       if (effectiveStatus.isNotEmpty) 'status': effectiveStatus,
-      if (effectivePaymentStatus.isNotEmpty) 'payment_status': effectivePaymentStatus,
+      if (effectivePaymentStatus.isNotEmpty)
+        'payment_status': effectivePaymentStatus,
     };
-    final response = await _dio.get('/dashboard/orders', queryParameters: query);
+    final response =
+        await _dio.get('/dashboard/orders', queryParameters: query);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
@@ -113,7 +118,8 @@ class ApiClient {
   }
 
   Future<ApiResponse<dynamic>> postGettingStartedAction(String action) async {
-    final response = await _dio.post('/dashboard/getting-started', data: {'action': action});
+    final response =
+        await _dio.post('/dashboard/getting-started', data: {'action': action});
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
@@ -125,12 +131,72 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
+  Future<ApiResponse<dynamic>> getDashboardPnl({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    String formatDate(DateTime date) {
+      final y = date.year.toString().padLeft(4, '0');
+      final m = date.month.toString().padLeft(2, '0');
+      final d = date.day.toString().padLeft(2, '0');
+      return '$y-$m-$d';
+    }
+
+    final response = await _dio.get(
+      '/dashboard/analytics/pnl',
+      queryParameters: {
+        if (startDate != null) 'start_date': formatDate(startDate),
+        if (endDate != null) 'end_date': formatDate(endDate),
+      },
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getExpenses({
+    int page = 1,
+    int limit = 20,
+    String? startDate,
+    String? endDate,
+    String? category,
+  }) async {
+    final response = await _dio.get(
+      '/dashboard/expenses',
+      queryParameters: {
+        'page': page,
+        'limit': limit,
+        if (startDate != null && startDate.isNotEmpty) 'start_date': startDate,
+        if (endDate != null && endDate.isNotEmpty) 'end_date': endDate,
+        if (category != null && category.isNotEmpty) 'category': category,
+      },
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> createExpense(Map<String, dynamic> input) async {
+    final response = await _dio.post('/dashboard/expenses', data: input);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> updateExpense(
+    String id,
+    Map<String, dynamic> input,
+  ) async {
+    final response = await _dio.patch('/dashboard/expenses/$id', data: input);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> deleteExpense(String id) async {
+    final response = await _dio.delete('/dashboard/expenses/$id');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
   Future<ApiResponse<dynamic>> getOrderDetail(String orderId) async {
     final response = await _dio.get('/dashboard/orders/$orderId');
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> patchOrder(String orderId, Map<String, dynamic> body) async {
+  Future<ApiResponse<dynamic>> patchOrder(
+      String orderId, Map<String, dynamic> body) async {
     final response = await _dio.patch('/dashboard/orders/$orderId', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
@@ -145,8 +211,10 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> updateProduct(String productId, Map<String, dynamic> input) async {
-    final response = await _dio.put('/dashboard/products/$productId', data: input);
+  Future<ApiResponse<dynamic>> updateProduct(
+      String productId, Map<String, dynamic> input) async {
+    final response =
+        await _dio.put('/dashboard/products/$productId', data: input);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
@@ -164,7 +232,8 @@ class ApiClient {
     String productId,
     Map<String, dynamic> body,
   ) async {
-    final response = await _dio.post('/dashboard/products/$productId/variants', data: body);
+    final response =
+        await _dio.post('/dashboard/products/$productId/variants', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
@@ -173,7 +242,8 @@ class ApiClient {
     String variantId,
     Map<String, dynamic> body,
   ) async {
-    final response = await _dio.put('/dashboard/products/$productId/variants/$variantId', data: body);
+    final response = await _dio
+        .put('/dashboard/products/$productId/variants/$variantId', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
@@ -181,7 +251,8 @@ class ApiClient {
     String productId,
     String variantId,
   ) async {
-    final response = await _dio.delete('/dashboard/products/$productId/variants/$variantId');
+    final response =
+        await _dio.delete('/dashboard/products/$productId/variants/$variantId');
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
@@ -216,7 +287,8 @@ class ApiClient {
       if (status != null && status.isNotEmpty) 'status': status,
       if (includeChildren) 'include_children': 'true',
     };
-    final response = await _dio.get('/dashboard/categories', queryParameters: query);
+    final response =
+        await _dio.get('/dashboard/categories', queryParameters: query);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
@@ -230,7 +302,8 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> updateCategory(String id, Map<String, dynamic> body) async {
+  Future<ApiResponse<dynamic>> updateCategory(
+      String id, Map<String, dynamic> body) async {
     final response = await _dio.patch('/dashboard/categories/$id', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
@@ -245,7 +318,8 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> patchDashboardSettings(Map<String, dynamic> body) async {
+  Future<ApiResponse<dynamic>> patchDashboardSettings(
+      Map<String, dynamic> body) async {
     final response = await _dio.patch('/dashboard/settings', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
@@ -255,13 +329,16 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> createDeliveryZone(Map<String, dynamic> body) async {
+  Future<ApiResponse<dynamic>> createDeliveryZone(
+      Map<String, dynamic> body) async {
     final response = await _dio.post('/dashboard/delivery-zones', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> updateDeliveryZone(String id, Map<String, dynamic> body) async {
-    final response = await _dio.patch('/dashboard/delivery-zones/$id', data: body);
+  Future<ApiResponse<dynamic>> updateDeliveryZone(
+      String id, Map<String, dynamic> body) async {
+    final response =
+        await _dio.patch('/dashboard/delivery-zones/$id', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
@@ -328,8 +405,10 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> postDeleteAccount(Map<String, dynamic> body) async {
-    final response = await _dio.post('/dashboard/settings/delete-account', data: body);
+  Future<ApiResponse<dynamic>> postDeleteAccount(
+      Map<String, dynamic> body) async {
+    final response =
+        await _dio.post('/dashboard/settings/delete-account', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
@@ -343,12 +422,14 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> createDashboardAttribute(Map<String, dynamic> body) async {
+  Future<ApiResponse<dynamic>> createDashboardAttribute(
+      Map<String, dynamic> body) async {
     final response = await _dio.post('/dashboard/attributes', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> updateDashboardAttribute(String id, Map<String, dynamic> body) async {
+  Future<ApiResponse<dynamic>> updateDashboardAttribute(
+      String id, Map<String, dynamic> body) async {
     final response = await _dio.patch('/dashboard/attributes/$id', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
@@ -358,8 +439,10 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> createAttributeValue(String attributeId, Map<String, dynamic> body) async {
-    final response = await _dio.post('/dashboard/attributes/$attributeId/values', data: body);
+  Future<ApiResponse<dynamic>> createAttributeValue(
+      String attributeId, Map<String, dynamic> body) async {
+    final response = await _dio
+        .post('/dashboard/attributes/$attributeId/values', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
@@ -368,13 +451,16 @@ class ApiClient {
     String valueId,
     Map<String, dynamic> body,
   ) async {
-    final response =
-        await _dio.patch('/dashboard/attributes/$attributeId/values/$valueId', data: body);
+    final response = await _dio.patch(
+        '/dashboard/attributes/$attributeId/values/$valueId',
+        data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> deleteAttributeValue(String attributeId, String valueId) async {
-    final response = await _dio.delete('/dashboard/attributes/$attributeId/values/$valueId');
+  Future<ApiResponse<dynamic>> deleteAttributeValue(
+      String attributeId, String valueId) async {
+    final response =
+        await _dio.delete('/dashboard/attributes/$attributeId/values/$valueId');
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
@@ -404,7 +490,8 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> updateBlog(String id, Map<String, dynamic> body) async {
+  Future<ApiResponse<dynamic>> updateBlog(
+      String id, Map<String, dynamic> body) async {
     final response = await _dio.patch('/dashboard/blogs/$id', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
@@ -435,7 +522,8 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> updatePage(String id, Map<String, dynamic> body) async {
+  Future<ApiResponse<dynamic>> updatePage(
+      String id, Map<String, dynamic> body) async {
     final response = await _dio.patch('/dashboard/pages/$id', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
@@ -468,7 +556,8 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> updateSale(String id, Map<String, dynamic> body) async {
+  Future<ApiResponse<dynamic>> updateSale(
+      String id, Map<String, dynamic> body) async {
     final response = await _dio.patch('/dashboard/sales/$id', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }

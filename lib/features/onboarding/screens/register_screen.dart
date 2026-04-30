@@ -617,7 +617,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   void _handleAppBarBack() {
     if (_step <= 0) {
-      context.pop();
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/landing');
+      }
       return;
     }
     _decrementStep();

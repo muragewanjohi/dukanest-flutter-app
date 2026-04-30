@@ -35,6 +35,24 @@ Map<String, dynamic>? _pickMap(Map<String, dynamic> m, List<String> keys) {
   return (access: access, refresh: refresh);
 }
 
+({String? access, String? refresh}) _extractDirectTokens(Map<String, dynamic> data) {
+  final access = _pickString(data, ['access_token', 'accessToken']);
+  final refresh = _pickString(data, ['refresh_token', 'refreshToken']);
+  if (access != null) {
+    return (access: access, refresh: refresh);
+  }
+
+  final session = _pickMap(data, ['session']);
+  if (session != null) {
+    return (
+      access: _pickString(session, ['access_token', 'accessToken']),
+      refresh: _pickString(session, ['refresh_token', 'refreshToken']),
+    );
+  }
+
+  return (access: null, refresh: null);
+}
+
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthService _authService;
   final TokenStorage _tokenStorage;
@@ -220,11 +238,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
           ? (_pickString(tempSession, ['refreshToken', 'refresh_token']) ?? '')
           : null;
 
-      final tokens = _extractTokens(data);
-      final access = tokens.access;
-      final refresh = tokens.refresh;
-
       if (pendingMfa) {
+        final tokens = _extractTokens(data);
+        final access = tokens.access;
+        final refresh = tokens.refresh;
         if (tempAccess != null) {
           await _tokenStorage.saveTokens(
             accessToken: tempAccess,
@@ -242,6 +259,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
           clearError: true,
         );
       } else {
+        final tokens = _extractDirectTokens(data);
+        final access = tokens.access;
+        final refresh = tokens.refresh;
         if (access != null) {
           await _tokenStorage.saveTokens(
             accessToken: access,

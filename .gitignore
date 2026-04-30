@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local registration or signing files should not be bundled or committed.
+assets/adi-registration.properties

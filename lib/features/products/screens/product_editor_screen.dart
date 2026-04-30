@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -14,6 +15,7 @@ import '../../../core/auth/token_storage.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../data/attribute_value_format.dart';
 import '../data/attributes_repository.dart';
+import '../data/categories_repository.dart';
 import '../providers/attributes_list_provider.dart';
 import '../providers/categories_list_provider.dart';
 
@@ -28,7 +30,19 @@ class ProductEditorScreen extends ConsumerStatefulWidget {
   final String? initialSku;
 
   @override
-  ConsumerState<ProductEditorScreen> createState() => _ProductEditorScreenState();
+  ConsumerState<ProductEditorScreen> createState() =>
+      _ProductEditorScreenState();
+}
+
+enum _ProductEditorTab {
+  details('Details'),
+  pricing('Pricing'),
+  variants('Variants'),
+  visibility('Visibility');
+
+  const _ProductEditorTab(this.label);
+
+  final String label;
 }
 
 /// One sellable variant (option combination + SKU + stock).
@@ -40,11 +54,13 @@ class _VariantLine {
     required String initialStock,
     String initialRegularPrice = '',
     String initialSalePrice = '',
+    String initialCostPrice = '',
     String initialImageUrl = '',
   })  : sku = TextEditingController(text: initialSku),
         stock = TextEditingController(text: initialStock),
         regularPrice = TextEditingController(text: initialRegularPrice),
         salePrice = TextEditingController(text: initialSalePrice),
+        costPrice = TextEditingController(text: initialCostPrice),
         imageUrl = TextEditingController(text: initialImageUrl);
 
   /// Attribute display name → displayed option value (e.g. Color → Red).
@@ -54,6 +70,7 @@ class _VariantLine {
   final TextEditingController stock;
   final TextEditingController regularPrice;
   final TextEditingController salePrice;
+  final TextEditingController costPrice;
   final TextEditingController imageUrl;
 
   String get optionSummary =>
@@ -64,13 +81,15 @@ class _VariantLine {
     stock.dispose();
     regularPrice.dispose();
     salePrice.dispose();
+    costPrice.dispose();
     imageUrl.dispose();
   }
 }
 
 class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   static const Duration _productCacheTtl = Duration(minutes: 5);
-  static final Map<String, ({Map<String, dynamic> product, DateTime savedAt})> _productDetailCache = {};
+  static final Map<String, ({Map<String, dynamic> product, DateTime savedAt})>
+      _productDetailCache = {};
 
   static const _campaigns = [
     'Summer Flash Sale 2024',
@@ -82,6 +101,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   late final TextEditingController _description;
   late final TextEditingController _regularPrice;
   late final TextEditingController _salePrice;
+  late final TextEditingController _costPrice;
   late final TextEditingController _sku;
   late final TextEditingController _stock;
 
@@ -89,6 +109,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   late String _category;
   String? _campaign;
   bool _visible = true;
+
   /// Remote gallery URLs (from API) + local file paths pending upload.
   final List<String> _remoteImageUrls = [];
   final List<String> _localImagePaths = [];
@@ -99,9 +120,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   bool _isLiveData = false;
   bool _isLoadingRemote = false;
   bool _isSaving = false;
+  bool _initialVisible = true;
+  _ProductEditorTab _activeEditorTab = _ProductEditorTab.details;
   String? _dataSourceError;
   DateTime? _lastSyncedAt;
   bool _hasSeenRefreshHint = false;
+  bool _refreshHintPrefLoaded = false;
 
   /// Tracks the single field currently flagged as invalid so we can highlight
   /// it in red and scroll it into view. Cleared when the user edits the field
@@ -109,8 +133,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   String? _errorFieldId;
   final Map<String, GlobalKey> _fieldKeys = <String, GlobalKey>{};
 
-  GlobalKey _keyFor(String fieldId) =>
-      _fieldKeys.putIfAbsent(fieldId, () => GlobalKey(debugLabel: 'field:$fieldId'));
+  GlobalKey _keyFor(String fieldId) => _fieldKeys.putIfAbsent(
+      fieldId, () => GlobalKey(debugLabel: 'field:$fieldId'));
 
   bool _isInvalid(String fieldId) => _errorFieldId == fieldId;
 
@@ -156,7 +180,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   void _initVariantLines() {
     _disposeVariantLines();
     final sku = widget.initialSku;
-    final baseSku = _sku.text.trim().isEmpty ? (sku ?? 'SKU') : _sku.text.trim();
+    final baseSku =
+        _sku.text.trim().isEmpty ? (sku ?? 'SKU') : _sku.text.trim();
 
     if (sku != null && sku.isNotEmpty) {
       _variantLines.add(
@@ -166,7 +191,9 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
           initialStock: _stock.text.trim().isEmpty ? '0' : _stock.text.trim(),
           initialRegularPrice: _regularPrice.text.trim(),
           initialSalePrice: _salePrice.text.trim(),
-          initialImageUrl: _remoteImageUrls.isNotEmpty ? _remoteImageUrls.first : '',
+          initialCostPrice: _costPrice.text.trim(),
+          initialImageUrl:
+              _remoteImageUrls.isNotEmpty ? _remoteImageUrls.first : '',
         ),
       );
     }
@@ -242,17 +269,26 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
 
   void _applyVariantsFromProduct(Map<String, dynamic> p) {
     _disposeVariantLines();
-    final rawVariants =
-        p['variants'] ?? p['productVariants'] ?? p['product_variants'] ?? p['variantList'];
+    final rawVariants = p['variants'] ??
+        p['productVariants'] ??
+        p['product_variants'] ??
+        p['variantList'];
     if (rawVariants is List && rawVariants.isNotEmpty) {
       for (final item in rawVariants.whereType<Map>()) {
         final m = Map<String, dynamic>.from(item);
         final vId = _asString(m['id'] ?? m['variantId']);
-        final vSku = _asString(m['sku'] ?? m['code'], fallback: _sku.text.trim());
-        final stockRaw = m['stock'] ?? m['stockQuantity'] ?? m['stock_quantity'] ?? m['quantity'];
+        final vSku =
+            _asString(m['sku'] ?? m['code'], fallback: _sku.text.trim());
+        final stockRaw = m['stock'] ??
+            m['stockQuantity'] ??
+            m['stock_quantity'] ??
+            m['quantity'];
         final vStock = stockRaw == null ? '0' : stockRaw.toString();
-        final vRegular = _moneyToKes(m['regularPrice'] ?? m['regular_price'] ?? m['price']);
+        final vRegular =
+            _moneyToKes(m['regularPrice'] ?? m['regular_price'] ?? m['price']);
         final vSale = _moneyToKes(m['salePrice'] ?? m['sale_price']);
+        final vCost =
+            _moneyToKes(m['costPrice'] ?? m['cost_price'] ?? m['cost']);
         final vImage = _asString(
           m['image'] ?? m['imageUrl'] ?? m['image_url'] ?? m['thumbnail'],
         );
@@ -268,7 +304,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
           options = {};
           for (final row in opt.whereType<Map>()) {
             final r = Map<String, dynamic>.from(row);
-            final key = _asString(r['name'] ?? r['attribute_name'], fallback: 'Option');
+            final key =
+                _asString(r['name'] ?? r['attribute_name'], fallback: 'Option');
             final value = _asString(r['value'] ?? r['label'], fallback: '');
             if (value.isNotEmpty) options[key] = value;
           }
@@ -284,6 +321,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
             initialStock: vStock,
             initialRegularPrice: vRegular,
             initialSalePrice: vSale,
+            initialCostPrice: vCost,
             initialImageUrl: vImage,
           ),
         );
@@ -298,7 +336,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
 
   Map<String, dynamic>? _extractProductMap(dynamic payload) {
     if (payload is! Map<String, dynamic>) return null;
-    final raw = payload['product'] ?? payload['item'] ?? payload['data'] ?? payload;
+    final raw =
+        payload['product'] ?? payload['item'] ?? payload['data'] ?? payload;
     if (raw is! Map) return null;
     return Map<String, dynamic>.from(raw);
   }
@@ -342,12 +381,22 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
 
     _name.text = _asString(p['name']);
     _description.text = _asString(p['description']);
-    _regularPrice.text =
-        _moneyToKes(p['regularPrice'] ?? p['regular_price'] ?? p['price'] ?? p['unitPrice']);
-    final saleRaw = p['salePrice'] ?? p['sale_price'] ?? p['discountPrice'] ?? p['discount_price'];
+    _regularPrice.text = _moneyToKes(p['regularPrice'] ??
+        p['regular_price'] ??
+        p['price'] ??
+        p['unitPrice']);
+    final saleRaw = p['salePrice'] ??
+        p['sale_price'] ??
+        p['discountPrice'] ??
+        p['discount_price'];
     _salePrice.text = saleRaw == null ? '' : _moneyToKes(saleRaw);
+    final costRaw = p['costPrice'] ?? p['cost_price'] ?? p['cost'];
+    _costPrice.text = costRaw == null ? '' : _moneyToKes(costRaw);
     _sku.text = _asString(p['sku'] ?? p['code'], fallback: _sku.text);
-    final stock = p['stock'] ?? p['stockQuantity'] ?? p['stock_quantity'] ?? p['quantity'];
+    final stock = p['stock'] ??
+        p['stockQuantity'] ??
+        p['stock_quantity'] ??
+        p['quantity'];
     _stock.text = stock == null ? '' : stock.toString();
 
     final category = _asString(
@@ -364,6 +413,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     } else {
       _visible = p['isActive'] == true || p['active'] == true;
     }
+    _initialVisible = _visible;
 
     _remoteImageUrls.clear();
     void pushUrl(String? u) {
@@ -380,7 +430,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         } else if (e is Map) {
           final m = Map<String, dynamic>.from(e);
           pushUrl(
-            (m['url'] ?? m['src'] ?? m['imageUrl'] ?? m['image_url'] ?? m['thumbnail'])?.toString(),
+            (m['url'] ??
+                    m['src'] ??
+                    m['imageUrl'] ??
+                    m['image_url'] ??
+                    m['thumbnail'])
+                ?.toString(),
           );
         }
       }
@@ -399,7 +454,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
 
     if (!forceRefresh) {
       final cached = _productDetailCache[initialKey];
-      if (cached != null && DateTime.now().difference(cached.savedAt) < _productCacheTtl) {
+      if (cached != null &&
+          DateTime.now().difference(cached.savedAt) < _productCacheTtl) {
         setState(() {
           _applyProductData(cached.product);
           _isLiveData = true;
@@ -441,9 +497,10 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       }
     } catch (e) {
       if (mounted) {
-        final friendlyMessage = e is DioException && e.response?.statusCode == 401
-            ? 'Session expired. Please sign in again.'
-            : e.toString();
+        final friendlyMessage =
+            e is DioException && e.response?.statusCode == 401
+                ? 'Session expired. Please sign in again.'
+                : e.toString();
         setState(() {
           _isLiveData = false;
           _isLoadingRemote = false;
@@ -458,13 +515,16 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     final attrs = ref.read(dashboardAttributesProvider).valueOrNull ?? [];
     if (attrs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Create attributes first (Manage Attributes).')),
+        const SnackBar(
+            content: Text('Create attributes first (Manage Attributes).')),
       );
       return;
     }
     final selected = <String, String>{}; // attribute name -> chosen value label
-    final regularPriceCtrl = TextEditingController(text: _regularPrice.text.trim());
+    final regularPriceCtrl =
+        TextEditingController(text: _regularPrice.text.trim());
     final salePriceCtrl = TextEditingController(text: _salePrice.text.trim());
+    final costPriceCtrl = TextEditingController(text: _costPrice.text.trim());
     final stockQtyCtrl = TextEditingController();
     final imageUrlCtrl = TextEditingController(
       text: _remoteImageUrls.isNotEmpty ? _remoteImageUrls.first : '',
@@ -479,7 +539,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       ),
       builder: (ctx) {
         return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
           child: StatefulBuilder(
             builder: (context, setModal) {
               return DraggableScrollableSheet(
@@ -547,12 +608,17 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                     ).colorScheme.surfaceContainerLow,
                                     labelStyle: GoogleFonts.inter(
                                       fontWeight: FontWeight.w600,
-                                      color: isSelected ? Colors.white : AppTheme.onSurfaceVariant,
+                                      color: isSelected
+                                          ? Colors.white
+                                          : AppTheme.onSurfaceVariant,
                                     ),
                                     side: BorderSide(
                                       color: isSelected
                                           ? Colors.transparent
-                                          : Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+                                          : Theme.of(context)
+                                              .colorScheme
+                                              .outlineVariant
+                                              .withValues(alpha: 0.5),
                                     ),
                                     onSelected: (_) {
                                       setModal(() {
@@ -587,7 +653,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                           labelText: 'Regular price',
                           prefixText: 'KES ',
                           filled: true,
-                          fillColor: Theme.of(context).colorScheme.surfaceContainerLow,
+                          fillColor:
+                              Theme.of(context).colorScheme.surfaceContainerLow,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
                             borderSide: BorderSide.none,
@@ -602,7 +669,25 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                           labelText: 'Sale price (optional)',
                           prefixText: 'KES ',
                           filled: true,
-                          fillColor: Theme.of(context).colorScheme.surfaceContainerLow,
+                          fillColor:
+                              Theme.of(context).colorScheme.surfaceContainerLow,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: costPriceCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Cost of goods (optional)',
+                          helperText: 'Used for profit reporting only.',
+                          prefixText: 'KES ',
+                          filled: true,
+                          fillColor:
+                              Theme.of(context).colorScheme.surfaceContainerLow,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
                             borderSide: BorderSide.none,
@@ -616,7 +701,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                         decoration: InputDecoration(
                           labelText: 'Stock quantity',
                           filled: true,
-                          fillColor: Theme.of(context).colorScheme.surfaceContainerLow,
+                          fillColor:
+                              Theme.of(context).colorScheme.surfaceContainerLow,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
                             borderSide: BorderSide.none,
@@ -628,7 +714,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surfaceContainerLow,
+                          color:
+                              Theme.of(context).colorScheme.surfaceContainerLow,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Column(
@@ -636,10 +723,15 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                           children: [
                             Text(
                               'Variant image (optional)',
-                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w700,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                             ),
                             const SizedBox(height: 8),
                             if (imageUrlCtrl.text.trim().isNotEmpty)
@@ -655,7 +747,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                           .replaceAll(r'\', '/')
                                           .split('/')
                                           .last,
-                                      style: Theme.of(context).textTheme.bodySmall,
+                                      style:
+                                          Theme.of(context).textTheme.bodySmall,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
@@ -664,22 +757,29 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             else
                               Text(
                                 'No image selected',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                ),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
                               ),
                             const SizedBox(height: 8),
                             Row(
                               children: [
                                 FilledButton.icon(
                                   onPressed: () async {
-                                    final source = await _showPhotoSourcePicker();
+                                    final source =
+                                        await _showPhotoSourcePicker();
                                     if (source == null) return;
                                     final path = await _pickImagePath(source);
                                     if (path == null) return;
                                     setModal(() => imageUrlCtrl.text = path);
                                   },
-                                  icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+                                  icon: const Icon(Icons.add_a_photo_outlined,
+                                      size: 18),
                                   label: const Text('Add image'),
                                   style: FilledButton.styleFrom(
                                     backgroundColor: AppTheme.primaryDark,
@@ -689,7 +789,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                 const SizedBox(width: 8),
                                 if (imageUrlCtrl.text.trim().isNotEmpty)
                                   TextButton(
-                                    onPressed: () => setModal(() => imageUrlCtrl.clear()),
+                                    onPressed: () =>
+                                        setModal(() => imageUrlCtrl.clear()),
                                     child: const Text('Remove'),
                                   ),
                               ],
@@ -710,8 +811,10 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             );
                             return;
                           }
-                          final variantRegular = _toDouble(regularPriceCtrl.text);
+                          final variantRegular =
+                              _toDouble(regularPriceCtrl.text);
                           final variantSale = _toDouble(salePriceCtrl.text);
+                          final variantCost = _toDouble(costPriceCtrl.text);
                           final variantPrimaryPrice =
                               variantRegular > 0 ? variantRegular : variantSale;
                           if (variantPrimaryPrice <= 0) {
@@ -724,7 +827,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             );
                             return;
                           }
-                          if (variantRegular > 0 && variantSale > variantRegular) {
+                          if (variantRegular > 0 &&
+                              variantSale > variantRegular) {
                             ScaffoldMessenger.of(rootContext).showSnackBar(
                               const SnackBar(
                                 content: Text(
@@ -734,11 +838,23 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             );
                             return;
                           }
+                          if (costPriceCtrl.text.trim().isNotEmpty &&
+                              variantCost <= 0) {
+                            ScaffoldMessenger.of(rootContext).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Variant cost of goods must be greater than 0 when provided.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
                           final variantStockRaw = stockQtyCtrl.text.trim();
                           if (variantStockRaw.isEmpty) {
                             ScaffoldMessenger.of(rootContext).showSnackBar(
                               const SnackBar(
-                                content: Text('Stock quantity is required for each variant.'),
+                                content: Text(
+                                    'Stock quantity is required for each variant.'),
                               ),
                             );
                             return;
@@ -747,7 +863,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                           if (variantStock == null) {
                             ScaffoldMessenger.of(rootContext).showSnackBar(
                               const SnackBar(
-                                content: Text('Stock quantity must be a whole number.'),
+                                content: Text(
+                                    'Stock quantity must be a whole number.'),
                               ),
                             );
                             return;
@@ -755,17 +872,21 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                           if (variantStock < 0) {
                             ScaffoldMessenger.of(rootContext).showSnackBar(
                               const SnackBar(
-                                content: Text('Stock quantity cannot be negative.'),
+                                content:
+                                    Text('Stock quantity cannot be negative.'),
                               ),
                             );
                             return;
                           }
                           final combo = Map<String, String>.from(selected);
-                          if (_variantLines.any((l) => _optionsEqual(l.options, combo))) {
+                          if (_variantLines
+                              .any((l) => _optionsEqual(l.options, combo))) {
                             Navigator.pop(ctx, false);
                             return;
                           }
-                          final base = _sku.text.trim().isEmpty ? 'VAR' : _sku.text.trim();
+                          final base = _sku.text.trim().isEmpty
+                              ? 'VAR'
+                              : _sku.text.trim();
                           final idx = _variantLines.length + 1;
                           _variantLines.add(_VariantLine(
                             options: combo,
@@ -773,6 +894,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             initialStock: variantStockRaw,
                             initialRegularPrice: regularPriceCtrl.text.trim(),
                             initialSalePrice: salePriceCtrl.text.trim(),
+                            initialCostPrice: costPriceCtrl.text.trim(),
                             initialImageUrl: imageUrlCtrl.text.trim(),
                           ));
                           Navigator.pop(ctx, true);
@@ -781,9 +903,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                           backgroundColor: AppTheme.primaryDark,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: Text('Add variant', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+                        child: Text('Add variant',
+                            style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w700)),
                       ),
                     ],
                   );
@@ -796,7 +921,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     );
     if (added == true && mounted) {
       setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Variant added')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Variant added')));
     } else if (added == false && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('That combination already exists')),
@@ -806,6 +932,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     await Future<void>.delayed(const Duration(milliseconds: 300));
     regularPriceCtrl.dispose();
     salePriceCtrl.dispose();
+    costPriceCtrl.dispose();
     stockQtyCtrl.dispose();
     imageUrlCtrl.dispose();
   }
@@ -815,6 +942,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     final selected = Map<String, String>.from(line.options);
     final regularCtrl = TextEditingController(text: line.regularPrice.text);
     final saleCtrl = TextEditingController(text: line.salePrice.text);
+    final costCtrl = TextEditingController(text: line.costPrice.text);
     final stockCtrl = TextEditingController(text: line.stock.text);
     final imageCtrl = TextEditingController(text: line.imageUrl.text);
 
@@ -827,7 +955,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       ),
       builder: (ctx) {
         return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
           child: StatefulBuilder(
             builder: (context, setModal) {
               final theme = Theme.of(context);
@@ -885,13 +1014,15 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                   runSpacing: 10,
                                   children: a.values.map((raw) {
                                     final label = _valueLabel(a, raw);
-                                    final isSelected = selected[a.name] == label;
+                                    final isSelected =
+                                        selected[a.name] == label;
                                     return ChoiceChip(
                                       label: Text(label),
                                       selected: isSelected,
                                       showCheckmark: false,
                                       selectedColor: AppTheme.primary,
-                                      backgroundColor: theme.colorScheme.surfaceContainerLow,
+                                      backgroundColor:
+                                          theme.colorScheme.surfaceContainerLow,
                                       labelStyle: GoogleFonts.inter(
                                         fontWeight: FontWeight.w600,
                                         color: isSelected
@@ -905,7 +1036,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                                 .withValues(alpha: 0.5),
                                       ),
                                       onSelected: (_) {
-                                        setModal(() => selected[a.name] = label);
+                                        setModal(
+                                            () => selected[a.name] = label);
                                       },
                                     );
                                   }).toList(),
@@ -935,6 +1067,22 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                         keyboardType: TextInputType.number,
                         decoration: InputDecoration(
                           labelText: 'Sale price (optional)',
+                          prefixText: 'KES ',
+                          filled: true,
+                          fillColor: theme.colorScheme.surfaceContainerLow,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: costCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Cost of goods (optional)',
+                          helperText: 'Used for profit reporting only.',
                           prefixText: 'KES ',
                           filled: true,
                           fillColor: theme.colorScheme.surfaceContainerLow,
@@ -986,7 +1134,10 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
-                                      imageCtrl.text.replaceAll(r'\', '/').split('/').last,
+                                      imageCtrl.text
+                                          .replaceAll(r'\', '/')
+                                          .split('/')
+                                          .last,
                                       style: theme.textTheme.bodySmall,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -1005,13 +1156,15 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                               children: [
                                 FilledButton.icon(
                                   onPressed: () async {
-                                    final source = await _showPhotoSourcePicker();
+                                    final source =
+                                        await _showPhotoSourcePicker();
                                     if (source == null) return;
                                     final path = await _pickImagePath(source);
                                     if (path == null) return;
                                     setModal(() => imageCtrl.text = path);
                                   },
-                                  icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+                                  icon: const Icon(Icons.add_a_photo_outlined,
+                                      size: 18),
                                   label: const Text('Change image'),
                                   style: FilledButton.styleFrom(
                                     backgroundColor: AppTheme.primaryDark,
@@ -1021,7 +1174,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                 const SizedBox(width: 8),
                                 if (imageCtrl.text.trim().isNotEmpty)
                                   TextButton(
-                                    onPressed: () => setModal(() => imageCtrl.clear()),
+                                    onPressed: () =>
+                                        setModal(() => imageCtrl.clear()),
                                     child: const Text('Remove'),
                                   ),
                               ],
@@ -1034,6 +1188,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                         onPressed: () {
                           final variantRegular = _toDouble(regularCtrl.text);
                           final variantSale = _toDouble(saleCtrl.text);
+                          final variantCost = _toDouble(costCtrl.text);
                           final variantPrimaryPrice =
                               variantRegular > 0 ? variantRegular : variantSale;
                           if (variantPrimaryPrice <= 0) {
@@ -1046,7 +1201,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             );
                             return;
                           }
-                          if (variantRegular > 0 && variantSale > variantRegular) {
+                          if (variantRegular > 0 &&
+                              variantSale > variantRegular) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(
@@ -1056,11 +1212,23 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             );
                             return;
                           }
+                          if (costCtrl.text.trim().isNotEmpty &&
+                              variantCost <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Variant cost of goods must be greater than 0 when provided.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
                           final variantStockRaw = stockCtrl.text.trim();
                           if (variantStockRaw.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Stock quantity is required for each variant.'),
+                                content: Text(
+                                    'Stock quantity is required for each variant.'),
                               ),
                             );
                             return;
@@ -1069,7 +1237,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                           if (variantStock == null) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Stock quantity must be a whole number.'),
+                                content: Text(
+                                    'Stock quantity must be a whole number.'),
                               ),
                             );
                             return;
@@ -1077,7 +1246,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                           if (variantStock < 0) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Stock quantity cannot be negative.'),
+                                content:
+                                    Text('Stock quantity cannot be negative.'),
                               ),
                             );
                             return;
@@ -1091,6 +1261,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             line.stock.text = variantStockRaw;
                             line.regularPrice.text = regularCtrl.text.trim();
                             line.salePrice.text = saleCtrl.text.trim();
+                            line.costPrice.text = costCtrl.text.trim();
                             line.imageUrl.text = imageCtrl.text.trim();
                           });
                           Navigator.pop(ctx);
@@ -1124,6 +1295,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     await Future<void>.delayed(const Duration(milliseconds: 300));
     regularCtrl.dispose();
     saleCtrl.dispose();
+    costCtrl.dispose();
     stockCtrl.dispose();
     imageCtrl.dispose();
   }
@@ -1132,6 +1304,222 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     final digits = value.replaceAll(RegExp(r'[^0-9.]'), '');
     if (digits.isEmpty) return 0;
     return double.tryParse(digits) ?? 0;
+  }
+
+  String? _discountLabel() {
+    final regular = _toDouble(_regularPrice.text);
+    final sale = _toDouble(_salePrice.text);
+    if (regular <= 0 || sale <= 0 || sale >= regular) return null;
+    final percent = ((regular - sale) / regular) * 100;
+    return '-${percent.round()}% off';
+  }
+
+  String _publishActionLabel({required bool isNew}) {
+    if (_isSaving) return 'Saving...';
+    if (isNew) return 'Publish';
+    if (_visible) return _initialVisible ? 'Update published' : 'Publish';
+    return _initialVisible ? 'Unpublish' : 'Save draft';
+  }
+
+  _ProductEditorTab? _nextEditorTab() {
+    final tabs = _ProductEditorTab.values;
+    final index = tabs.indexOf(_activeEditorTab);
+    if (index < 0 || index >= tabs.length - 1) return null;
+    return tabs[index + 1];
+  }
+
+  String _primaryActionLabel({required bool isNew}) {
+    if (_activeEditorTab == _ProductEditorTab.visibility) {
+      return _isSaving
+          ? 'Saving product...'
+          : _publishActionLabel(isNew: isNew);
+    }
+    final next = _nextEditorTab();
+    return next == null ? 'Next' : 'Next: ${next.label}';
+  }
+
+  IconData _primaryActionIcon() {
+    return _activeEditorTab == _ProductEditorTab.visibility
+        ? Icons.save_outlined
+        : Icons.arrow_forward_rounded;
+  }
+
+  void _handlePrimaryAction() {
+    if (_activeEditorTab == _ProductEditorTab.visibility) {
+      _saveProduct();
+      return;
+    }
+    final next = _nextEditorTab();
+    if (next != null) {
+      setState(() => _activeEditorTab = next);
+    }
+  }
+
+  Future<void> _saveLocalDraft() async {
+    final draftKey =
+        (widget.initialSku ?? _productApiId ?? 'new_product').trim();
+    final draft = <String, dynamic>{
+      'savedAt': DateTime.now().toIso8601String(),
+      'name': _name.text.trim(),
+      'description': _description.text.trim(),
+      'regularPrice': _regularPrice.text.trim(),
+      'salePrice': _salePrice.text.trim(),
+      'costPrice': _costPrice.text.trim(),
+      'sku': _sku.text.trim(),
+      'stock': _stock.text.trim(),
+      'category': _category,
+      'campaign': _campaign,
+      'visible': _visible,
+      'remoteImageUrls': _remoteImageUrls,
+      'localImagePaths': _localImagePaths,
+      'variants': _variantLines
+          .map((line) => {
+                'variantId': line.variantId,
+                'options': line.options,
+                'sku': line.sku.text.trim(),
+                'stock': line.stock.text.trim(),
+                'regularPrice': line.regularPrice.text.trim(),
+                'salePrice': line.salePrice.text.trim(),
+                'costPrice': line.costPrice.text.trim(),
+                'imageUrl': line.imageUrl.text.trim(),
+              })
+          .toList(),
+    };
+    await ref.read(tokenStorageProvider).saveProductEditorDraft(
+        draftKey.isEmpty ? 'new_product' : draftKey, jsonEncode(draft));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('Draft saved locally on this device')),
+      );
+    context.go('/products');
+  }
+
+  _ProductEditorTab _tabForField(String fieldId) {
+    if (fieldId.startsWith('variant_') || fieldId == 'section_variants') {
+      return _ProductEditorTab.variants;
+    }
+    if (fieldId == 'stock' ||
+        fieldId == 'regularPrice' ||
+        fieldId == 'salePrice' ||
+        fieldId == 'costPrice' ||
+        fieldId == 'section_inventory' ||
+        fieldId == 'section_pricing') {
+      return _ProductEditorTab.pricing;
+    }
+    if (fieldId == 'section_visibility') {
+      return _ProductEditorTab.visibility;
+    }
+    return _ProductEditorTab.details;
+  }
+
+  ({int percent, List<String> missing}) _profileCompletion() {
+    final regular = _toDouble(_regularPrice.text);
+    final sale = _toDouble(_salePrice.text);
+    final checks = <({bool done, String missing})>[
+      (done: _name.text.trim().isNotEmpty, missing: 'product name'),
+      (done: regular > 0 || sale > 0, missing: 'price'),
+    ];
+
+    if (regular > 0 && sale > regular) {
+      checks.add((
+        done: false,
+        missing: 'sale price lower than regular price',
+      ));
+    }
+
+    final stockRaw = _stock.text.trim();
+    if (_variantLines.isEmpty && stockRaw.isNotEmpty) {
+      checks.add((
+        done: int.tryParse(stockRaw) != null,
+        missing: 'valid stock',
+      ));
+    }
+
+    if (_variantLines.isNotEmpty) {
+      checks.add((
+        done: _variantLines.every((line) =>
+            line.stock.text.trim().isNotEmpty &&
+            int.tryParse(line.stock.text.trim()) != null),
+        missing: 'variant stock',
+      ));
+      checks.add((
+        done: _variantLines.every((line) {
+          final variantRegular = _toDouble(line.regularPrice.text);
+          final variantSale = _toDouble(line.salePrice.text);
+          return variantRegular > 0 || variantSale > 0;
+        }),
+        missing: 'variant price',
+      ));
+    }
+
+    final done = checks.where((c) => c.done).length;
+    final percent = ((done / checks.length) * 100).round();
+    return (
+      percent: percent,
+      missing: checks.where((c) => !c.done).map((c) => c.missing).toList(),
+    );
+  }
+
+  Future<void> _setVisibility(bool next) async {
+    if (next || !_visible) {
+      setState(() => _visible = next);
+      return;
+    }
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: AppTheme.surfaceContainerLowest,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Hide this product?',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.primaryDark,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'It will no longer appear in your store. You can make it visible again later.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: theme.colorScheme.error,
+                    foregroundColor: theme.colorScheme.onError,
+                  ),
+                  child: const Text('Hide product'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (confirmed == true && mounted) {
+      setState(() => _visible = false);
+    }
   }
 
   ({String fieldId, String message})? _validateBeforeSave() {
@@ -1147,6 +1535,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
 
     final regular = _toDouble(_regularPrice.text);
     final sale = _toDouble(_salePrice.text);
+    final cost = _toDouble(_costPrice.text);
     final primaryPrice = regular > 0 ? regular : sale;
     if (primaryPrice <= 0) {
       return (
@@ -1158,6 +1547,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       return (
         fieldId: 'salePrice',
         message: 'Sale price cannot be greater than regular price.',
+      );
+    }
+    if (_costPrice.text.trim().isNotEmpty && cost <= 0) {
+      return (
+        fieldId: 'costPrice',
+        message: 'Cost of goods must be greater than 0 when provided.',
       );
     }
 
@@ -1194,12 +1589,14 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       }
       final variantRegular = _toDouble(line.regularPrice.text);
       final variantSale = _toDouble(line.salePrice.text);
+      final variantCost = _toDouble(line.costPrice.text);
       final variantPrimaryPrice =
           variantRegular > 0 ? variantRegular : variantSale;
       if (variantPrimaryPrice <= 0) {
         return (
           fieldId: 'variant_${i}_price',
-          message: 'Add a price for $variantLabel. Tap the pencil icon to edit.',
+          message:
+              'Add a price for $variantLabel. Tap the pencil icon to edit.',
         );
       }
       if (variantRegular > 0 && variantSale > variantRegular) {
@@ -1207,6 +1604,13 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
           fieldId: 'variant_${i}_price',
           message:
               'Sale price for $variantLabel cannot be greater than regular price.',
+        );
+      }
+      if (line.costPrice.text.trim().isNotEmpty && variantCost <= 0) {
+        return (
+          fieldId: 'variant_${i}_price',
+          message:
+              'Cost of goods for $variantLabel must be greater than 0 when provided.',
         );
       }
     }
@@ -1250,7 +1654,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     if (raw is String && raw.trim().isNotEmpty) return raw.trim();
     if (raw is! Map) return null;
     final m = Map<String, dynamic>.from(raw);
-    final inner = m['data'] is Map ? Map<String, dynamic>.from(m['data'] as Map) : m;
+    final inner =
+        m['data'] is Map ? Map<String, dynamic>.from(m['data'] as Map) : m;
     for (final k in ['url', 'publicUrl', 'public_url', 'src', 'path']) {
       final v = inner[k];
       if (v is String && v.trim().isNotEmpty) return v.trim();
@@ -1286,9 +1691,11 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     required int stock,
     required double regular,
     required double sale,
+    required double cost,
     required String imageUrl,
   }) {
-    final attrs = ref.read(dashboardAttributesProvider).valueOrNull ?? const <ProductAttribute>[];
+    final attrs = ref.read(dashboardAttributesProvider).valueOrNull ??
+        const <ProductAttribute>[];
     final byName = <String, ProductAttribute>{
       for (final a in attrs) a.name.trim().toLowerCase(): a,
     };
@@ -1335,6 +1742,13 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       payload['salePrice'] = sale;
       payload['sale_price'] = sale;
     }
+    if (cost > 0) {
+      payload['costPrice'] = cost;
+      payload['cost_price'] = cost;
+    } else if (line.costPrice.text.trim().isEmpty) {
+      payload['costPrice'] = null;
+      payload['cost_price'] = null;
+    }
     if (imageUrl.isNotEmpty) {
       payload['image'] = imageUrl;
       payload['imageUrl'] = imageUrl;
@@ -1345,11 +1759,13 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
 
   String _extractPersistedProductId(dynamic payload, String fallbackId) {
     if (payload is Map<String, dynamic>) {
-      final direct = (payload['id'] ?? payload['productId'] ?? '').toString().trim();
+      final direct =
+          (payload['id'] ?? payload['productId'] ?? '').toString().trim();
       if (direct.isNotEmpty) return direct;
       final nested = payload['product'] ?? payload['item'] ?? payload['data'];
       if (nested is Map) {
-        final id = (nested['id'] ?? nested['productId'] ?? '').toString().trim();
+        final id =
+            (nested['id'] ?? nested['productId'] ?? '').toString().trim();
         if (id.isNotEmpty) return id;
       }
     }
@@ -1358,12 +1774,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
 
   Future<void> _syncVariantsForProduct(ApiClient api, String productId) async {
     final syncLines = _variantLines
-        .where((line) => !(_variantLines.length > 1 && _isPlaceholderVariant(line)))
+        .where((line) =>
+            !(_variantLines.length > 1 && _isPlaceholderVariant(line)))
         .toList();
 
-    final existingLines = syncLines
-        .where((v) => (v.variantId ?? '').trim().isNotEmpty)
-        .toList();
+    final existingLines =
+        syncLines.where((v) => (v.variantId ?? '').trim().isNotEmpty).toList();
     final currentIds = existingLines.map((v) => v.variantId!.trim()).toSet();
     final removedIds = _loadedVariantIds.difference(currentIds);
 
@@ -1375,12 +1791,14 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       final stock = int.tryParse(line.stock.text.trim()) ?? 0;
       final regular = _toDouble(line.regularPrice.text);
       final sale = _toDouble(line.salePrice.text);
+      final cost = _toDouble(line.costPrice.text);
       final imageUrl = await _resolveVariantImageUrl(api, line.imageUrl.text);
       final body = _buildVariantPayload(
         line,
         stock: stock,
         regular: regular,
         sale: sale,
+        cost: cost,
         imageUrl: imageUrl,
       );
 
@@ -1435,15 +1853,17 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     final details = err['details'];
     if (details is! List || details.isEmpty) return null;
 
-    final headline = (err['message'] is String && (err['message'] as String).isNotEmpty)
-        ? err['message'] as String
-        : 'Validation error';
+    final headline =
+        (err['message'] is String && (err['message'] as String).isNotEmpty)
+            ? err['message'] as String
+            : 'Validation error';
 
     final lines = <String>[];
     for (final entry in details) {
       if (entry is! Map) continue;
       final field = (entry['field'] ?? entry['path'] ?? '').toString().trim();
-      final message = (entry['message'] ?? entry['error'] ?? '').toString().trim();
+      final message =
+          (entry['message'] ?? entry['error'] ?? '').toString().trim();
       if (field.isEmpty && message.isEmpty) continue;
       if (field.isEmpty) {
         lines.add('• $message');
@@ -1508,6 +1928,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     required String sku,
     required double regular,
     required double sale,
+    required double cost,
     required int stockVal,
     required List<String> imageUrls,
     required List<Map<String, dynamic>> variants,
@@ -1540,6 +1961,13 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       payload['salePrice'] = sale;
       payload['sale_price'] = sale;
     }
+    if (cost > 0) {
+      payload['costPrice'] = cost;
+      payload['cost_price'] = cost;
+    } else if (_costPrice.text.trim().isEmpty) {
+      payload['costPrice'] = null;
+      payload['cost_price'] = null;
+    }
     if (categoryId != null && categoryId.isNotEmpty) {
       payload['categoryId'] = categoryId;
       payload['category_id'] = categoryId;
@@ -1564,7 +1992,10 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     if (_isSaving) return;
     final validation = _validateBeforeSave();
     if (validation != null) {
-      setState(() => _errorFieldId = validation.fieldId);
+      setState(() {
+        _errorFieldId = validation.fieldId;
+        _activeEditorTab = _tabForField(validation.fieldId);
+      });
       _scrollToFieldKey(validation.fieldId);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -1602,6 +2033,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
 
       final regular = _toDouble(_regularPrice.text);
       final sale = _toDouble(_salePrice.text);
+      final cost = _toDouble(_costPrice.text);
       final stockVal = int.tryParse(_stock.text.trim()) ?? 0;
 
       final primaryPrice = regular > 0 ? regular : sale;
@@ -1616,6 +2048,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         sku: sku,
         regular: regular > 0 ? regular : primaryPrice,
         sale: sale,
+        cost: cost,
         stockVal: stockVal,
         imageUrls: imageUrls,
         variants: const [],
@@ -1625,7 +2058,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       final isNew = widget.initialSku == null;
       final updateKey = _productApiId ?? widget.initialSku;
       if (!isNew && (updateKey == null || updateKey.isEmpty)) {
-        throw StateError('Missing product id for update. Reload the product and try again.');
+        throw StateError(
+            'Missing product id for update. Reload the product and try again.');
       }
 
       final response = isNew
@@ -1641,7 +2075,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         (updateKey ?? '').toString().trim(),
       );
       if (persistedProductId.isEmpty) {
-        throw StateError('Product saved, but missing product id for variant sync.');
+        throw StateError(
+            'Product saved, but missing product id for variant sync.');
       }
       await _syncVariantsForProduct(api, persistedProductId);
 
@@ -1716,6 +2151,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     _description = TextEditingController();
     _regularPrice = TextEditingController();
     _salePrice = TextEditingController();
+    _costPrice = TextEditingController();
     _sku = TextEditingController(text: widget.initialSku ?? '');
     _stock = TextEditingController();
     _remoteImageUrls.clear();
@@ -1749,9 +2185,13 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   }
 
   Future<void> _loadRefreshHintPref() async {
-    final seen = await ref.read(tokenStorageProvider).getProductDetailRefreshHintSeen();
+    final seen =
+        await ref.read(tokenStorageProvider).getProductDetailRefreshHintSeen();
     if (!mounted) return;
-    setState(() => _hasSeenRefreshHint = seen);
+    setState(() {
+      _hasSeenRefreshHint = seen;
+      _refreshHintPrefLoaded = true;
+    });
   }
 
   @override
@@ -1760,6 +2200,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     _description.dispose();
     _regularPrice.dispose();
     _salePrice.dispose();
+    _costPrice.dispose();
     _sku.dispose();
     _stock.dispose();
     _scrollController.dispose();
@@ -1774,6 +2215,20 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     final theme = Theme.of(context);
     final isNew = widget.initialSku == null;
     final hasVariants = _variantLines.isNotEmpty;
+    final categories = ref.watch(categoriesListProvider).valueOrNull ??
+        const <CategoryEntry>[];
+    CategoryEntry? selectedCategory;
+    for (final c in categories) {
+      if (c.name.trim().toLowerCase() == _category.trim().toLowerCase()) {
+        selectedCategory = c;
+        break;
+      }
+    }
+    final saleDiscountLabel = _discountLabel();
+    final publishLabel = _publishActionLabel(isNew: isNew);
+    final primaryActionLabel = _primaryActionLabel(isNew: isNew);
+    final completion = _profileCompletion();
+    final canPublish = completion.percent == 100;
     String lastUpdatedLabel() {
       final at = _lastSyncedAt;
       if (at == null) return 'Not synced yet';
@@ -1793,25 +2248,56 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
           decoration: BoxDecoration(
             color: AppTheme.surface.withValues(alpha: 0.96),
             border: Border(
-              top: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35)),
+              top: BorderSide(
+                  color:
+                      theme.colorScheme.outlineVariant.withValues(alpha: 0.35)),
             ),
           ),
-          child: FilledButton.icon(
-            onPressed: _isSaving ? null : _saveProduct,
-            icon: _isSaving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                : const Icon(Icons.save_outlined, size: 18),
-            label: Text(_isSaving ? 'Saving product...' : 'Save product'),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.primaryDark,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _isSaving ? null : _saveLocalDraft,
+                  icon: const Icon(Icons.drafts_outlined, size: 18),
+                  label: const Text('Save draft'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.primaryDark,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _isSaving ||
+                          (_activeEditorTab == _ProductEditorTab.visibility &&
+                              !canPublish)
+                      ? null
+                      : _handlePrimaryAction,
+                  icon: _isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : Icon(_primaryActionIcon(), size: 18),
+                  label: Text(primaryActionLabel),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.primaryDark,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor:
+                        AppTheme.primaryDark.withValues(alpha: 0.35),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1823,589 +2309,787 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         child: CustomScrollView(
           controller: _scrollController,
           slivers: [
-          buildDashboardSliverAppBar(
-            context: context,
-            title: isNew ? 'Add Product' : 'Edit Product',
-            showDivider: true,
-            actions: [
-              if (!isNew)
-                IconButton(
-                  tooltip: 'Refresh details',
-                  onPressed: _isLoadingRemote ? null : () => _loadLiveProductIfEditing(forceRefresh: true),
-                  icon: _isLoadingRemote
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.refresh_rounded),
-                ),
-              TextButton(
-                onPressed: _isSaving ? null : _saveProduct,
-                child: Text(
-                  _isSaving ? 'Saving...' : 'Publish',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: AppTheme.primary,
-                    fontWeight: FontWeight.w700,
+            buildDashboardSliverAppBar(
+              context: context,
+              title: isNew ? 'Add Product' : 'Edit Product',
+              showDivider: true,
+              actions: [
+                if (!isNew)
+                  IconButton(
+                    tooltip: 'Refresh details',
+                    onPressed: _isLoadingRemote
+                        ? null
+                        : () => _loadLiveProductIfEditing(forceRefresh: true),
+                    icon: _isLoadingRemote
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh_rounded),
                   ),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                _MediaSectionHeader(
-                  title: 'Media',
-                  trailing: Text(
-                    '$_totalPhotoSlotsUsed / 5 Photos',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
+                if (_activeEditorTab == _ProductEditorTab.visibility)
+                  TextButton(
+                    onPressed: _isSaving || !canPublish ? null : _saveProduct,
+                    child: Text(
+                      publishLabel,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: AppTheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                if (!isNew) ...[
-                  _EditorDataSourceBadge(
-                    isLoading: _isLoadingRemote,
-                    isLiveData: _isLiveData,
-                    errorMessage: _dataSourceError,
+                const SizedBox(width: 8),
+              ],
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  _ProfileCompletionPanel(
+                    percent: completion.percent,
+                    missing: completion.missing,
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${lastUpdatedLabel()} • Swipe down to refresh',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                  const SizedBox(height: 14),
+                  _EditorTabs(
+                    activeTab: _activeEditorTab,
+                    onChanged: (tab) => setState(() => _activeEditorTab = tab),
+                  ),
+                  const SizedBox(height: 14),
+                  if (_activeEditorTab == _ProductEditorTab.details) ...[
+                    _MediaSectionHeader(
+                      key: _keyFor('section_media'),
+                      title: 'Media',
+                      trailing: Text(
+                        '$_totalPhotoSlotsUsed / 5 Photos',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
-                  ),
-                  if (!_hasSeenRefreshHint) ...[
                     const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(10),
+                    if (!isNew) ...[
+                      _EditorDataSourceBadge(
+                        isLoading: _isLoadingRemote,
+                        isLiveData: _isLiveData,
+                        errorMessage: _dataSourceError,
                       ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.swipe_down_alt_rounded, size: 18, color: theme.colorScheme.primary),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Pull down to fetch the latest product details.',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () async {
-                              setState(() => _hasSeenRefreshHint = true);
-                              await ref.read(tokenStorageProvider).saveProductDetailRefreshHintSeen(true);
-                            },
-                            child: const Text('Got it'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                ],
-                SizedBox(
-                  height: 132,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      ..._remoteImageUrls.asMap().entries.map(
-                            (e) => Padding(
-                              padding: const EdgeInsets.only(right: 12),
-                              child: _MediaThumb(
-                                imageUrl: e.value,
-                                localImagePath: null,
-                                onRemove: () =>
-                                    setState(() => _remoteImageUrls.removeAt(e.key)),
-                              ),
-                            ),
-                          ),
-                      ..._localImagePaths.asMap().entries.map(
-                            (e) => Padding(
-                              padding: const EdgeInsets.only(right: 12),
-                              child: _MediaThumb(
-                                imageUrl: '',
-                                localImagePath: e.value,
-                                onRemove: () =>
-                                    setState(() => _localImagePaths.removeAt(e.key)),
-                              ),
-                            ),
-                          ),
-                      _AddPhotoButton(onTap: _showAddPhotoSourceSheet),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                _CardShell(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      KeyedSubtree(
-                        key: _keyFor('name'),
-                        child: _LabeledField(
-                          label: 'Product Name',
-                          child: TextField(
-                            controller: _name,
-                            onChanged: (_) => _clearErrorFor('name'),
-                            style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-                            decoration: _fieldDeco(
-                              theme,
-                              hint: 'Enter product name',
-                              isInvalid: _isInvalid('name'),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 6),
                       Text(
-                        'Description',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerLow,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Column(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(color: theme.colorScheme.surfaceContainerHighest),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  _FmtIcon(icon: Icons.format_bold),
-                                  _FmtIcon(icon: Icons.format_italic),
-                                  _FmtIcon(icon: Icons.format_list_bulleted),
-                                ],
-                              ),
-                            ),
-                            TextField(
-                              controller: _description,
-                              maxLines: 5,
-                              style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
-                              decoration: InputDecoration(
-                                hintText: 'Tell customers about your product...',
-                                hintStyle: TextStyle(color: theme.colorScheme.outline),
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.all(14),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Category',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerLow,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _categoryOptions.contains(_category) ? _category : null,
-                            isExpanded: true,
-                            icon: Icon(Icons.expand_more, color: theme.colorScheme.onSurfaceVariant),
-                            hint: Text(
-                              _categoryOptions.isEmpty
-                                  ? 'No categories yet. Create one first.'
-                                  : 'Select category',
-                            ),
-                            items: _categoryOptions
-                                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                                .toList(),
-                            onChanged: _categoryOptions.isEmpty
-                                ? null
-                                : (v) => setState(() => _category = v ?? _category),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _CardShell(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Inventory',
-                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        hasVariants
-                            ? 'Product stock is auto-calculated from your variants.'
-                            : 'Leave SKU empty to auto-generate when you publish.',
+                        '${lastUpdatedLabel()} • Swipe down to refresh',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _LabeledField(
-                              label: 'SKU',
-                              child: TextField(
-                                controller: _sku,
-                                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                                decoration: _inventoryFieldDeco(theme, hint: 'Auto if empty'),
-                              ),
-                            ),
+                      if (_refreshHintPrefLoaded && !_hasSeenRefreshHint) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerLow,
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: KeyedSubtree(
-                              key: _keyFor('stock'),
-                              child: _LabeledField(
-                                label: 'Stock',
-                                child: TextField(
-                                  controller: _stock,
-                                  keyboardType: TextInputType.number,
-                                  enabled: !hasVariants,
-                                  onChanged: (_) => _clearErrorFor('stock'),
-                                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                                  decoration: _inventoryFieldDeco(
-                                    theme,
-                                    hint: hasVariants ? 'Managed by variants' : '0',
-                                    isInvalid: _isInvalid('stock'),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 8),
-                  child: Text(
-                    'Pricing',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: theme.colorScheme.onSurface,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _PriceField(
-                        key: _keyFor('regularPrice'),
-                        label: 'REGULAR PRICE',
-                        controller: _regularPrice,
-                        accent: theme.colorScheme.onSurfaceVariant,
-                        isInvalid: _isInvalid('regularPrice'),
-                        onChanged: (_) {
-                          _clearErrorFor('regularPrice');
-                          _clearErrorFor('salePrice');
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _PriceField(
-                        key: _keyFor('salePrice'),
-                        label: 'SALE PRICE',
-                        controller: _salePrice,
-                        accent: AppTheme.primary,
-                        isInvalid: _isInvalid('salePrice'),
-                        onChanged: (_) {
-                          _clearErrorFor('regularPrice');
-                          _clearErrorFor('salePrice');
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                ...switch (ref.watch(dashboardAttributesProvider)) {
-                    AsyncLoading<List<ProductAttribute>>() => [
-                        _CardShell(
-                          child: const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: CircularProgressIndicator(),
-                            ),
-                          ),
-                        ),
-                      ],
-                    AsyncError(:final error) => [
-                        _CardShell(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Text('$error', style: theme.textTheme.bodySmall),
-                          ),
-                        ),
-                      ],
-                    AsyncData(:final value) => [
-                        _CardShell(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                          child: Row(
                             children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Product options',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w700,
-                                            color: AppTheme.primaryDark,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Add options your customers understand, like Size, Color, or Material. Each option can have its own SKU, stock, price, and image.',
-                                          style: GoogleFonts.inter(
-                                            fontSize: 12,
-                                            height: 1.35,
-                                            color: theme.colorScheme.onSurfaceVariant,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                              Icon(Icons.swipe_down_alt_rounded,
+                                  size: 18, color: theme.colorScheme.primary),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Pull down to fetch the latest product details.',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.primary.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(Icons.layers_outlined, color: AppTheme.primaryDark, size: 22),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        value.isEmpty
-                                            ? 'No attributes yet. Add product attributes like Size or Color first.'
-                                            : '${value.length} attribute(s) available — use them to build product options below.',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 13,
-                                          height: 1.4,
-                                          color: AppTheme.primaryDark,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 14),
-                              if (_variantLines.isEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 8),
-                                  child: Text(
-                                    'No product options yet. Tap "Add variant" to create one.',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                )
-                              else
-                                ..._variantLines.asMap().entries.map((e) {
-                                  final i = e.key;
-                                  final line = e.value;
-                                  final stockId = 'variant_${i}_stock';
-                                  final priceId = 'variant_${i}_price';
-                                  final invalidStock = _isInvalid(stockId);
-                                  final invalidPrice = _isInvalid(priceId);
-                                  String? rowError;
-                                  if (invalidStock) {
-                                    rowError = 'Stock is required for this variant.';
-                                  } else if (invalidPrice) {
-                                    rowError =
-                                        'Price is required. Tap the pencil icon to edit.';
-                                  }
-                                  return Padding(
-                                    key: _keyFor('variant_$i'),
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: _VariantRowTile(
-                                      line: line,
-                                      onEdit: () {
-                                        _clearErrorFor(priceId);
-                                        _openEditVariantSheet(line);
-                                      },
-                                      onRemove: () {
-                                        _clearErrorFor(stockId);
-                                        _clearErrorFor(priceId);
-                                        setState(() {
-                                          line.dispose();
-                                          _variantLines.removeAt(i);
-                                        });
-                                      },
-                                      invalidStock: invalidStock,
-                                      invalidPrice: invalidPrice,
-                                      errorMessage: rowError,
-                                      onStockChanged: (_) => _clearErrorFor(stockId),
-                                    ),
-                                  );
-                                }),
-                              const SizedBox(height: 8),
-                              FilledButton.icon(
-                                onPressed: value.isEmpty ? null : _openAddVariantSheet,
-                                icon: const Icon(Icons.add, size: 20),
-                                label: Text(
-                                  'Add variant',
-                                  style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
-                                ),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: AppTheme.primaryDark,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                ),
+                              TextButton(
+                                onPressed: () async {
+                                  setState(() => _hasSeenRefreshHint = true);
+                                  await ref
+                                      .read(tokenStorageProvider)
+                                      .saveProductDetailRefreshHintSeen(true);
+                                },
+                                child: const Text('Got it'),
                               ),
                             ],
                           ),
                         ),
                       ],
-                    _ => [
-                        _CardShell(child: const SizedBox.shrink()),
-                      ],
-                  },
-                const SizedBox(height: 16),
-                _CardShell(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Sales & Promotions',
-                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Add to Existing Sale',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
                       const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerLow,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String?>(
-                            value: _campaign,
-                            isExpanded: true,
-                            hint: Text(
-                              'Select a campaign...',
-                              style: TextStyle(color: theme.colorScheme.outline),
-                            ),
-                            icon: Icon(Icons.expand_more, color: theme.colorScheme.onSurfaceVariant),
-                            items: _campaigns.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                            onChanged: (v) => setState(() => _campaign = v),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Apply this product to active flash sales or discount campaigns.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.85),
-                          height: 1.35,
-                        ),
-                      ),
                     ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryDark.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.visibility_outlined, color: AppTheme.primary, size: 22),
+                    SizedBox(
+                      height: 132,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          ..._remoteImageUrls.asMap().entries.map(
+                                (e) => Padding(
+                                  padding: const EdgeInsets.only(right: 12),
+                                  child: _MediaThumb(
+                                    imageUrl: e.value,
+                                    localImagePath: null,
+                                    onRemove: () => setState(
+                                        () => _remoteImageUrls.removeAt(e.key)),
+                                  ),
+                                ),
+                              ),
+                          ..._localImagePaths.asMap().entries.map(
+                                (e) => Padding(
+                                  padding: const EdgeInsets.only(right: 12),
+                                  child: _MediaThumb(
+                                    imageUrl: '',
+                                    localImagePath: e.value,
+                                    onRemove: () => setState(
+                                        () => _localImagePaths.removeAt(e.key)),
+                                  ),
+                                ),
+                              ),
+                          _AddPhotoButton(onTap: _showAddPhotoSourceSheet),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
+                    ),
+                    const SizedBox(height: 24),
+                    KeyedSubtree(
+                      key: _keyFor('section_details'),
+                      child: _CardShell(
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              'Product Visibility',
-                              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                            KeyedSubtree(
+                              key: _keyFor('name'),
+                              child: _LabeledField(
+                                label: 'Product Name',
+                                child: TextField(
+                                  controller: _name,
+                                  onChanged: (_) => _clearErrorFor('name'),
+                                  style: theme.textTheme.bodyLarge
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                  decoration: _fieldDeco(
+                                    theme,
+                                    hint: 'Enter product name',
+                                    isInvalid: _isInvalid('name'),
+                                  ),
+                                ),
+                              ),
                             ),
+                            const SizedBox(height: 16),
                             Text(
-                              'Active in your online store',
+                              'Description',
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerLow,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Column(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(
+                                            color: theme.colorScheme
+                                                .surfaceContainerHighest),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          'Format',
+                                          style: theme.textTheme.labelMedium
+                                              ?.copyWith(
+                                            color: theme
+                                                .colorScheme.onSurfaceVariant,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        _FmtIcon(
+                                            icon: Icons.format_bold,
+                                            tooltip: 'Bold'),
+                                        _FmtIcon(
+                                            icon: Icons.format_italic,
+                                            tooltip: 'Italic'),
+                                        _FmtIcon(
+                                            icon: Icons.format_list_bulleted,
+                                            tooltip: 'Bullet list'),
+                                        _FmtIcon(
+                                            icon: Icons.link_rounded,
+                                            tooltip: 'Insert link'),
+                                      ],
+                                    ),
+                                  ),
+                                  TextField(
+                                    controller: _description,
+                                    maxLines: 5,
+                                    style: theme.textTheme.bodyMedium
+                                        ?.copyWith(height: 1.45),
+                                    decoration: InputDecoration(
+                                      hintText:
+                                          'Tell customers about your product...',
+                                      hintStyle: TextStyle(
+                                          color: theme.colorScheme.outline),
+                                      border: InputBorder.none,
+                                      contentPadding: const EdgeInsets.all(14),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Category',
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerLow,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _categoryOptions.contains(_category)
+                                      ? _category
+                                      : null,
+                                  isExpanded: true,
+                                  icon: Icon(Icons.expand_more,
+                                      color:
+                                          theme.colorScheme.onSurfaceVariant),
+                                  hint: Text(
+                                    _categoryOptions.isEmpty
+                                        ? 'No categories yet. Create one first.'
+                                        : 'Select category',
+                                  ),
+                                  items: _categoryOptions
+                                      .map((c) => DropdownMenuItem(
+                                          value: c, child: Text(c)))
+                                      .toList(),
+                                  onChanged: _categoryOptions.isEmpty
+                                      ? null
+                                      : (v) => setState(
+                                          () => _category = v ?? _category),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              selectedCategory == null
+                                  ? '${categories.length} categories available. Choose the closest match for storefront grouping.'
+                                  : '${selectedCategory.name} · ${selectedCategory.productCount} products. Subcategories appear nested when available.',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant,
+                                height: 1.35,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      Switch.adaptive(
-                        value: _visible,
-                        activeThumbColor: Colors.white,
-                        activeTrackColor: AppTheme.primary,
-                        onChanged: (v) => setState(() => _visible = v),
+                    ),
+                  ],
+                  if (_activeEditorTab == _ProductEditorTab.pricing) ...[
+                    const SizedBox(height: 16),
+                    KeyedSubtree(
+                      key: _keyFor('section_inventory'),
+                      child: _CardShell(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Inventory',
+                              style: theme.textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              hasVariants
+                                  ? 'Product stock is auto-calculated from your variants.'
+                                  : 'Leave SKU empty to auto-generate when you publish.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _LabeledField(
+                                    label: 'SKU',
+                                    child: TextField(
+                                      controller: _sku,
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                              fontWeight: FontWeight.w600),
+                                      decoration: _inventoryFieldDeco(theme,
+                                          hint: 'Auto if empty'),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: KeyedSubtree(
+                                    key: _keyFor('stock'),
+                                    child: _LabeledField(
+                                      label: 'Stock',
+                                      child: TextField(
+                                        controller: _stock,
+                                        keyboardType: TextInputType.number,
+                                        enabled: !hasVariants,
+                                        onChanged: (_) =>
+                                            _clearErrorFor('stock'),
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.w600),
+                                        decoration: _inventoryFieldDeco(
+                                          theme,
+                                          hint: hasVariants
+                                              ? 'Managed by variants'
+                                              : '0',
+                                          isInvalid: _isInvalid('stock'),
+                                          locked: hasVariants,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (hasVariants) ...[
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Icon(Icons.lock_outline_rounded,
+                                      size: 14,
+                                      color:
+                                          theme.colorScheme.onSurfaceVariant),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'Stock is read-only here because variant quantities determine total availability.',
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                        height: 1.3,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Padding(
+                      key: _keyFor('section_pricing'),
+                      padding: const EdgeInsets.only(left: 4, bottom: 8),
+                      child: Text(
+                        'Pricing',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: theme.colorScheme.onSurface,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _PriceField(
+                            key: _keyFor('regularPrice'),
+                            label: 'REGULAR PRICE',
+                            controller: _regularPrice,
+                            accent: theme.colorScheme.onSurfaceVariant,
+                            hintText: '0',
+                            isInvalid: _isInvalid('regularPrice'),
+                            onChanged: (_) {
+                              _clearErrorFor('regularPrice');
+                              _clearErrorFor('salePrice');
+                              setState(() {});
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _PriceField(
+                            key: _keyFor('salePrice'),
+                            label: 'SALE PRICE',
+                            controller: _salePrice,
+                            accent: AppTheme.primary,
+                            hintText: '—',
+                            isInvalid: _isInvalid('salePrice'),
+                            onChanged: (_) {
+                              _clearErrorFor('regularPrice');
+                              _clearErrorFor('salePrice');
+                              setState(() {});
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _PriceField(
+                      key: _keyFor('costPrice'),
+                      label: 'COST OF GOODS (OPTIONAL)',
+                      controller: _costPrice,
+                      accent: const Color(0xFF8A4B00),
+                      hintText: '0',
+                      isInvalid: _isInvalid('costPrice'),
+                      onChanged: (_) {
+                        _clearErrorFor('costPrice');
+                        setState(() {});
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Used for profit and margin reporting. Customers will not see this.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        height: 1.35,
+                      ),
+                    ),
+                    if (saleDiscountLabel != null) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primary.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            saleDiscountLabel,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: AppTheme.primary,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ]),
+                  ],
+                  const SizedBox(height: 16),
+                  if (_activeEditorTab == _ProductEditorTab.variants) ...[
+                    ...switch (ref.watch(dashboardAttributesProvider)) {
+                      AsyncLoading<List<ProductAttribute>>() => [
+                          _CardShell(
+                            child: const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(24),
+                                child: CircularProgressIndicator(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      AsyncError(:final error) => [
+                          _CardShell(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Text('$error',
+                                  style: theme.textTheme.bodySmall),
+                            ),
+                          ),
+                        ],
+                      AsyncData(:final value) => [
+                          KeyedSubtree(
+                            key: _keyFor('section_variants'),
+                            child: _CardShell(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Product options',
+                                              style:
+                                                  GoogleFonts.plusJakartaSans(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                                color: AppTheme.primaryDark,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Add options your customers understand, like Size, Color, or Material. Each option can have its own SKU, stock, price, and image.',
+                                              style: GoogleFonts.inter(
+                                                fontSize: 12,
+                                                height: 1.35,
+                                                color: theme.colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primary
+                                          .withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(Icons.layers_outlined,
+                                            color: AppTheme.primaryDark,
+                                            size: 22),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            value.isEmpty
+                                                ? 'No attributes yet. Add product attributes like Size or Color first.'
+                                                : '${value.length} attribute(s) available — use them to build product options below.',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 13,
+                                              height: 1.4,
+                                              color: AppTheme.primaryDark,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  if (_variantLines.isEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 8),
+                                      child: Text(
+                                        'No product options yet. Tap "Add variant" to create one.',
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
+                                          color: theme
+                                              .colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    ..._variantLines.asMap().entries.map((e) {
+                                      final i = e.key;
+                                      final line = e.value;
+                                      final stockId = 'variant_${i}_stock';
+                                      final priceId = 'variant_${i}_price';
+                                      final invalidStock = _isInvalid(stockId);
+                                      final invalidPrice = _isInvalid(priceId);
+                                      String? rowError;
+                                      if (invalidStock) {
+                                        rowError =
+                                            'Stock is required for this variant.';
+                                      } else if (invalidPrice) {
+                                        rowError =
+                                            'Price is required. Tap the pencil icon to edit.';
+                                      }
+                                      return Padding(
+                                        key: _keyFor('variant_$i'),
+                                        padding:
+                                            const EdgeInsets.only(bottom: 10),
+                                        child: _VariantRowTile(
+                                          line: line,
+                                          onEdit: () {
+                                            _clearErrorFor(priceId);
+                                            _openEditVariantSheet(line);
+                                          },
+                                          onRemove: () {
+                                            _clearErrorFor(stockId);
+                                            _clearErrorFor(priceId);
+                                            setState(() {
+                                              line.dispose();
+                                              _variantLines.removeAt(i);
+                                            });
+                                          },
+                                          invalidStock: invalidStock,
+                                          invalidPrice: invalidPrice,
+                                          errorMessage: rowError,
+                                          onStockChanged: (_) =>
+                                              _clearErrorFor(stockId),
+                                        ),
+                                      );
+                                    }),
+                                  const SizedBox(height: 8),
+                                  FilledButton.icon(
+                                    onPressed: value.isEmpty
+                                        ? null
+                                        : _openAddVariantSheet,
+                                    icon: const Icon(Icons.add, size: 20),
+                                    label: Text(
+                                      'Add variant',
+                                      style: GoogleFonts.inter(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13),
+                                    ),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: AppTheme.primaryDark,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      _ => [
+                          _CardShell(child: const SizedBox.shrink()),
+                        ],
+                    },
+                  ],
+                  if (_activeEditorTab == _ProductEditorTab.visibility) ...[
+                    const SizedBox(height: 16),
+                    _CardShell(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Sales & Promotions',
+                            style: theme.textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${_campaigns.length} active sales available',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Add to Existing Sale',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerLow,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String?>(
+                                value: _campaign,
+                                isExpanded: true,
+                                hint: Text(
+                                  'Select a campaign...',
+                                  style: TextStyle(
+                                      color: theme.colorScheme.outline),
+                                ),
+                                icon: Icon(Icons.expand_more,
+                                    color: theme.colorScheme.onSurfaceVariant),
+                                items: _campaigns
+                                    .map((c) => DropdownMenuItem(
+                                        value: c, child: Text(c)))
+                                    .toList(),
+                                onChanged: (v) => setState(() => _campaign = v),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Apply this product to active flash sales or discount campaigns.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant
+                                  .withValues(alpha: 0.85),
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      key: _keyFor('section_visibility'),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryDark.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.visibility_outlined,
+                                color: AppTheme.primary, size: 22),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Product Visibility',
+                                  style: theme.textTheme.titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                                Text(
+                                  'Active in your online store',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch.adaptive(
+                            value: _visible,
+                            activeThumbColor: Colors.white,
+                            activeTrackColor: AppTheme.primary,
+                            onChanged: _setVisibility,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                ]),
+              ),
             ),
-          ),
           ],
         ),
       ),
     );
   }
 
-  InputDecoration _fieldDeco(ThemeData theme, {String? hint, bool isInvalid = false}) {
+  InputDecoration _fieldDeco(ThemeData theme,
+      {String? hint, bool isInvalid = false}) {
     final errorColor = theme.colorScheme.error;
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
@@ -2433,7 +3117,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   }
 
   /// Stronger contrast vs `_CardShell` so SKU/stock read as inputs, not bare background.
-  InputDecoration _inventoryFieldDeco(ThemeData theme, {String? hint, bool isInvalid = false}) {
+  InputDecoration _inventoryFieldDeco(
+    ThemeData theme, {
+    String? hint,
+    bool isInvalid = false,
+    bool locked = false,
+  }) {
     final errorColor = theme.colorScheme.error;
     final idle = OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
@@ -2446,6 +3135,13 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     );
     return InputDecoration(
       hintText: hint,
+      suffixIcon: locked
+          ? Tooltip(
+              message: 'Stock is calculated from variants',
+              child: Icon(Icons.lock_outline_rounded,
+                  size: 18, color: theme.colorScheme.onSurfaceVariant),
+            )
+          : null,
       hintStyle: TextStyle(
         color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
       ),
@@ -2467,8 +3163,213 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   }
 }
 
+class _ProfileCompletionPanel extends StatelessWidget {
+  const _ProfileCompletionPanel({
+    required this.percent,
+    required this.missing,
+  });
+
+  final int percent;
+  final List<String> missing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final missingText = missing.isEmpty
+        ? 'Product complete — ready to publish'
+        : 'Missing: ${missing.take(2).join(', ')}${missing.length > 2 ? ' — add to improve conversions' : ''}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Product complete',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Text(
+              '$percent%',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: AppTheme.primaryDark,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: percent / 100,
+            minHeight: 4,
+            backgroundColor: AppTheme.surfaceContainerLow,
+            color: AppTheme.primary,
+          ),
+        ),
+        if (missing.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(top: 3),
+                  child: Icon(Icons.circle, size: 8, color: Color(0xFFC76A00)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    missingText,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFF8A4B00),
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _EditorTabs extends StatelessWidget {
+  const _EditorTabs({
+    required this.activeTab,
+    required this.onChanged,
+  });
+
+  final _ProductEditorTab activeTab;
+  final ValueChanged<_ProductEditorTab> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Edit section',
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          clipBehavior: Clip.none,
+          child: Row(
+            children: [
+              for (final tab in _ProductEditorTab.values) ...[
+                Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: _EditorTabButton(
+                    tab: tab,
+                    selected: activeTab == tab,
+                    onTap: () => onChanged(tab),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EditorTabButton extends StatelessWidget {
+  const _EditorTabButton({
+    required this.tab,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _ProductEditorTab tab;
+  final bool selected;
+  final VoidCallback onTap;
+
+  IconData get _icon {
+    return switch (tab) {
+      _ProductEditorTab.details => Icons.edit_note_rounded,
+      _ProductEditorTab.pricing => Icons.sell_outlined,
+      _ProductEditorTab.variants => Icons.tune_rounded,
+      _ProductEditorTab.visibility => Icons.visibility_outlined,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = selected ? Colors.white : AppTheme.primaryDark;
+    return Material(
+      color: selected ? AppTheme.primary : AppTheme.surfaceContainerLowest,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          constraints: const BoxConstraints(minWidth: 104),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected
+                  ? AppTheme.primary
+                  : AppTheme.outlineVariant.withValues(alpha: 0.55),
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: AppTheme.primary.withValues(alpha: 0.22),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(_icon, size: 18, color: fg),
+              const SizedBox(width: 8),
+              Text(
+                tab.label,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: fg,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              if (!selected) ...[
+                const SizedBox(width: 6),
+                Icon(Icons.chevron_right_rounded,
+                    size: 16, color: fg.withValues(alpha: 0.7)),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MediaSectionHeader extends StatelessWidget {
-  const _MediaSectionHeader({required this.title, this.trailing});
+  const _MediaSectionHeader({super.key, required this.title, this.trailing});
 
   final String title;
   final Widget? trailing;
@@ -2482,7 +3383,8 @@ class _MediaSectionHeader extends StatelessWidget {
       children: [
         Text(
           title,
-          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          style:
+              theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
         ),
         if (trailing != null) trailing!,
       ],
@@ -2548,6 +3450,7 @@ class _PriceField extends StatelessWidget {
     required this.label,
     required this.controller,
     required this.accent,
+    this.hintText,
     this.isInvalid = false,
     this.onChanged,
   });
@@ -2555,6 +3458,7 @@ class _PriceField extends StatelessWidget {
   final String label;
   final TextEditingController controller;
   final Color accent;
+  final String? hintText;
   final bool isInvalid;
   final ValueChanged<String>? onChanged;
 
@@ -2580,9 +3484,8 @@ class _PriceField extends StatelessWidget {
                 ? errorColor.withValues(alpha: 0.06)
                 : theme.colorScheme.surfaceContainerLowest,
             borderRadius: BorderRadius.circular(10),
-            border: isInvalid
-                ? Border.all(color: errorColor, width: 1.5)
-                : null,
+            border:
+                isInvalid ? Border.all(color: errorColor, width: 1.5) : null,
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
@@ -2600,13 +3503,15 @@ class _PriceField extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
             decoration: InputDecoration(
+              hintText: hintText,
               prefixText: 'KES ',
               prefixStyle: theme.textTheme.labelLarge?.copyWith(
                 color: accent,
                 fontWeight: FontWeight.w800,
               ),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
           ),
         ),
@@ -2616,15 +3521,18 @@ class _PriceField extends StatelessWidget {
 }
 
 class _FmtIcon extends StatelessWidget {
-  const _FmtIcon({required this.icon});
+  const _FmtIcon({required this.icon, required this.tooltip});
 
   final IconData icon;
+  final String tooltip;
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
       onPressed: () {},
-      icon: Icon(icon, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
+      tooltip: tooltip,
+      icon: Icon(icon,
+          size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
       style: IconButton.styleFrom(
         minimumSize: const Size(36, 36),
         padding: EdgeInsets.zero,
@@ -2652,13 +3560,16 @@ class _MediaThumb extends StatelessWidget {
     String fallbackUrl(String raw) {
       try {
         final u = Uri.parse(raw);
-        if (u.host == 'auth.dukanest.com' && u.path.startsWith('/storage/v1/object/public/')) {
+        if (u.host == 'auth.dukanest.com' &&
+            u.path.startsWith('/storage/v1/object/public/')) {
           final base = Uri.parse(AppConfig.publicApiBaseUrl);
-          return u.replace(
-            scheme: base.scheme,
-            host: base.host,
-            port: base.hasPort ? base.port : null,
-          ).toString();
+          return u
+              .replace(
+                scheme: base.scheme,
+                host: base.host,
+                port: base.hasPort ? base.port : null,
+              )
+              .toString();
         }
       } catch (_) {}
       return raw;
@@ -2683,41 +3594,45 @@ class _MediaThumb extends StatelessWidget {
                   ),
                 )
               : hasImage
-              ? Image.network(
-                  imageUrl,
-                  width: 128,
-                  height: 128,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) {
-                    final alt = fallbackUrl(imageUrl);
-                    if (alt != imageUrl) {
-                      return Image.network(
-                        alt,
-                        width: 128,
-                        height: 128,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
+                  ? Image.network(
+                      imageUrl,
+                      width: 128,
+                      height: 128,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) {
+                        final alt = fallbackUrl(imageUrl);
+                        if (alt != imageUrl) {
+                          return Image.network(
+                            alt,
+                            width: 128,
+                            height: 128,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 128,
+                              height: 128,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerLow,
+                              child: const Icon(
+                                  Icons.image_not_supported_outlined),
+                            ),
+                          );
+                        }
+                        return Container(
                           width: 128,
                           height: 128,
-                          color: Theme.of(context).colorScheme.surfaceContainerLow,
+                          color:
+                              Theme.of(context).colorScheme.surfaceContainerLow,
                           child: const Icon(Icons.image_not_supported_outlined),
-                        ),
-                      );
-                    }
-                    return Container(
+                        );
+                      },
+                    )
+                  : Container(
                       width: 128,
                       height: 128,
                       color: Theme.of(context).colorScheme.surfaceContainerLow,
                       child: const Icon(Icons.image_not_supported_outlined),
-                    );
-                  },
-                )
-              : Container(
-                  width: 128,
-                  height: 128,
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  child: const Icon(Icons.image_not_supported_outlined),
-                ),
+                    ),
         ),
         if (hasImage || hasLocalImage)
           Positioned(
@@ -2731,7 +3646,8 @@ class _MediaThumb extends StatelessWidget {
                 onTap: onRemove,
                 child: Padding(
                   padding: const EdgeInsets.all(4),
-                  child: Icon(Icons.close, size: 16, color: Theme.of(context).colorScheme.error),
+                  child: Icon(Icons.close,
+                      size: 16, color: Theme.of(context).colorScheme.error),
                 ),
               ),
             ),
@@ -2795,12 +3711,14 @@ class _VariantRowTile extends StatelessWidget {
               ),
               IconButton(
                 onPressed: onEdit,
-                icon: Icon(Icons.edit_outlined, color: theme.colorScheme.primary),
+                icon:
+                    Icon(Icons.edit_outlined, color: theme.colorScheme.primary),
                 tooltip: 'Edit variant details',
               ),
               IconButton(
                 onPressed: onRemove,
-                icon: Icon(Icons.delete_outline_rounded, color: theme.colorScheme.error),
+                icon: Icon(Icons.delete_outline_rounded,
+                    color: theme.colorScheme.error),
                 tooltip: 'Remove variant',
               ),
             ],
@@ -2830,15 +3748,19 @@ class _VariantRowTile extends StatelessWidget {
             runSpacing: 8,
             children: [
               if (line.regularPrice.text.trim().isNotEmpty)
-                _VariantChip(label: 'Price: KES ${line.regularPrice.text.trim()}'),
+                _VariantChip(
+                    label: 'Price: KES ${line.regularPrice.text.trim()}'),
               if (line.salePrice.text.trim().isNotEmpty)
                 _VariantChip(label: 'Sale: KES ${line.salePrice.text.trim()}'),
+              if (line.costPrice.text.trim().isNotEmpty)
+                _VariantChip(label: 'COG: KES ${line.costPrice.text.trim()}'),
               if (line.imageUrl.text.trim().isNotEmpty)
                 _VariantImagePreview(imagePathOrUrl: line.imageUrl.text.trim()),
             ],
           ),
           if (line.regularPrice.text.trim().isNotEmpty ||
               line.salePrice.text.trim().isNotEmpty ||
+              line.costPrice.text.trim().isNotEmpty ||
               line.imageUrl.text.trim().isNotEmpty)
             const SizedBox(height: 10),
           Row(
@@ -2859,7 +3781,8 @@ class _VariantRowTile extends StatelessWidget {
                     const SizedBox(height: 6),
                     TextField(
                       controller: line.sku,
-                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
                       decoration: _variantFieldDeco(theme),
                     ),
                   ],
@@ -2885,8 +3808,10 @@ class _VariantRowTile extends StatelessWidget {
                       controller: line.stock,
                       keyboardType: TextInputType.number,
                       onChanged: onStockChanged,
-                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                      decoration: _variantFieldDeco(theme, isInvalid: invalidStock),
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                      decoration:
+                          _variantFieldDeco(theme, isInvalid: invalidStock),
                     ),
                   ],
                 ),
@@ -2898,7 +3823,8 @@ class _VariantRowTile extends StatelessWidget {
     );
   }
 
-  static InputDecoration _variantFieldDeco(ThemeData theme, {bool isInvalid = false}) {
+  static InputDecoration _variantFieldDeco(ThemeData theme,
+      {bool isInvalid = false}) {
     final errorColor = theme.colorScheme.error;
     final idle = OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
@@ -2961,8 +3887,8 @@ class _VariantImagePreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isRemote =
-        imagePathOrUrl.startsWith('http://') || imagePathOrUrl.startsWith('https://');
+    final isRemote = imagePathOrUrl.startsWith('http://') ||
+        imagePathOrUrl.startsWith('https://');
 
     Widget img;
     if (isRemote) {
@@ -3029,12 +3955,14 @@ class _AddPhotoButton extends StatelessWidget {
           height: 128,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.colorScheme.outlineVariant, width: 2),
+            border:
+                Border.all(color: theme.colorScheme.outlineVariant, width: 2),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.add_a_photo_outlined, color: AppTheme.primary, size: 28),
+              Icon(Icons.add_a_photo_outlined,
+                  color: AppTheme.primary, size: 28),
               const SizedBox(height: 6),
               Text(
                 'ADD PHOTO',

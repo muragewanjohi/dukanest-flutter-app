@@ -8,6 +8,7 @@ import '../../../config/theme.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
 import '../analytics_parse.dart';
 import '../providers/dashboard_analytics_provider.dart';
+import '../providers/dashboard_pnl_provider.dart';
 
 /// Analytics Center — data from `GET /dashboard/analytics?days=`.
 class AnalyticsScreen extends ConsumerStatefulWidget {
@@ -27,21 +28,44 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         _ => 30,
       };
 
+  DashboardPnlQuery get _pnlQuery {
+    final now = DateTime.now();
+    final end = DateTime(now.year, now.month, now.day);
+    final start = end.subtract(Duration(days: _days - 1));
+    return (startDate: start, endDate: end);
+  }
+
+  String get _periodLabel => switch (_period) {
+        0 => 'Last 7 days',
+        1 => 'Last 30 days',
+        2 => 'Last 90 days',
+        _ => 'Last 30 days',
+      };
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final async = ref.watch(dashboardAnalyticsProvider(_days));
+    final pnlQuery = _pnlQuery;
+    final pnlAsync = ref.watch(dashboardPnlProvider(pnlQuery));
     final view = parseAnalyticsViewData(async.valueOrNull, _days);
+    final pnlRaw = pnlAsync.valueOrNull;
+    final pnlView = pnlRaw == null ? null : parsePnlViewData(pnlRaw);
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(dashboardAnalyticsProvider(_days));
-          await ref.read(dashboardAnalyticsProvider(_days).future);
+          ref.invalidate(dashboardPnlProvider(pnlQuery));
+          await Future.wait([
+            ref.read(dashboardAnalyticsProvider(_days).future),
+            ref.read(dashboardPnlProvider(pnlQuery).future),
+          ]);
         },
         child: ListView(
-          padding: EdgeInsets.fromLTRB(16, 8 + MediaQuery.of(context).padding.top, 16, 24),
+          padding: EdgeInsets.fromLTRB(
+              16, 8 + MediaQuery.of(context).padding.top, 16, 24),
           children: [
             DashboardPageHeader(
               title: 'Analytics Center',
@@ -49,7 +73,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   'Deep-dive insights into your store performance and customer behavior across all channels.',
               actions: [
                 IconButton(
-                  icon: Icon(Icons.notifications_none_rounded, color: theme.colorScheme.onSurfaceVariant),
+                  icon: Icon(Icons.notifications_none_rounded,
+                      color: theme.colorScheme.onSurfaceVariant),
                   onPressed: () => context.push('/notifications'),
                 ),
               ],
@@ -108,6 +133,16 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               ),
             ],
             const SizedBox(height: 20),
+            _FinanceHubCard(theme: theme),
+            const SizedBox(height: 16),
+            _PnlOverviewCard(
+              view: pnlView,
+              periodLabel: _periodLabel,
+              isLoading: pnlAsync.isLoading,
+              hasError: pnlAsync.hasError,
+              theme: theme,
+            ),
+            const SizedBox(height: 16),
             _SalesPerformanceCard(view: view, theme: theme),
             const SizedBox(height: 16),
             _ConversionCard(view: view, theme: theme),
@@ -119,6 +154,273 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             _TrafficSourcesCard(rows: view.trafficSources),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _FinanceHubCard extends StatelessWidget {
+  const _FinanceHubCard({required this.theme});
+
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryDark,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryDark.withValues(alpha: 0.18),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet_outlined,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Finance',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Track expenses for cleaner profit reports.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.72),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => context.push('/analytics/expenses'),
+              icon: const Icon(Icons.receipt_long_outlined, size: 18),
+              label: const Text('Manage expenses'),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: AppTheme.primaryDark,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PnlOverviewCard extends StatelessWidget {
+  const _PnlOverviewCard({
+    required this.view,
+    required this.periodLabel,
+    required this.isLoading,
+    required this.hasError,
+    required this.theme,
+  });
+
+  final PnlViewData? view;
+  final String periodLabel;
+  final bool isLoading;
+  final bool hasError;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = view;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 32,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Profit & Loss',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: AppTheme.primaryDark,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$periodLabel finance summary',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isLoading)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (data == null)
+            Text(
+              hasError
+                  ? 'Could not load profit data. Pull to retry.'
+                  : 'Profit data will appear once the P&L endpoint returns values.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: hasError
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+          else ...[
+            Text(
+              data.netProfitFormatted,
+              style: theme.textTheme.headlineMedium?.copyWith(
+                color: data.netProfit >= 0
+                    ? Colors.green.shade700
+                    : theme.colorScheme.error,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Net profit • ${data.percentLabel(data.netMarginPercent)} net margin',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _PnlMetricPill(
+                  label: 'Net revenue',
+                  value: data.netRevenueFormatted,
+                ),
+                _PnlMetricPill(
+                  label: 'COGS',
+                  value: data.cogsFormatted,
+                ),
+                _PnlMetricPill(
+                  label: 'Gross profit',
+                  value: data.grossProfitFormatted,
+                  sublabel:
+                      '${data.percentLabel(data.grossMarginPercent)} margin',
+                ),
+                _PnlMetricPill(
+                  label: 'Operating expenses',
+                  value: data.operatingExpensesFormatted,
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PnlMetricPill extends StatelessWidget {
+  const _PnlMetricPill({
+    required this.label,
+    required this.value,
+    this.sublabel,
+  });
+
+  final String label;
+  final String value;
+  final String? sublabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      constraints: const BoxConstraints(minWidth: 136),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: AppTheme.primaryDark,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          if (sublabel != null) ...[
+            const SizedBox(height: 3),
+            Text(
+              sublabel!,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -190,13 +492,17 @@ class _SalesPerformanceCard extends StatelessWidget {
                         Icon(
                           change >= 0 ? Icons.trending_up : Icons.trending_down,
                           size: 16,
-                          color: change >= 0 ? Colors.green.shade700 : Colors.red.shade700,
+                          color: change >= 0
+                              ? Colors.green.shade700
+                              : Colors.red.shade700,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           '${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}%',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: change >= 0 ? Colors.green.shade700 : Colors.red.shade700,
+                            color: change >= 0
+                                ? Colors.green.shade700
+                                : Colors.red.shade700,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -259,7 +565,8 @@ class _ConversionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pct = view.conversionPercent;
-    final display = pct != null ? '${pct.toStringAsFixed(pct >= 10 ? 1 : 2)}%' : '—';
+    final display =
+        pct != null ? '${pct.toStringAsFixed(pct >= 10 ? 1 : 2)}%' : '—';
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -373,7 +680,8 @@ class _TopProductsCard extends StatelessWidget {
 }
 
 class _PeriodChip extends StatelessWidget {
-  const _PeriodChip({required this.label, required this.selected, required this.onTap});
+  const _PeriodChip(
+      {required this.label, required this.selected, required this.onTap});
 
   final String label;
   final bool selected;
@@ -397,7 +705,9 @@ class _PeriodChip extends StatelessWidget {
               label,
               textAlign: TextAlign.center,
               style: theme.textTheme.labelLarge?.copyWith(
-                color: selected ? AppTheme.primary : theme.colorScheme.onSurfaceVariant,
+                color: selected
+                    ? AppTheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
                 fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
               ),
             ),
@@ -409,7 +719,8 @@ class _PeriodChip extends StatelessWidget {
 }
 
 class _TopProductRow extends StatelessWidget {
-  const _TopProductRow({required this.name, required this.sub, required this.amount});
+  const _TopProductRow(
+      {required this.name, required this.sub, required this.amount});
 
   final String name;
   final String sub;
@@ -427,15 +738,20 @@ class _TopProductRow extends StatelessWidget {
             color: theme.colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(Icons.inventory_2_outlined, color: theme.colorScheme.outline),
+          child: Icon(Icons.inventory_2_outlined,
+              color: theme.colorScheme.outline),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(name, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-              Text(sub, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              Text(name,
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700)),
+              Text(sub,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
             ],
           ),
         ),
@@ -544,14 +860,16 @@ class _CustomerLoyaltyCard extends StatelessWidget {
                   children: [
                     _LoyaltyBarRow(
                       label: 'Returning Customers',
-                      valueLabel: hasData ? '${(returning * 100).round()}%' : '—',
+                      valueLabel:
+                          hasData ? '${(returning * 100).round()}%' : '—',
                       fill: returning,
                       fillColor: AppTheme.primary,
                     ),
                     const SizedBox(height: 16),
                     _LoyaltyBarRow(
                       label: 'New Customers',
-                      valueLabel: hasData ? '${(newShare * 100).round()}%' : '—',
+                      valueLabel:
+                          hasData ? '${(newShare * 100).round()}%' : '—',
                       fill: newShare,
                       fillColor: theme.colorScheme.outlineVariant,
                     ),
@@ -599,7 +917,8 @@ class _LoyaltyBarRow extends StatelessWidget {
             ),
             Text(
               valueLabel,
-              style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w800),
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(fontWeight: FontWeight.w800),
             ),
           ],
         ),
@@ -725,7 +1044,8 @@ class _TrafficSourcesCard extends StatelessWidget {
             ...rows.map(
               (r) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: _TrafficSourceBlock(label: r.label, fraction: r.fraction),
+                child:
+                    _TrafficSourceBlock(label: r.label, fraction: r.fraction),
               ),
             ),
         ],
@@ -837,7 +1157,9 @@ class _LineChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _LineChartPainter oldDelegate) {
     if (oldDelegate.color != color) return true;
-    if (oldDelegate.normalizedPoints.length != normalizedPoints.length) return true;
+    if (oldDelegate.normalizedPoints.length != normalizedPoints.length) {
+      return true;
+    }
     for (var i = 0; i < normalizedPoints.length; i++) {
       if (oldDelegate.normalizedPoints[i] != normalizedPoints[i]) return true;
     }

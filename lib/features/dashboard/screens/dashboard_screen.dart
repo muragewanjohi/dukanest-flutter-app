@@ -19,7 +19,8 @@ import '../providers/dashboard_local_onboarding_provider.dart';
 /// Home dashboard aligned with Stitch screen
 /// `projects/13184140852829986275/screens/a93fc25cee2c4ac98d30472dc7535058`
 /// (HTML + screenshot in `docs/backend-context/stitch-exports/`).
-final dashboardOverviewProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
+final dashboardOverviewProvider =
+    FutureProvider<Map<String, dynamic>?>((ref) async {
   try {
     final api = ref.read(apiClientProvider);
     final response = await api.getDashboardOverview();
@@ -110,7 +111,8 @@ List<_OnboardingStepUi> _mergeGettingStartedItems(
 }
 
 void _postGettingStartedPreview(WidgetRef ref) {
-  unawaited(ref.read(apiClientProvider).postGettingStartedAction('preview_done'));
+  unawaited(
+      ref.read(apiClientProvider).postGettingStartedAction('preview_done'));
 }
 
 void _postGettingStartedShare(WidgetRef ref) {
@@ -199,9 +201,11 @@ List<_OnboardingStepUi> _parseOnboardingStepsFromOverview(
 
   List<dynamic>? rawSteps;
   if (container != null) {
-    rawSteps = container['steps'] as List<dynamic>? ?? container['items'] as List<dynamic>?;
+    rawSteps = container['steps'] as List<dynamic>? ??
+        container['items'] as List<dynamic>?;
   }
-  rawSteps ??= data['onboardingSteps'] as List<dynamic>? ?? data['checklist'] as List<dynamic>?;
+  rawSteps ??= data['onboardingSteps'] as List<dynamic>? ??
+      data['checklist'] as List<dynamic>?;
 
   if (rawSteps == null || rawSteps.isEmpty) {
     final tenant = _firstMap(data, ['tenant', 'store']);
@@ -214,7 +218,8 @@ List<_OnboardingStepUi> _parseOnboardingStepsFromOverview(
         'setup_checklist',
       ]);
       if (container != null) {
-        rawSteps = container['steps'] as List<dynamic>? ?? container['items'] as List<dynamic>?;
+        rawSteps = container['steps'] as List<dynamic>? ??
+            container['items'] as List<dynamic>?;
       }
     }
   }
@@ -226,7 +231,8 @@ List<_OnboardingStepUi> _parseOnboardingStepsFromOverview(
     if (item is! Map) continue;
     final m = Map<String, dynamic>.from(item);
     final completed = m['completed'] == true || m['done'] == true;
-    final title = (m['title'] ?? m['label'] ?? m['name'] ?? '').toString().trim();
+    final title =
+        (m['title'] ?? m['label'] ?? m['name'] ?? '').toString().trim();
     if (title.isEmpty) continue;
     final actionLabel = (m['actionLabel'] ??
             m['action_label'] ??
@@ -236,7 +242,9 @@ List<_OnboardingStepUi> _parseOnboardingStepsFromOverview(
         .trim();
     final sk = m['key'] ?? m['id'] ?? m['stepKey'];
     final stepKey = sk is String ? sk.trim() : null;
-    final descRaw = (m['description'] ?? m['subtitle'] ?? m['body'] ?? '').toString().trim();
+    final descRaw = (m['description'] ?? m['subtitle'] ?? m['body'] ?? '')
+        .toString()
+        .trim();
     final durRaw = (m['durationHint'] ??
             m['duration_hint'] ??
             m['duration'] ??
@@ -359,15 +367,22 @@ class DashboardScreen extends ConsumerWidget {
     if (candidates is List && candidates.isNotEmpty) {
       final mapped = candidates.whereType<Map>().map((raw) {
         final item = Map<String, dynamic>.from(raw);
-        final name = (item['name'] ?? item['productName'] ?? 'Low stock item').toString();
-        final qty = item['stock'] ?? item['stockQuantity'] ?? item['quantity'] ?? item['available'];
-        final subtitle = qty is num ? 'Only ${qty.toInt()} units left' : 'Needs restock';
+        final name = (item['name'] ?? item['productName'] ?? 'Low stock item')
+            .toString();
+        final qty = item['stock'] ??
+            item['stockQuantity'] ??
+            item['quantity'] ??
+            item['available'];
+        final subtitle =
+            qty is num ? 'Only ${qty.toInt()} units left' : 'Needs restock';
         return (name: name, subtitle: subtitle);
       }).toList();
       if (mapped.isNotEmpty) return mapped.take(3).toList();
     }
     final lowCount = _toInt(
-      productsMetrics?['lowStock'] ?? productsMetrics?['low_stock'] ?? data['lowStockCount'],
+      productsMetrics?['lowStock'] ??
+          productsMetrics?['low_stock'] ??
+          data['lowStockCount'],
       fallback: 0,
     );
     if (lowCount > 0) {
@@ -382,9 +397,15 @@ class DashboardScreen extends ConsumerWidget {
     return const [];
   }
 
-  String? _comparisonSubtitle(Map<String, dynamic> revenueMetrics, {required bool weekly}) {
+  String? _comparisonSubtitle(Map<String, dynamic> revenueMetrics,
+      {required bool weekly}) {
     final keys = weekly
-        ? ['weekOverWeekChangePercent', 'weekOverWeekPercent', 'wowPercent', 'weekOverWeekChange']
+        ? [
+            'weekOverWeekChangePercent',
+            'weekOverWeekPercent',
+            'wowPercent',
+            'weekOverWeekChange'
+          ]
         : ['monthOverMonthChangePercent', 'momPercent', 'monthOverMonthChange'];
     for (final k in keys) {
       final v = revenueMetrics[k];
@@ -393,7 +414,8 @@ class DashboardScreen extends ConsumerWidget {
         return '$sign${v.toStringAsFixed(1)}% from last ${weekly ? 'week' : 'month'}';
       }
     }
-    final label = revenueMetrics['comparisonLabel'] ?? revenueMetrics['trendLabel'];
+    final label =
+        revenueMetrics['comparisonLabel'] ?? revenueMetrics['trendLabel'];
     if (label is String && label.trim().isNotEmpty) return label.trim();
     return null;
   }
@@ -461,7 +483,10 @@ class DashboardScreen extends ConsumerWidget {
         onAction = () => context.push('/shipping-delivery');
       } else if (k == 'logo' || k == 'store_logo') {
         onAction = () => context.push('/store-identity');
-      } else if (k == 'design' || k == 'theme' || k == 'branding' || k == 'store_identity') {
+      } else if (k == 'design' ||
+          k == 'theme' ||
+          k == 'branding' ||
+          k == 'store_identity') {
         onAction = () => context.push('/store-identity');
       } else if (k == 'share' || k == 'store_link') {
         if (url != null && url.isNotEmpty) {
@@ -502,7 +527,8 @@ class DashboardScreen extends ConsumerWidget {
                 _postGettingStartedShare(ref);
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Store link copied to clipboard')),
+                  const SnackBar(
+                      content: Text('Store link copied to clipboard')),
                 );
               });
             };
@@ -582,12 +608,15 @@ class DashboardScreen extends ConsumerWidget {
         : <String, dynamic>{};
 
     final currency =
-        (revenueMetrics['currencyCode'] ?? metrics['currencyCode'] ?? 'KES').toString();
-    final weeklyPaid = revenueMetrics['weeklyPaid'] ?? revenueMetrics['weeklyTotal'];
+        (revenueMetrics['currencyCode'] ?? metrics['currencyCode'] ?? 'KES')
+            .toString();
+    final weeklyPaid =
+        revenueMetrics['weeklyPaid'] ?? revenueMetrics['weeklyTotal'];
     final weeklySeriesRaw = revenueMetrics['weeklySeries'] ??
         revenueMetrics['last7Days'] ??
         revenueMetrics['dailySeries'];
-    final useWeekly = weeklyPaid is num || (weeklySeriesRaw is List && weeklySeriesRaw.isNotEmpty);
+    final useWeekly = weeklyPaid is num ||
+        (weeklySeriesRaw is List && weeklySeriesRaw.isNotEmpty);
     num? weeklyFromSeries;
     if (weeklySeriesRaw is List) {
       for (final e in weeklySeriesRaw) {
@@ -596,7 +625,9 @@ class DashboardScreen extends ConsumerWidget {
     }
     final revenuePrimaryAmount = useWeekly
         ? (weeklyPaid is num ? weeklyPaid : weeklyFromSeries ?? 0)
-        : (revenueMetrics['monthlyPaid'] ?? metrics['weeklyRevenue'] ?? metrics['revenue']);
+        : (revenueMetrics['monthlyPaid'] ??
+            metrics['weeklyRevenue'] ??
+            metrics['revenue']);
     final revenueValue = _toCurrency(
       isLiveData ? revenuePrimaryAmount : 12450,
       currency: currency,
@@ -614,7 +645,6 @@ class DashboardScreen extends ConsumerWidget {
             : null);
     final barFractions = _normalizeChartFractions(seriesForChart);
     final chartHighlightIndex = _lastPositiveIndex(barFractions);
-    final revenueCardTitle = useWeekly ? 'Weekly Revenue' : 'Revenue';
     final revenueBadge = useWeekly ? '7 DAYS' : 'THIS MONTH';
     final revenueCaption = useWeekly ? 'Total this week' : 'Paid this month';
 
@@ -625,6 +655,24 @@ class DashboardScreen extends ConsumerWidget {
           metrics['activeOrders'],
       fallback: data == null ? 24 : 0,
     ).toString();
+    final productsLiveValue = _toInt(
+      productsMetrics['live'] ??
+          productsMetrics['active'] ??
+          productsMetrics['published'] ??
+          productsMetrics['total'] ??
+          metrics['productsLive'] ??
+          metrics['totalProducts'],
+      fallback: 0,
+    ).toString();
+    final storeViewsValue = _toInt(
+      metrics['storeViews'] ??
+          metrics['store_views'] ??
+          metrics['visitors'] ??
+          metrics['views'] ??
+          tenantMap?['views'] ??
+          tenantMap?['storeViews'],
+      fallback: 0,
+    ).toString();
     final completedOrdersValue = _toInt(
       ordersMetrics['completed'] ??
           ordersMetrics['total'] ??
@@ -633,16 +681,28 @@ class DashboardScreen extends ConsumerWidget {
           metrics['ordersLast30Days'],
       fallback: data == null ? 182 : 0,
     ).toString();
-    final lowStockItems = _extractLowStockItems(data, productsMetrics: productsMetrics);
+    final lowStockItems =
+        _extractLowStockItems(data, productsMetrics: productsMetrics);
+    final lowStockCount = _toInt(
+      productsMetrics['lowStock'] ??
+          productsMetrics['low_stock'] ??
+          data?['lowStockCount'],
+      fallback: lowStockItems.isEmpty ? 0 : lowStockItems.length,
+    );
 
     final gsData = ref.watch(dashboardGettingStartedProvider).valueOrNull;
     final onboardingDefaults = _defaultOnboardingStepsAfterRegistration();
-    final gsItems = gsData != null ? (gsData['items'] ?? gsData['steps']) : null;
-    final List<_OnboardingStepUi> parsedSteps = gsItems is List && gsItems.isNotEmpty
-        ? _mergeGettingStartedItems(onboardingDefaults, gsItems)
-        : _parseOnboardingStepsFromOverview(data, defaultSteps: onboardingDefaults);
-    final localStepCompletions = ref.watch(dashboardLocalStepCompletionsProvider);
-    final mergedSteps = _mergeLocalStepCompletion(parsedSteps, localStepCompletions);
+    final gsItems =
+        gsData != null ? (gsData['items'] ?? gsData['steps']) : null;
+    final List<_OnboardingStepUi> parsedSteps =
+        gsItems is List && gsItems.isNotEmpty
+            ? _mergeGettingStartedItems(onboardingDefaults, gsItems)
+            : _parseOnboardingStepsFromOverview(data,
+                defaultSteps: onboardingDefaults);
+    final localStepCompletions =
+        ref.watch(dashboardLocalStepCompletionsProvider);
+    final mergedSteps =
+        _mergeLocalStepCompletion(parsedSteps, localStepCompletions);
     final onboardingSteps = _attachOnboardingActions(
       context,
       ref,
@@ -670,143 +730,515 @@ class DashboardScreen extends ConsumerWidget {
       body: RefreshIndicator(
         onRefresh: refreshDashboard,
         child: ListView(
-          padding: EdgeInsets.fromLTRB(24, 8 + MediaQuery.of(context).padding.top, 24, 120),
+          padding: EdgeInsets.fromLTRB(
+              20, 8 + MediaQuery.of(context).padding.top, 20, 120),
           children: [
-          DashboardPageHeader(
-            title: greetingName.isEmpty ? 'Welcome back' : 'Welcome back, $greetingName',
-            actions: [
-              IconButton.filledTonal(
-                onPressed: () => refreshDashboard(),
-                style: IconButton.styleFrom(
-                  backgroundColor: theme.colorScheme.surface,
-                  foregroundColor: theme.colorScheme.onSurfaceVariant,
+            DashboardPageHeader(
+              title: greetingName.isEmpty ? 'Habari' : 'Habari, $greetingName',
+              subtitle: _lastUpdatedLabel(lastSyncedAt),
+              actions: [
+                IconButton.filledTonal(
+                  onPressed: () => refreshDashboard(),
+                  style: IconButton.styleFrom(
+                    backgroundColor: theme.colorScheme.surface,
+                    foregroundColor: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  tooltip: 'Refresh',
+                  icon: const Icon(Icons.refresh_rounded),
                 ),
-                tooltip: 'Refresh',
-                icon: const Icon(Icons.refresh_rounded),
-              ),
-              IconButton.filledTonal(
-                onPressed: () => context.push('/notifications'),
-                style: IconButton.styleFrom(
-                  backgroundColor: theme.colorScheme.surface,
-                  foregroundColor: theme.colorScheme.onSurfaceVariant,
+                IconButton.filledTonal(
+                  onPressed: () => context.push('/notifications'),
+                  style: IconButton.styleFrom(
+                    backgroundColor: theme.colorScheme.surface,
+                    foregroundColor: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  tooltip: 'Notifications',
+                  icon: const Icon(Icons.notifications_outlined),
                 ),
-                icon: const Icon(Icons.notifications_outlined),
+                IconButton.filledTonal(
+                  onPressed: () => context.push('/settings'),
+                  style: IconButton.styleFrom(
+                    backgroundColor: theme.colorScheme.surface,
+                    foregroundColor: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  tooltip: 'Store Settings',
+                  icon: const Icon(Icons.person_outline_rounded),
+                ),
+              ],
+            ),
+            if (storeUrl != null && storeUrl.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _storeUrlShareRow(
+                context,
+                ref,
+                storeUrl: storeUrl,
+                storeName: displayStoreName,
               ),
             ],
-          ),
-          if (storeUrl != null && storeUrl.trim().isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(999),
+            const SizedBox(height: 16),
+            _quickActionRow(context),
+            const SizedBox(height: 18),
+            _metricsGrid(
+              theme,
+              revenueValue: revenueValue,
+              revenueCaption: revenueCaption,
+              pendingOrdersValue: pendingOrdersValue,
+              productsLiveValue: productsLiveValue,
+              storeViewsValue: storeViewsValue,
+            ),
+            const SizedBox(height: 14),
+            _weeklyRevenueCard(
+              context,
+              theme,
+              revenueValue: revenueValue,
+              title: 'Revenue trend',
+              badge: revenueBadge,
+              subtitle: revenueSecondaryLine,
+              caption: revenueCaption,
+              barFractions: barFractions,
+              highlightedIndex: chartHighlightIndex,
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _compactSummaryCard(
+                    theme,
+                    label: 'ORDERS COMPLETED',
+                    value: completedOrdersValue,
+                    caption: 'Last 30 days',
+                    icon: Icons.check_circle_outline,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _compactSummaryCard(
+                    theme,
+                    label: 'STOCK ALERTS',
+                    value: lowStockCount.toString(),
+                    caption: lowStockItems.isEmpty
+                        ? 'All in stock'
+                        : 'Review inventory',
+                    icon: Icons.inventory_2_outlined,
+                    accentColor: lowStockItems.isEmpty
+                        ? const Color(0xFF16A34A)
+                        : theme.colorScheme.error,
+                    onTap: () => context.go('/products'),
+                  ),
+                ),
+              ],
+            ),
+            if (lowStockItems.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              _stockAlertsCard(context, theme, items: lowStockItems),
+            ],
+            if (!allOnboardingComplete) ...[
+              const SizedBox(height: 14),
+              _GettingStartedCarousel(
+                completed: onboardingDone,
+                total: onboardingTotal,
+                steps: onboardingSteps,
               ),
-              child: Row(
+            ],
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _storeUrlShareRow(
+    BuildContext context,
+    WidgetRef ref, {
+    required String storeUrl,
+    required String? storeName,
+  }) {
+    final theme = Theme.of(context);
+    final trimmedUrl = storeUrl.trim();
+    final resolvedName = (storeName != null && storeName.trim().isNotEmpty)
+        ? storeName.trim()
+        : 'my store';
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(14),
+        border:
+            Border.all(color: AppTheme.outlineVariant.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.language_rounded,
+              size: 18,
+              color: AppTheme.primary,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: trimmedUrl)).then((_) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Store URL copied')),
+                  );
+                });
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.link_rounded, size: 16, color: theme.colorScheme.onSurfaceVariant),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      storeUrl,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  Text(
+                    'YOUR STORE URL',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                      fontSize: 10,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  InkWell(
-                    onTap: () {
-                      final u = storeUrl.trim();
-                      Clipboard.setData(ClipboardData(text: u)).then((_) {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Store URL copied')),
-                        );
-                      });
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      child: Icon(Icons.copy_rounded, size: 16, color: AppTheme.primaryDark),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(width: 1, height: 16, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
-                  const SizedBox(width: 8),
-                  InkWell(
-                    onTap: () {
-                      final u = storeUrl.trim();
-                      final name = (displayStoreName ?? 'my store').trim();
-                      final shareText = 'Shop with $name on DukaNest.\nBrowse products and order here: $u';
-                      SharePlus.instance.share(ShareParams(text: shareText)).then((_) {
-                        ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(DashboardOnboardingStepKeys.shareStore);
-                        _postGettingStartedShare(ref);
-                      });
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      child: Icon(Icons.share_outlined, size: 16, color: AppTheme.primaryDark),
+                  const SizedBox(height: 2),
+                  Text(
+                    trimmedUrl,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: AppTheme.primary,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ],
               ),
             ),
-          ],
-          const SizedBox(height: 32),
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: isLiveData ? const Color(0xFF22C55E) : const Color(0xFFEAB308),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${_lastUpdatedLabel(lastSyncedAt)} • Pull down to refresh',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
           ),
-          if (!allOnboardingComplete) ...[
-            const SizedBox(height: 12),
-            _GettingStartedCarousel(
-              completed: onboardingDone,
-              total: onboardingTotal,
-              steps: onboardingSteps,
+          const SizedBox(width: 8),
+          IconButton.filledTonal(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: trimmedUrl)).then((_) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Store URL copied')),
+                );
+              });
+            },
+            style: IconButton.styleFrom(
+              backgroundColor: AppTheme.surfaceContainerLow,
+              foregroundColor: theme.colorScheme.onSurfaceVariant,
+              minimumSize: const Size(34, 34),
+              fixedSize: const Size(34, 34),
+              padding: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            tooltip: 'Copy store URL',
+            icon: const Icon(Icons.copy_rounded, size: 17),
+          ),
+          const SizedBox(width: 6),
+          IconButton.filled(
+            onPressed: () {
+              final shareText =
+                  'Shop with $resolvedName on DukaNest.\nBrowse products and order here: $trimmedUrl';
+              SharePlus.instance.share(ShareParams(text: shareText)).then((_) {
+                ref
+                    .read(dashboardLocalStepCompletionsProvider.notifier)
+                    .markComplete(DashboardOnboardingStepKeys.shareStore);
+                _postGettingStartedShare(ref);
+              });
+            },
+            style: IconButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(34, 34),
+              fixedSize: const Size(34, 34),
+              padding: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            tooltip: 'Share store',
+            icon: const Icon(Icons.share_rounded, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _quickActionRow(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      child: Row(
+        children: [
+          _quickActionChip(
+            context,
+            icon: Icons.add_rounded,
+            label: 'Add product',
+            onTap: () => context.push('/products/new'),
+          ),
+          _quickActionChip(
+            context,
+            icon: Icons.shopping_bag_outlined,
+            label: 'Orders',
+            onTap: () => context.go('/orders'),
+          ),
+          _quickActionChip(
+            context,
+            icon: Icons.bar_chart_rounded,
+            label: 'Analytics',
+            onTap: () => context.go('/analytics'),
+          ),
+          _quickActionChip(
+            context,
+            icon: Icons.inventory_2_outlined,
+            label: 'Inventory',
+            onTap: () => context.go('/products'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _quickActionChip(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ActionChip(
+        avatar: Icon(icon, size: 16, color: AppTheme.primaryDark),
+        label: Text(label),
+        labelStyle: theme.textTheme.labelMedium?.copyWith(
+          color: AppTheme.primaryDark,
+          fontWeight: FontWeight.w700,
+        ),
+        backgroundColor: AppTheme.surfaceContainerLowest,
+        side:
+            BorderSide(color: AppTheme.outlineVariant.withValues(alpha: 0.45)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        onPressed: onTap,
+      ),
+    );
+  }
+
+  Widget _metricsGrid(
+    ThemeData theme, {
+    required String revenueValue,
+    required String revenueCaption,
+    required String pendingOrdersValue,
+    required String productsLiveValue,
+    required String storeViewsValue,
+  }) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _homeMetricCard(
+                theme,
+                title: 'Revenue',
+                value: revenueValue,
+                caption: revenueCaption,
+                icon: Icons.payments_outlined,
+                highlighted: true,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _homeMetricCard(
+                theme,
+                title: 'Pending orders',
+                value: pendingOrdersValue,
+                caption: pendingOrdersValue == '0'
+                    ? 'No orders yet'
+                    : 'Needs attention',
+                icon: Icons.shopping_bag_outlined,
+              ),
             ),
           ],
-          const SizedBox(height: 24),
-          _weeklyRevenueCard(
-            context,
-            theme,
-            revenueValue: revenueValue,
-            title: revenueCardTitle,
-            badge: revenueBadge,
-            subtitle: revenueSecondaryLine,
-            caption: revenueCaption,
-            barFractions: barFractions,
-            highlightedIndex: chartHighlightIndex,
-          ),
-          const SizedBox(height: 24),
-          _pendingOrdersCard(theme, value: pendingOrdersValue),
-          const SizedBox(height: 24),
-          _completedOrdersCard(theme, value: completedOrdersValue),
-          const SizedBox(height: 24),
-          _stockAlertsCard(context, theme, items: lowStockItems),
-          const SizedBox(height: 24),
-          _growCard(context, theme),
-          const SizedBox(height: 24),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _homeMetricCard(
+                theme,
+                title: 'Products live',
+                value: productsLiveValue,
+                caption: productsLiveValue == '0'
+                    ? 'Add your first'
+                    : 'Published items',
+                icon: Icons.inventory_2_outlined,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _homeMetricCard(
+                theme,
+                title: 'Store views',
+                value: storeViewsValue,
+                caption:
+                    storeViewsValue == '0' ? 'Not yet shared' : 'Total visits',
+                icon: Icons.visibility_outlined,
+              ),
+            ),
           ],
         ),
+      ],
+    );
+  }
+
+  Widget _homeMetricCard(
+    ThemeData theme, {
+    required String title,
+    required String value,
+    required String caption,
+    required IconData icon,
+    bool highlighted = false,
+  }) {
+    final foreground = highlighted ? Colors.white : theme.colorScheme.onSurface;
+    final muted = highlighted
+        ? Colors.white.withValues(alpha: 0.72)
+        : theme.colorScheme.onSurfaceVariant;
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 116),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: highlighted ? AppTheme.primary : AppTheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(14),
+        border: highlighted
+            ? null
+            : Border.all(
+                color: AppTheme.outlineVariant.withValues(alpha: 0.35)),
+        boxShadow: highlighted ? _cardShadow : null,
       ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: muted,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Icon(icon, size: 17, color: muted),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: foreground,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.4,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            caption,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: muted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _compactSummaryCard(
+    ThemeData theme, {
+    required String label,
+    required String value,
+    required String caption,
+    required IconData icon,
+    Color? accentColor,
+    VoidCallback? onTap,
+  }) {
+    final accent = accentColor ?? theme.colorScheme.onSurfaceVariant;
+    final card = Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(14),
+        border:
+            Border.all(color: AppTheme.outlineVariant.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              Icon(icon, size: 17, color: accent),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            caption,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: accent,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (onTap == null) return card;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: card,
     );
   }
 
@@ -821,22 +1253,25 @@ class DashboardScreen extends ConsumerWidget {
     required List<double> barFractions,
     required int highlightedIndex,
   }) {
-    const chartHeight = 192.0; // Tailwind h-48
+    const chartHeight = 124.0;
     const barGap = 4.0;
     final fractions = barFractions.isEmpty
         ? List<double>.filled(7, 0.12)
         : barFractions.length < 7
-            ? [...barFractions, ...List<double>.filled(7 - barFractions.length, 0.12)]
+            ? [
+                ...barFractions,
+                ...List<double>.filled(7 - barFractions.length, 0.12)
+              ]
             : barFractions;
     final safeHighlight = highlightedIndex.clamp(0, fractions.length - 1);
 
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: _cardShadow,
       ),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -850,7 +1285,7 @@ class DashboardScreen extends ConsumerWidget {
                     Text(
                       title,
                       style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w800,
                         color: theme.colorScheme.onSurface,
                       ),
                     ),
@@ -865,25 +1300,14 @@ class DashboardScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  badge,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 10,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ),
+              _periodChip(theme, '7d', selected: badge == '7 DAYS'),
+              const SizedBox(width: 4),
+              _periodChip(theme, '30d', selected: badge != '7 DAYS'),
+              const SizedBox(width: 4),
+              _periodChip(theme, '3m'),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           SizedBox(
             height: chartHeight,
             child: Row(
@@ -901,24 +1325,59 @@ class DashboardScreen extends ConsumerWidget {
               ],
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 8),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(
-                revenueValue,
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.primaryDark,
+              for (final label in const ['M', 'T', 'W', 'T', 'F', 'S', 'S'])
+                Expanded(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant
+                          .withValues(alpha: 0.65),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 9,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      caption,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      revenueValue,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.primaryDark,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
               Text(
-                caption,
+                subtitle,
+                textAlign: TextAlign.right,
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w500,
+                  color: subtitle.startsWith('+')
+                      ? const Color(0xFF16A34A)
+                      : theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
@@ -928,99 +1387,25 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _pendingOrdersCard(ThemeData theme, {required String value}) {
+  Widget _periodChip(ThemeData theme, String label, {bool selected = false}) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border(
-          left: const BorderSide(color: AppTheme.primaryDark, width: 4),
-          top: BorderSide(color: AppTheme.outlineVariant.withValues(alpha: 0.2)),
-          right: BorderSide(color: AppTheme.outlineVariant.withValues(alpha: 0.2)),
-          bottom: BorderSide(color: AppTheme.outlineVariant.withValues(alpha: 0.2)),
+        color: selected ? Colors.white : AppTheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(999),
+        border: selected
+            ? Border.all(color: AppTheme.outlineVariant.withValues(alpha: 0.45))
+            : null,
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: selected
+              ? AppTheme.primaryDark
+              : theme.colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w800,
+          fontSize: 10,
         ),
-      ),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(Icons.shopping_bag_outlined, color: AppTheme.primaryDark, size: 26),
-              Text(
-                'PENDING',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: AppTheme.primaryDark,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            value,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Active Orders',
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _completedOrdersCard(ThemeData theme, {required String value}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.outlineVariant.withValues(alpha: 0.2)),
-      ),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(Icons.check_circle_outline, color: theme.colorScheme.onSurfaceVariant, size: 26),
-              Text(
-                'COMPLETED',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            value,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Last 30 days',
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1053,7 +1438,8 @@ class DashboardScreen extends ConsumerWidget {
               ),
               if (items.isNotEmpty)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppTheme.errorContainer,
                     borderRadius: BorderRadius.circular(999),
@@ -1082,7 +1468,8 @@ class DashboardScreen extends ConsumerWidget {
               final i = entry.key;
               final item = entry.value;
               return Padding(
-                padding: EdgeInsets.only(bottom: i == items.length - 1 ? 0 : 16),
+                padding:
+                    EdgeInsets.only(bottom: i == items.length - 1 ? 0 : 16),
                 child: _stockRow(context, theme, item.name, item.subtitle),
               );
             }),
@@ -1091,7 +1478,8 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _stockRow(BuildContext context, ThemeData theme, String title, String subtitle) {
+  Widget _stockRow(
+      BuildContext context, ThemeData theme, String title, String subtitle) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1107,7 +1495,8 @@ class DashboardScreen extends ConsumerWidget {
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(Icons.inventory_2_outlined, color: theme.colorScheme.onSurfaceVariant, size: 22),
+            child: Icon(Icons.inventory_2_outlined,
+                color: theme.colorScheme.onSurfaceVariant, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1116,7 +1505,8 @@ class DashboardScreen extends ConsumerWidget {
               children: [
                 Text(
                   title,
-                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 Text(
                   subtitle,
@@ -1146,99 +1536,6 @@ class DashboardScreen extends ConsumerWidget {
       ),
     );
   }
-
-  Widget _growCard(BuildContext context, ThemeData theme) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Stack(
-        clipBehavior: Clip.hardEdge,
-        children: [
-          const Positioned.fill(child: ColoredBox(color: AppTheme.primaryDark)),
-          Positioned(
-            right: -48,
-            top: -48,
-            child: IgnorePointer(
-              child: Container(
-                width: 192,
-                height: 192,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppTheme.primary.withValues(alpha: 0.5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.primary.withValues(alpha: 0.35),
-                      blurRadius: 64,
-                      spreadRadius: 8,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Grow your store',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Add new products or explore marketing insights.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.70),
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                Wrap(
-                  spacing: 16,
-                  runSpacing: 12,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: () => context.push('/products/new'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: AppTheme.primaryDark,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      icon: const Icon(Icons.add, size: 20),
-                      label: Text(
-                        'Add Product',
-                        style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    FilledButton(
-                      onPressed: () => context.go('/orders'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.white.withValues(alpha: 0.10),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: Text(
-                        'View Orders',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 /// Horizontal pager: one onboarding step at a time (parity with web checklist).
@@ -1254,7 +1551,8 @@ class _GettingStartedCarousel extends StatefulWidget {
   final List<_OnboardingStepUi> steps;
 
   @override
-  State<_GettingStartedCarousel> createState() => _GettingStartedCarouselState();
+  State<_GettingStartedCarousel> createState() =>
+      _GettingStartedCarouselState();
 }
 
 class _GettingStartedCarouselState extends State<_GettingStartedCarousel> {
@@ -1268,6 +1566,7 @@ class _GettingStartedCarouselState extends State<_GettingStartedCarousel> {
 
   late final PageController _pageController;
   late int _index;
+  bool _expanded = false;
 
   @override
   void initState() {
@@ -1297,125 +1596,159 @@ class _GettingStartedCarouselState extends State<_GettingStartedCarousel> {
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: _cardShadow,
       ),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.checklist_rtl, color: AppTheme.primaryDark, size: 22),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Icon(Icons.checklist_rtl,
+                      color: AppTheme.primaryDark, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Getting started',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(999),
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            minHeight: 5,
+                            backgroundColor: AppTheme.surfaceContainerLow,
+                            color: AppTheme.primaryDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '${widget.completed}/${widget.total} done',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  AnimatedRotation(
+                    turns: _expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox(width: double.infinity),
+            secondChild: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 14),
+                Text(
+                  'Complete these steps to get your store ready.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  height: 252,
+                  child: PageView.builder(
+                    controller: _pageController,
+                    itemCount: steps.length,
+                    onPageChanged: (i) => setState(() => _index = i),
+                    itemBuilder: (context, i) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: _OnboardingStepCarouselCard(step: steps[i]),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      'Getting Started',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.onSurface,
+                    IconButton.filledTonal(
+                      onPressed: _index > 0
+                          ? () {
+                              _pageController.previousPage(
+                                duration: const Duration(milliseconds: 280),
+                                curve: Curves.easeOutCubic,
+                              );
+                            }
+                          : null,
+                      icon: const Icon(Icons.chevron_left),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Text(
+                        'Step ${_index + 1} of ${steps.length}',
+                        style: theme.textTheme.labelLarge
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Complete these steps to get your store ready. ${widget.completed} of ${widget.total} done.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        height: 1.35,
-                      ),
+                    IconButton.filledTonal(
+                      onPressed: _index < steps.length - 1
+                          ? () {
+                              _pageController.nextPage(
+                                duration: const Duration(milliseconds: 280),
+                                curve: Curves.easeOutCubic,
+                              );
+                            }
+                          : null,
+                      icon: const Icon(Icons.chevron_right),
                     ),
                   ],
                 ),
-              ),
-              Text(
-                '${widget.completed}/${widget.total}',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: AppTheme.primaryDark,
-                  fontWeight: FontWeight.w800,
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(steps.length, (i) {
+                    final active = i == _index;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: active ? 20 : 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: active
+                            ? AppTheme.primaryDark
+                            : AppTheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    );
+                  }),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: AppTheme.surfaceContainerLow,
-              color: AppTheme.primaryDark,
+              ],
             ),
-          ),
-          const SizedBox(height: 18),
-          SizedBox(
-            height: 252,
-            child: PageView.builder(
-              controller: _pageController,
-              itemCount: steps.length,
-              onPageChanged: (i) => setState(() => _index = i),
-              itemBuilder: (context, i) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: _OnboardingStepCarouselCard(step: steps[i]),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton.filledTonal(
-                onPressed: _index > 0
-                    ? () {
-                        _pageController.previousPage(
-                          duration: const Duration(milliseconds: 280),
-                          curve: Curves.easeOutCubic,
-                        );
-                      }
-                    : null,
-                icon: const Icon(Icons.chevron_left),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Text(
-                  'Step ${_index + 1} of ${steps.length}',
-                  style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-              IconButton.filledTonal(
-                onPressed: _index < steps.length - 1
-                    ? () {
-                        _pageController.nextPage(
-                          duration: const Duration(milliseconds: 280),
-                          curve: Curves.easeOutCubic,
-                        );
-                      }
-                    : null,
-                icon: const Icon(Icons.chevron_right),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(steps.length, (i) {
-              final active = i == _index;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: active ? 20 : 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: active ? AppTheme.primaryDark : AppTheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              );
-            }),
+            crossFadeState: _expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 180),
+            sizeCurve: Curves.easeOutCubic,
           ),
         ],
       ),
@@ -1448,7 +1781,8 @@ class _OnboardingStepCarouselCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.check_circle, color: Color(0xFF16A34A), size: 26),
+                const Icon(Icons.check_circle,
+                    color: Color(0xFF16A34A), size: 26),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -1490,12 +1824,14 @@ class _OnboardingStepCarouselCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.radio_button_unchecked, color: theme.colorScheme.outline, size: 24),
+              Icon(Icons.radio_button_unchecked,
+                  color: theme.colorScheme.outline, size: 24),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   step.title,
-                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
                 ),
               ),
             ],
@@ -1504,7 +1840,8 @@ class _OnboardingStepCarouselCard extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                Icon(Icons.timer_outlined, size: 16, color: theme.colorScheme.onSurfaceVariant),
+                Icon(Icons.timer_outlined,
+                    size: 16, color: theme.colorScheme.onSurfaceVariant),
                 const SizedBox(width: 6),
                 Text(
                   step.durationHint!,
@@ -1537,7 +1874,8 @@ class _OnboardingStepCarouselCard extends StatelessWidget {
                 backgroundColor: AppTheme.primaryDark,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
               child: Text(
                 step.actionLabel,
@@ -1553,8 +1891,6 @@ class _OnboardingStepCarouselCard extends StatelessWidget {
     );
   }
 }
-
-
 
 class _WeeklyRevenueBar extends StatelessWidget {
   const _WeeklyRevenueBar({
@@ -1581,7 +1917,8 @@ class _WeeklyRevenueBar extends StatelessWidget {
             width: double.infinity,
             decoration: BoxDecoration(
               color: fill,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(8)),
             ),
           ),
         );
@@ -1589,4 +1926,3 @@ class _WeeklyRevenueBar extends StatelessWidget {
     );
   }
 }
-

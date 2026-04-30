@@ -51,6 +51,8 @@ Update these variables in the environment:
 - **`cron_secret_token`** - Secret token for cron endpoints (set manually)
 - **`product_id`** - Product ID (auto-set by product requests)
 - **`variant_id`** - Product variant ID (auto-set by variant requests)
+- **`expense_id`** - Expense ID (set manually or from expense create/list response)
+- **`expense_category_id`** - Expense category ID (set manually or from expense category create/list response)
 - **`category_id`** - Category ID (auto-set by category requests)
 - **`product_image_url`** - Product image URL (auto-set by upload request)
 - **`onboarding_business_type`** - Business type for onboarding starter pack tests (e.g., `Pets`)
@@ -110,12 +112,16 @@ Update these variables in the environment:
 - **Mobile Logout** - Revoke/close mobile session and clear tokens
 - **Mobile Dashboard Overview** - Metrics + recent orders
 - **Mobile Dashboard Products** - Mobile product list with filters/pagination
+- **Mobile Dashboard Products (Remove Demo)** - Removes demo products from the tenant catalog
 - **Mobile Dashboard Orders** - Mobile order list with filters/pagination
 - **Mobile Dashboard Customers** - Mobile customer list with filters/pagination
 - **Mobile Dashboard Inventory** - Mobile inventory list with stock metrics
 - **Mobile Dashboard Settings** - Core store settings for mobile app
 - **Mobile Dashboard Sales** - Sales/promotions list with pagination
 - **Mobile Dashboard Analytics** - Revenue/trends/top products (`days` query)
+- **Mobile Dashboard P&L** - Profit & loss summary (`start_date`, `end_date`)
+- **Mobile Dashboard Expense Categories (List/Create/Update/Delete)** - Tenant-specific categories for expenses
+- **Mobile Dashboard Expenses (List/Create/Update/Delete)** - Tenant expense ledger for P&L
 - **Mobile Media Upload** - Multipart image upload (`file` field)
 - **Mobile M-Pesa Initiate** / **Mobile M-Pesa Status** - STK push + poll (`checkoutRequestId`)
 - **Mobile Notifications List** - Derived in-app notifications feed

@@ -31,6 +31,70 @@ class AnalyticsViewData {
   final List<({String label, double fraction})> trafficSources;
 }
 
+/// Parsed view-model for `GET /dashboard/analytics/pnl` `data`.
+class PnlViewData {
+  const PnlViewData({
+    required this.currencyCode,
+    required this.grossRevenue,
+    required this.refundsDiscounts,
+    required this.netRevenue,
+    required this.cogs,
+    required this.grossProfit,
+    required this.operatingExpenses,
+    required this.netProfit,
+    required this.grossMarginPercent,
+    required this.netMarginPercent,
+  });
+
+  final String currencyCode;
+  final num grossRevenue;
+  final num refundsDiscounts;
+  final num netRevenue;
+  final num cogs;
+  final num grossProfit;
+  final num operatingExpenses;
+  final num netProfit;
+  final double? grossMarginPercent;
+  final double? netMarginPercent;
+
+  String get grossRevenueFormatted => _fmtMoney(grossRevenue, currencyCode);
+  String get netRevenueFormatted => _fmtMoney(netRevenue, currencyCode);
+  String get cogsFormatted => _fmtMoney(cogs, currencyCode);
+  String get grossProfitFormatted => _fmtMoney(grossProfit, currencyCode);
+  String get operatingExpensesFormatted =>
+      _fmtMoney(operatingExpenses, currencyCode);
+  String get netProfitFormatted => _fmtMoney(netProfit, currencyCode);
+
+  String percentLabel(double? value) {
+    if (value == null) return '—';
+    return '${value.toStringAsFixed(value.abs() >= 10 ? 1 : 2)}%';
+  }
+}
+
+num _numFrom(Map<String, dynamic> root, List<String> keys) {
+  for (final key in keys) {
+    final value = root[key];
+    if (value is num) return value;
+    if (value is String) {
+      final parsed = num.tryParse(value.replaceAll(RegExp(r'[^0-9.-]'), ''));
+      if (parsed != null) return parsed;
+    }
+  }
+  return 0;
+}
+
+double? _percentFrom(Map<String, dynamic> root, List<String> keys) {
+  for (final key in keys) {
+    final value = root[key];
+    if (value is num) return value.toDouble();
+    if (value is String) {
+      final parsed = double.tryParse(value.replaceAll(RegExp(r'[^0-9.-]'), ''));
+      if (parsed != null) return parsed;
+    }
+  }
+  return null;
+}
+
 Map<String, dynamic>? _metricsMap(Map<String, dynamic> root) {
   final m = root['metrics'];
   return m is Map ? Map<String, dynamic>.from(m) : null;
@@ -51,7 +115,8 @@ String _currencyFrom(Map<String, dynamic> root) {
   return 'KES';
 }
 
-String _fmtMoney(num amount, String currency) => '$currency ${amount.toStringAsFixed(2)}';
+String _fmtMoney(num amount, String currency) =>
+    '$currency ${amount.toStringAsFixed(2)}';
 
 List<num> _seriesFromList(List<dynamic>? list) {
   if (list == null || list.isEmpty) return [];
@@ -60,7 +125,8 @@ List<num> _seriesFromList(List<dynamic>? list) {
     if (e is num) {
       out.add(e);
     } else if (e is Map) {
-      final n = e['amount'] ?? e['value'] ?? e['revenue'] ?? e['total'] ?? e['y'];
+      final n =
+          e['amount'] ?? e['value'] ?? e['revenue'] ?? e['total'] ?? e['y'];
       out.add(n is num ? n : 0);
     } else {
       out.add(0);
@@ -77,14 +143,27 @@ List<num> _extractSeries(Map<String, dynamic> root) {
     return s.isEmpty ? null : s;
   }
 
-  for (final key in ['dailySeries', 'revenueSeries', 'series', 'revenueByDay', 'chartData', 'trend']) {
+  for (final key in [
+    'dailySeries',
+    'revenueSeries',
+    'series',
+    'revenueByDay',
+    'chartData',
+    'trend'
+  ]) {
     final r = fromKey(key);
     if (r != null) return r;
   }
 
   final rev = _revenueNested(root);
   if (rev != null) {
-    for (final key in ['dailySeries', 'weeklySeries', 'series', 'byDay', 'periodSeries']) {
+    for (final key in [
+      'dailySeries',
+      'weeklySeries',
+      'series',
+      'byDay',
+      'periodSeries'
+    ]) {
       final v = rev[key];
       if (v is List) {
         final s = _seriesFromList(v);
@@ -98,7 +177,13 @@ List<num> _extractSeries(Map<String, dynamic> root) {
     final rm = metrics['revenue'];
     if (rm is Map) {
       final rmap = Map<String, dynamic>.from(rm);
-      for (final key in ['dailySeries', 'weeklySeries', 'series', 'periodSeries', 'last7Days']) {
+      for (final key in [
+        'dailySeries',
+        'weeklySeries',
+        'series',
+        'periodSeries',
+        'last7Days'
+      ]) {
         final v = rmap[key];
         if (v is List) {
           final s = _seriesFromList(v);
@@ -131,7 +216,14 @@ num _extractTotalRevenue(Map<String, dynamic> root, List<num> series) {
 
   final rev = _revenueNested(root);
   if (rev != null) {
-    for (final k in ['periodTotal', 'total', 'paid', 'amount', 'monthlyPaid', 'weeklyPaid']) {
+    for (final k in [
+      'periodTotal',
+      'total',
+      'paid',
+      'amount',
+      'monthlyPaid',
+      'weeklyPaid'
+    ]) {
       final v = pick(rev[k]);
       if (v != null) return v;
     }
@@ -142,7 +234,13 @@ num _extractTotalRevenue(Map<String, dynamic> root, List<num> series) {
     final rm = metrics['revenue'];
     if (rm is Map) {
       final rmap = Map<String, dynamic>.from(rm);
-      for (final k in ['periodTotal', 'monthlyPaid', 'weeklyPaid', 'total', 'amount']) {
+      for (final k in [
+        'periodTotal',
+        'monthlyPaid',
+        'weeklyPaid',
+        'total',
+        'amount'
+      ]) {
         final v = pick(rmap[k]);
         if (v != null) return v;
       }
@@ -283,11 +381,13 @@ List<({String name, String sub, String amount})> _topProducts(
   for (final e in raw.take(5)) {
     if (e is! Map) continue;
     final m = Map<String, dynamic>.from(e);
-    final name = (m['name'] ?? m['title'] ?? m['productName'] ?? 'Product').toString();
+    final name =
+        (m['name'] ?? m['title'] ?? m['productName'] ?? 'Product').toString();
     final sold = m['quantitySold'] ?? m['sold'] ?? m['units'] ?? m['count'];
     final rev = m['revenue'] ?? m['total'] ?? m['amount'];
     final soldN = sold is num ? sold.toInt() : int.tryParse('$sold') ?? 0;
-    final sub = soldN > 0 ? '$soldN sold in period' : 'Sales in selected period';
+    final sub =
+        soldN > 0 ? '$soldN sold in period' : 'Sales in selected period';
     final amount = rev is num ? _fmtMoney(rev.toDouble(), currency) : '—';
     out.add((name: name, sub: sub, amount: amount));
   }
@@ -299,7 +399,8 @@ double? _returningShare(Map<String, dynamic> root) {
       root['returning_customer_share'] ??
       root['returningShare'];
   if (v == null && root['customers'] is Map) {
-    v = Map<String, dynamic>.from(root['customers'] as Map)['returningPercent'] ??
+    v = Map<String, dynamic>.from(
+            root['customers'] as Map)['returningPercent'] ??
         (root['customers'] as Map)['returning'];
   }
   if (v is! num) return null;
@@ -307,8 +408,12 @@ double? _returningShare(Map<String, dynamic> root) {
   return d > 1 ? d / 100 : d;
 }
 
-List<({String label, double fraction})> _trafficSources(Map<String, dynamic> root) {
-  final raw = root['trafficSources'] ?? root['traffic_sources'] ?? root['traffic'] ?? root['channels'];
+List<({String label, double fraction})> _trafficSources(
+    Map<String, dynamic> root) {
+  final raw = root['trafficSources'] ??
+      root['traffic_sources'] ??
+      root['traffic'] ??
+      root['channels'];
   if (raw is Map) {
     final rows = <({String label, double fraction})>[];
     raw.forEach((key, value) {
@@ -319,7 +424,9 @@ List<({String label, double fraction})> _trafficSources(Map<String, dynamic> roo
     });
     final sum = rows.fold<double>(0, (a, t) => a + t.fraction);
     if (sum <= 0) return [];
-    return rows.map((t) => (label: t.label, fraction: t.fraction / sum)).toList();
+    return rows
+        .map((t) => (label: t.label, fraction: t.fraction / sum))
+        .toList();
   }
   if (raw is! List) return [];
 
@@ -327,7 +434,8 @@ List<({String label, double fraction})> _trafficSources(Map<String, dynamic> roo
   for (final e in raw) {
     if (e is! Map) continue;
     final m = Map<String, dynamic>.from(e);
-    final label = (m['label'] ?? m['source'] ?? m['name'] ?? 'Channel').toString();
+    final label =
+        (m['label'] ?? m['source'] ?? m['name'] ?? 'Channel').toString();
     final frac = m['fraction'] ?? m['percent'] ?? m['share'] ?? m['value'];
     if (frac is! num) continue;
     var f = frac.toDouble();
@@ -340,7 +448,8 @@ List<({String label, double fraction})> _trafficSources(Map<String, dynamic> roo
 }
 
 /// Builds UI data from API root map; [periodDays] drives copy (7/30/90).
-AnalyticsViewData parseAnalyticsViewData(Map<String, dynamic>? root, int periodDays) {
+AnalyticsViewData parseAnalyticsViewData(
+    Map<String, dynamic>? root, int periodDays) {
   final data = root ?? <String, dynamic>{};
   final currency = _currencyFrom(data);
   final series = _extractSeries(data);
@@ -361,5 +470,69 @@ AnalyticsViewData parseAnalyticsViewData(Map<String, dynamic>? root, int periodD
     topProducts: _topProducts(data, currency),
     returningShare: _returningShare(data),
     trafficSources: _trafficSources(data),
+  );
+}
+
+PnlViewData parsePnlViewData(Map<String, dynamic>? root) {
+  final data = root ?? <String, dynamic>{};
+  final currency = _currencyFrom(data);
+  final grossRevenue = _numFrom(data, const [
+    'grossRevenue',
+    'gross_revenue',
+    'revenue',
+    'totalRevenue',
+  ]);
+  final refundsDiscounts = _numFrom(data, const [
+    'refundsDiscounts',
+    'refunds_discounts',
+    'discounts',
+    'refunds',
+  ]);
+  final netRevenueRaw = _numFrom(data, const [
+    'netRevenue',
+    'net_revenue',
+    'revenueNet',
+  ]);
+  final cogs = _numFrom(data, const ['cogs', 'costOfGoods', 'cost_of_goods']);
+  final grossProfitRaw = _numFrom(data, const [
+    'grossProfit',
+    'gross_profit',
+  ]);
+  final operatingExpenses = _numFrom(data, const [
+    'operatingExpenses',
+    'operating_expenses',
+    'expenses',
+  ]);
+  final netProfitRaw = _numFrom(data, const [
+    'netProfit',
+    'net_profit',
+    'profit',
+  ]);
+  final netRevenue =
+      netRevenueRaw != 0 ? netRevenueRaw : grossRevenue - refundsDiscounts;
+  final grossProfit = grossProfitRaw != 0 ? grossProfitRaw : netRevenue - cogs;
+  final netProfit =
+      netProfitRaw != 0 ? netProfitRaw : grossProfit - operatingExpenses;
+  final grossMargin = _percentFrom(data, const [
+        'grossMarginPercent',
+        'gross_margin_percent',
+      ]) ??
+      (netRevenue == 0 ? null : (grossProfit / netRevenue) * 100);
+  final netMargin = _percentFrom(data, const [
+        'netMarginPercent',
+        'net_margin_percent',
+      ]) ??
+      (netRevenue == 0 ? null : (netProfit / netRevenue) * 100);
+  return PnlViewData(
+    currencyCode: currency,
+    grossRevenue: grossRevenue,
+    refundsDiscounts: refundsDiscounts,
+    netRevenue: netRevenue,
+    cogs: cogs,
+    grossProfit: grossProfit,
+    operatingExpenses: operatingExpenses,
+    netProfit: netProfit,
+    grossMarginPercent: grossMargin,
+    netMarginPercent: netMargin,
   );
 }

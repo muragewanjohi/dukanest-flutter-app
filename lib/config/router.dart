@@ -21,6 +21,7 @@ import '../features/products/screens/attributes_management_screen.dart';
 import '../features/products/screens/attribute_editor_screen.dart';
 import '../features/dashboard/screens/more_menu_screen.dart';
 import '../features/analytics/screens/analytics_screen.dart';
+import '../features/analytics/screens/expenses_screen.dart';
 import '../features/notifications/screens/notifications_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
 import '../features/settings/screens/store_identity_screen.dart';
@@ -54,7 +55,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     // This prevents briefly resetting to `/splash` during sign-in transitions.
     initialLocation:
         previousRouter?.routerDelegate.currentConfiguration.uri.toString() ??
-        '/splash',
+            '/splash',
     redirect: (context, state) {
       final isLoggingIn = state.matchedLocation == '/login';
       final isOnboarding = state.matchedLocation == '/onboarding';
@@ -116,8 +117,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (authState.status == AuthStatus.authenticated) {
         final isRegister = state.matchedLocation == '/register';
-        final isResetPassword =
-            state.matchedLocation == '/reset-password';
+        final isResetPassword = state.matchedLocation == '/reset-password';
         if (isLanding ||
             isLoggingIn ||
             isMfaPhase ||
@@ -298,7 +298,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'detail/:orderKey',
                     builder: (context, state) {
-                      final key = Uri.decodeComponent(state.pathParameters['orderKey']!);
+                      final key = Uri.decodeComponent(
+                          state.pathParameters['orderKey']!);
                       return OrderDetailScreen(orderKey: key);
                     },
                   ),
@@ -319,7 +320,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'edit/:sku',
                     builder: (context, state) {
-                      final sku = Uri.decodeComponent(state.pathParameters['sku']!);
+                      final sku =
+                          Uri.decodeComponent(state.pathParameters['sku']!);
                       return ProductEditorScreen(initialSku: sku);
                     },
                   ),
@@ -332,6 +334,12 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/analytics',
                 builder: (context, state) => const AnalyticsScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'expenses',
+                    builder: (context, state) => const ExpensesScreen(),
+                  ),
+                ],
               ),
             ],
           ),

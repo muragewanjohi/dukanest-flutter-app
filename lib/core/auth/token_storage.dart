@@ -11,23 +11,30 @@ class TokenStorage {
   static const _storeSubdomainKey = 'store_subdomain';
   static const _storeUrlKey = 'store_url';
   static const _storeLogoUrlKey = 'store_logo_url';
-  static const _productsListRefreshHintSeenKey = 'products_list_refresh_hint_seen';
-  static const _productDetailRefreshHintSeenKey = 'product_detail_refresh_hint_seen';
+  static const _productsListRefreshHintSeenKey =
+      'products_list_refresh_hint_seen';
+  static const _productDetailRefreshHintSeenKey =
+      'product_detail_refresh_hint_seen';
+  static const _productEditorDraftPrefix = 'product_editor_draft_';
   static const _onboardingSeenKey = 'onboarding_seen';
+
   /// Legacy key from multi-store experiment; still cleared on logout.
   static const _legacySelectedTenantKey = 'selected_tenant_id';
 
-  Future<void> saveTokens({required String accessToken, required String refreshToken}) async {
+  Future<void> saveTokens(
+      {required String accessToken, required String refreshToken}) async {
     await _storage.write(key: _accessTokenKey, value: accessToken);
     await _storage.write(key: _refreshTokenKey, value: refreshToken);
   }
 
   Future<String?> getAccessToken() async {
-    return await _storage.read(key: _accessTokenKey);
+    final token = await _storage.read(key: _accessTokenKey);
+    return token == null || token.trim().isEmpty ? null : token;
   }
 
   Future<String?> getRefreshToken() async {
-    return await _storage.read(key: _refreshTokenKey);
+    final token = await _storage.read(key: _refreshTokenKey);
+    return token == null || token.trim().isEmpty ? null : token;
   }
 
   Future<void> clearTokens() async {
@@ -54,17 +61,23 @@ class TokenStorage {
     }
   }
 
-  Future<({String? name, String? subdomain, String? storeUrl, String? logoUrl})> getStoreIdentity()
-  async {
+  Future<({String? name, String? subdomain, String? storeUrl, String? logoUrl})>
+      getStoreIdentity() async {
     final name = await _storage.read(key: _storeNameKey);
     final subdomain = await _storage.read(key: _storeSubdomainKey);
     final storeUrl = await _storage.read(key: _storeUrlKey);
     final logoUrl = await _storage.read(key: _storeLogoUrlKey);
-    return (name: name, subdomain: subdomain, storeUrl: storeUrl, logoUrl: logoUrl);
+    return (
+      name: name,
+      subdomain: subdomain,
+      storeUrl: storeUrl,
+      logoUrl: logoUrl
+    );
   }
 
   Future<void> saveProductsListRefreshHintSeen(bool seen) async {
-    await _storage.write(key: _productsListRefreshHintSeenKey, value: seen ? '1' : '0');
+    await _storage.write(
+        key: _productsListRefreshHintSeenKey, value: seen ? '1' : '0');
   }
 
   Future<bool> getProductsListRefreshHintSeen() async {
@@ -72,11 +85,17 @@ class TokenStorage {
   }
 
   Future<void> saveProductDetailRefreshHintSeen(bool seen) async {
-    await _storage.write(key: _productDetailRefreshHintSeenKey, value: seen ? '1' : '0');
+    await _storage.write(
+        key: _productDetailRefreshHintSeenKey, value: seen ? '1' : '0');
   }
 
   Future<bool> getProductDetailRefreshHintSeen() async {
     return (await _storage.read(key: _productDetailRefreshHintSeenKey)) == '1';
+  }
+
+  Future<void> saveProductEditorDraft(String draftKey, String value) async {
+    await _storage.write(
+        key: '$_productEditorDraftPrefix$draftKey', value: value);
   }
 
   Future<void> saveOnboardingSeen(bool seen) async {

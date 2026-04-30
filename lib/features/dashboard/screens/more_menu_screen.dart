@@ -17,7 +17,8 @@ class MoreMenuScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppTheme.surface,
       body: ListView(
-        padding: EdgeInsets.fromLTRB(24, 8 + MediaQuery.of(context).padding.top, 24, 24),
+        padding: EdgeInsets.fromLTRB(
+            24, 8 + MediaQuery.of(context).padding.top, 24, 24),
         children: [
           DashboardPageHeader(
             title: 'More',
@@ -25,7 +26,8 @@ class MoreMenuScreen extends ConsumerWidget {
                 'Manage your business operations and account settings from a single command center.',
             actions: [
               IconButton(
-                icon: Icon(Icons.notifications_none_rounded, color: theme.colorScheme.onSurfaceVariant),
+                icon: Icon(Icons.notifications_none_rounded,
+                    color: theme.colorScheme.onSurfaceVariant),
                 onPressed: () => context.push('/notifications'),
               ),
             ],
@@ -36,7 +38,8 @@ class MoreMenuScreen extends ConsumerWidget {
             iconColor: AppTheme.primary,
             iconBackground: const Color(0x1A0025CC),
             title: 'Content Management',
-            subtitle: 'Edit pages, blogs, and visual assets for your storefront.',
+            subtitle:
+                'Edit pages, blogs, and visual assets for your storefront.',
             onTap: () => context.push('/content-management'),
           ),
           const SizedBox(height: 12),
@@ -45,7 +48,8 @@ class MoreMenuScreen extends ConsumerWidget {
             iconColor: theme.colorScheme.secondary,
             iconBackground: const Color(0x4DDBD1FF),
             title: 'Customers',
-            subtitle: 'View profiles, purchase history, and segment your audience.',
+            subtitle:
+                'View profiles, purchase history, and segment your audience.',
             onTap: () => context.push('/customers'),
           ),
           const SizedBox(height: 12),
@@ -54,7 +58,8 @@ class MoreMenuScreen extends ConsumerWidget {
             iconColor: const Color(0xFF0A2ACF),
             iconBackground: const Color(0xFFDFE0FF),
             title: 'Inventory',
-            subtitle: 'Track stock levels, warehouse locations, and restock alerts.',
+            subtitle:
+                'Track stock levels, warehouse locations, and restock alerts.',
             onTap: () => context.go('/products'),
           ),
           const SizedBox(height: 12),
@@ -63,8 +68,18 @@ class MoreMenuScreen extends ConsumerWidget {
             iconColor: const Color(0xFFBA1A1A),
             iconBackground: const Color(0x66FFDAD6),
             title: 'Sales & Promotions',
-            subtitle: 'Create discount codes, flash sales, and campaign banners.',
+            subtitle:
+                'Create discount codes, flash sales, and campaign banners.',
             onTap: () => context.push('/sales'),
+          ),
+          const SizedBox(height: 12),
+          _MoreItem(
+            icon: Icons.receipt_long_outlined,
+            iconColor: const Color(0xFF8A4B00),
+            iconBackground: const Color(0xFFFFF4E5),
+            title: 'Expenses',
+            subtitle: 'Log operating costs for profit and loss reporting.',
+            onTap: () => context.push('/analytics/expenses'),
           ),
           const SizedBox(height: 22),
           _MoreItem(
@@ -91,7 +106,6 @@ class MoreMenuScreen extends ConsumerWidget {
       ),
     );
   }
-
 }
 
 class _MoreItem extends StatelessWidget {
@@ -130,7 +144,8 @@ class _MoreItem extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             border: bordered
                 ? Border.all(
-                    color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+                    color: theme.colorScheme.outlineVariant
+                        .withValues(alpha: 0.35),
                   )
                 : null,
           ),

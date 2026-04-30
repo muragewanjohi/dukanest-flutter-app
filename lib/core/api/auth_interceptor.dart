@@ -1,5 +1,7 @@
-import 'package:dio/dio.dart';
 import 'dart:async';
+
+import 'package:dio/dio.dart';
+
 import '../auth/token_storage.dart';
 
 class AuthInterceptor extends Interceptor {
@@ -11,7 +13,8 @@ class AuthInterceptor extends Interceptor {
   AuthInterceptor(this.tokenStorage, this.dio);
 
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+  void onRequest(
+      RequestOptions options, RequestInterceptorHandler handler) async {
     final accessToken = await tokenStorage.getAccessToken();
 
     if (accessToken != null) {
@@ -24,7 +27,7 @@ class AuthInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     final response = err.response;
-    
+
     // Trap Unauthorized responses automatically
     if (response?.statusCode == 401) {
       final path = err.requestOptions.path;
@@ -47,41 +50,42 @@ class AuthInterceptor extends Interceptor {
         }
         return handler.next(err);
       }
-      
+
       _isRefreshing = true;
       _refreshCompleter = Completer<void>();
       try {
         final refreshToken = await tokenStorage.getRefreshToken();
-        if (refreshToken == null) {
+        if (refreshToken == null || refreshToken.trim().isEmpty) {
           throw err;
         }
 
         // Boot up a virgin Dio client void of Auth Interceptors tracking the fallback endpoint
         final refreshDio = Dio(dio.options);
         final refreshResult = await refreshDio.post('/auth/refresh', data: {
+          // Mobile API accepts camelCase; keep snake_case for older auth routes.
+          'refreshToken': refreshToken,
           'refresh_token': refreshToken,
         });
 
-        if (refreshResult.data != null && refreshResult.data['success'] == true) {
+        if (refreshResult.data != null &&
+            refreshResult.data['success'] == true) {
           final dataMap = refreshResult.data['data'] as Map<String, dynamic>?;
           final sessionRaw = dataMap?['session'];
-          final session = sessionRaw is Map<String, dynamic>
-              ? sessionRaw
-              : dataMap;
+          final session =
+              sessionRaw is Map<String, dynamic> ? sessionRaw : dataMap;
           if (session != null) {
             final newToken = session['access_token'] ?? session['accessToken'];
-            final newRefresh = session['refresh_token'] ?? session['refreshToken'];
-            
+            final newRefresh =
+                session['refresh_token'] ?? session['refreshToken'];
+
             if (newToken != null && newRefresh != null) {
               await tokenStorage.saveTokens(
-                accessToken: newToken, 
-                refreshToken: newRefresh
-              );
-              
+                  accessToken: newToken, refreshToken: newRefresh);
+
               // Rewrite the original header map and reissue
               final retryOptions = err.requestOptions;
               retryOptions.headers['Authorization'] = 'Bearer $newToken';
-              
+
               final retryResponse = await dio.fetch(retryOptions);
               _refreshCompleter?.complete();
               _refreshCompleter = null;
