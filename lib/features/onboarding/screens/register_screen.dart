@@ -29,8 +29,7 @@ class RegisterScreen extends ConsumerStatefulWidget {
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   /// Basic plan row in `price_plans` — must match backend.
-  static const _defaultRegisterPlanId =
-      'dd4b8f9e-3fe4-4da1-ad37-fb4671f43bdd';
+  static const _defaultRegisterPlanId = 'dd4b8f9e-3fe4-4da1-ad37-fb4671f43bdd';
 
   /// One form per onboarding step so `validate()` only runs fields on that step.
   final List<GlobalKey<FormState>> _formKeys =
@@ -60,6 +59,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _isLoading = false;
   bool _showEmailPasswordForm = false;
   bool _didAttemptSubmit = false;
+
   /// Step index 0–3: Account → Store URL → Business → Contact & submit.
   int _step = 0;
   bool _didAttemptBusinessType = false;
@@ -78,7 +78,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   late final TapGestureRecognizer _termsRecognizer;
   late final TapGestureRecognizer _privacyRecognizer;
 
-  static final Uri _privacyPolicyUri = Uri.parse('https://www.dukanest.com/privacy-policy');
+  static final Uri _privacyPolicyUri =
+      Uri.parse('https://www.dukanest.com/privacy-policy');
   static final Uri _termsOfServiceUri = Uri.parse(
     'https://www.dukanest.com/terms-of-service',
   );
@@ -93,8 +94,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   void initState() {
     super.initState();
-    _termsRecognizer = TapGestureRecognizer()..onTap = () => _openExternalUrl(_termsOfServiceUri);
-    _privacyRecognizer = TapGestureRecognizer()..onTap = () => _openExternalUrl(_privacyPolicyUri);
+    _termsRecognizer = TapGestureRecognizer()
+      ..onTap = () => _openExternalUrl(_termsOfServiceUri);
+    _privacyRecognizer = TapGestureRecognizer()
+      ..onTap = () => _openExternalUrl(_privacyPolicyUri);
   }
 
   @override
@@ -222,7 +225,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   String _storeUrlFromSubdomain(String subdomain) {
-    final host = Uri.tryParse(AppConfig.publicApiBaseUrl)?.host ?? 'dukanest.com';
+    final host =
+        Uri.tryParse(AppConfig.publicApiBaseUrl)?.host ?? 'dukanest.com';
     final rootHost = host.startsWith('www.') ? host.substring(4) : host;
     return 'https://$subdomain.$rootHost';
   }
@@ -316,6 +320,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     });
   }
 
+  void _retrySubdomainCheck() {
+    final subdomain = _storeUrlController.text.trim();
+    if (subdomain.isEmpty) return;
+    _subdomainDebounce?.cancel();
+    _checkSubdomainAvailability(subdomain);
+  }
+
   Future<void> _checkSubdomainAvailability(String subdomain) async {
     final requestId = ++_subdomainRequestId;
     final requestUrl = Uri.parse(
@@ -343,9 +354,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       if (!mounted || requestId != _subdomainRequestId) return;
 
       final data = response.data;
-      final available = data is Map<String, dynamic>
-          ? data['available'] == true
-          : false;
+      final available =
+          data is Map<String, dynamic> ? data['available'] == true : false;
       setState(() {
         _isCheckingSubdomain = false;
         _isSubdomainAvailable = available;
@@ -360,20 +370,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       }
     } on DioException catch (e) {
       if (!mounted || requestId != _subdomainRequestId) return;
-      final dynamic body = e.response?.data;
-      String message = 'Could not verify subdomain right now';
-      if (body is Map && body['message'] is String) {
-        message = body['message'] as String;
-      }
       setState(() {
         _isCheckingSubdomain = false;
         _isSubdomainAvailable = null;
-        _subdomainMessage = message;
+        _subdomainMessage =
+            'We couldn\'t check this store URL. Please try again.';
         _subdomainCheckFailed = true;
       });
       if (kDebugMode) {
         debugPrint(
-          '[register] subdomain check failed -> status=${e.response?.statusCode} message=$message error=${e.message}',
+          '[register] subdomain check failed -> status=${e.response?.statusCode} error=${e.message}',
         );
       }
     } catch (_) {
@@ -381,7 +387,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       setState(() {
         _isCheckingSubdomain = false;
         _isSubdomainAvailable = null;
-        _subdomainMessage = 'Could not verify subdomain right now';
+        _subdomainMessage =
+            'We couldn\'t check this store URL. Please try again.';
         _subdomainCheckFailed = true;
       });
       if (kDebugMode) {
@@ -398,7 +405,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     if (_isCheckingSubdomain) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please wait for subdomain check to finish')),
+        const SnackBar(
+            content: Text('Please wait for subdomain check to finish')),
       );
       return;
     }
@@ -483,7 +491,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               ? <String, dynamic>{
                   'Authorization': 'Bearer $_googleIdToken',
                   'X-Google-Auth-Token': _googleIdToken,
-                  if (_googleAccessToken != null && _googleAccessToken!.isNotEmpty)
+                  if (_googleAccessToken != null &&
+                      _googleAccessToken!.isNotEmpty)
                     'X-Google-Access-Token': _googleAccessToken,
                 }
               : null,
@@ -512,14 +521,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         final tenantRaw = registerData['tenant'];
         if (tenantRaw is Map) {
           final tenant = Map<String, dynamic>.from(tenantRaw);
-          final storeName = (tenant['name'] ?? _storeNameController.text.trim()).toString();
+          final storeName =
+              (tenant['name'] ?? _storeNameController.text.trim()).toString();
           final storeSubdomain = (tenant['subdomain'] ?? slug).toString();
           final storeUrl = _storeUrlFromSubdomain(storeSubdomain);
           await ref.read(tokenStorageProvider).saveStoreIdentity(
                 name: storeName,
                 subdomain: storeSubdomain,
                 storeUrl: storeUrl,
-                logoUrl: (tenant['logoUrl'] ?? tenant['logo'] ?? tenant['storeLogo'] ?? tenant['logo_url'])
+                logoUrl: (tenant['logoUrl'] ??
+                        tenant['logo'] ??
+                        tenant['storeLogo'] ??
+                        tenant['logo_url'])
                     ?.toString(),
               );
         }
@@ -584,7 +597,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             'Store setup is taking longer than expected. Your store may already be created - please try signing in.';
       }
       if (body is Map<String, dynamic>) {
-        if (body['message'] is String && (body['message'] as String).isNotEmpty) {
+        if (body['message'] is String &&
+            (body['message'] as String).isNotEmpty) {
           message = body['message'] as String;
         } else if (body['error'] is Map &&
             (body['error'] as Map)['message'] is String) {
@@ -592,7 +606,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         }
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -652,22 +667,33 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (_step == 1) {
       if (_isCheckingSubdomain) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please wait for subdomain check to finish')),
+          const SnackBar(
+              content: Text('Please wait for subdomain check to finish')),
         );
         return;
       }
       if (!_formKeys[1].currentState!.validate()) return;
       if (_isSubdomainAvailable == false) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Choose an available store URL to continue.')),
+          const SnackBar(
+              content: Text('Choose an available store URL to continue.')),
         );
         return;
       }
       if (_subdomainCheckFailed) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Fix the store URL issue or check your connection before continuing.'),
+            content:
+                Text('Please retry the store URL check before continuing.'),
           ),
+        );
+        return;
+      }
+      if (_isSubdomainAvailable != true) {
+        _retrySubdomainCheck();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Please wait while we check your store URL.')),
         );
         return;
       }
@@ -762,17 +788,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 
-  InputDecoration _stitchFilledInputDecoration(ColorScheme colorScheme, {String? hintText}) {
+  InputDecoration _stitchFilledInputDecoration(ColorScheme colorScheme,
+      {String? hintText}) {
     final r = BorderRadius.circular(12);
     return InputDecoration(
       hintText: hintText,
       filled: true,
       fillColor: colorScheme.surfaceContainerLow,
       border: OutlineInputBorder(borderRadius: r, borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(borderRadius: r, borderSide: BorderSide.none),
+      enabledBorder:
+          OutlineInputBorder(borderRadius: r, borderSide: BorderSide.none),
       focusedBorder: OutlineInputBorder(
         borderRadius: r,
-        borderSide: BorderSide(color: colorScheme.primary.withValues(alpha: 0.35), width: 2),
+        borderSide: BorderSide(
+            color: colorScheme.primary.withValues(alpha: 0.35), width: 2),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: r,
@@ -816,7 +845,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (t.contains('Health') || t.contains('Pharmacy')) {
       return "we'll keep compliance-friendly fields and clear product labeling in mind.";
     }
-    if (t.contains('Automotive') || t.contains('Hardware') || t.contains('Sports')) {
+    if (t.contains('Automotive') ||
+        t.contains('Hardware') ||
+        t.contains('Sports')) {
       return "we'll favor structured attributes and specification-friendly product pages.";
     }
     return "we'll tune dashboard shortcuts and starter suggestions around your category.";
@@ -844,8 +875,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 final filtered = normalizedQuery.isEmpty
                     ? kBusinessTypeOptions
                     : kBusinessTypeOptions.where((opt) {
-                        return opt.value.toLowerCase().contains(normalizedQuery) ||
-                            opt.description.toLowerCase().contains(normalizedQuery);
+                        return opt.value
+                                .toLowerCase()
+                                .contains(normalizedQuery) ||
+                            opt.description
+                                .toLowerCase()
+                                .contains(normalizedQuery);
                       }).toList();
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -874,7 +909,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                       child: TextField(
-                        onChanged: (value) => setSheetState(() => query = value),
+                        onChanged: (value) =>
+                            setSheetState(() => query = value),
                         decoration: InputDecoration(
                           hintText: 'Search industry',
                           prefixIcon: const Icon(Icons.search_rounded),
@@ -893,7 +929,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         itemCount: filtered.length,
                         separatorBuilder: (_, __) => Divider(
                           height: 1,
-                          color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+                          color: colorScheme.outlineVariant
+                              .withValues(alpha: 0.35),
                         ),
                         itemBuilder: (context, i) {
                           final opt = filtered[i];
@@ -902,7 +939,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             title: Text(
                               opt.value,
                               style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+                                fontWeight:
+                                    sel ? FontWeight.w800 : FontWeight.w600,
                                 color: colorScheme.secondary,
                               ),
                             ),
@@ -915,7 +953,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               ),
                             ),
                             selected: sel,
-                            selectedTileColor: colorScheme.primary.withValues(alpha: 0.06),
+                            selectedTileColor:
+                                colorScheme.primary.withValues(alpha: 0.06),
                             onTap: () {
                               setState(() {
                                 _selectedBusinessType = opt.value;
@@ -959,8 +998,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 final filtered = normalizedQuery.isEmpty
                     ? kCountryDialCodes
                     : kCountryDialCodes
-                          .where((item) => item.toLowerCase().contains(normalizedQuery))
-                          .toList();
+                        .where((item) =>
+                            item.toLowerCase().contains(normalizedQuery))
+                        .toList();
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -988,7 +1028,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                       child: TextField(
-                        onChanged: (value) => setSheetState(() => query = value),
+                        onChanged: (value) =>
+                            setSheetState(() => query = value),
                         decoration: InputDecoration(
                           hintText: 'Search country',
                           prefixIcon: const Icon(Icons.search_rounded),
@@ -1007,7 +1048,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         itemCount: filtered.length,
                         separatorBuilder: (_, __) => Divider(
                           height: 1,
-                          color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+                          color: colorScheme.outlineVariant
+                              .withValues(alpha: 0.35),
                         ),
                         itemBuilder: (context, i) {
                           final value = filtered[i];
@@ -1016,12 +1058,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             title: Text(
                               value,
                               style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                fontWeight: isSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
                                 color: colorScheme.secondary,
                               ),
                             ),
                             selected: isSelected,
-                            selectedTileColor: colorScheme.primary.withValues(alpha: 0.06),
+                            selectedTileColor:
+                                colorScheme.primary.withValues(alpha: 0.06),
                             onTap: () {
                               setState(() => _selectedCountryCode = value);
                               Navigator.of(ctx).pop();
@@ -1070,11 +1115,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          foregroundColor: enabled ? Colors.white : colorScheme.onSurfaceVariant,
+          foregroundColor:
+              enabled ? Colors.white : colorScheme.onSurfaceVariant,
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         child: DefaultTextStyle.merge(
           style: TextStyle(
@@ -1090,8 +1137,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget _registerStep0Account(ThemeData theme, ColorScheme colorScheme) {
     return Form(
       key: _formKeys[0],
-      autovalidateMode:
-          _didAttemptSubmit ? AutovalidateMode.always : AutovalidateMode.disabled,
+      autovalidateMode: _didAttemptSubmit
+          ? AutovalidateMode.always
+          : AutovalidateMode.disabled,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1156,7 +1204,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   onTap: _isLoading ? null : _toggleEmailPasswordSection,
                   borderRadius: BorderRadius.circular(8),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                     child: Text(
                       _showEmailPasswordForm
                           ? 'Use Google instead'
@@ -1201,7 +1250,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
                       hintText: 'admin@example.com',
-                      suffixIcon: Icon(Icons.more_horiz, size: 20, color: Colors.grey),
+                      suffixIcon:
+                          Icon(Icons.more_horiz, size: 20, color: Colors.grey),
                     ),
                     validator: (value) {
                       if (!_showEmailPasswordForm) return null;
@@ -1228,7 +1278,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     obscureText: true,
                     decoration: const InputDecoration(
                       hintText: '••••••••',
-                      suffixIcon: Icon(Icons.more_horiz, size: 20, color: Colors.grey),
+                      suffixIcon:
+                          Icon(Icons.more_horiz, size: 20, color: Colors.grey),
                     ),
                     validator: (value) {
                       if (!_showEmailPasswordForm) return null;
@@ -1256,8 +1307,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget _registerStep1Store(ThemeData theme, ColorScheme colorScheme) {
     return Form(
       key: _formKeys[1],
-      autovalidateMode:
-          _didAttemptSubmit ? AutovalidateMode.always : AutovalidateMode.disabled,
+      autovalidateMode: _didAttemptSubmit
+          ? AutovalidateMode.always
+          : AutovalidateMode.disabled,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1277,7 +1329,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             validator: (value) {
               final v = value?.trim() ?? '';
               if (v.isEmpty) return 'Please enter store name';
-              if (v.length < 2) return 'Store name must be at least 2 characters';
+              if (v.length < 2) {
+                return 'Store name must be at least 2 characters';
+              }
               if (!RegExp(r'^[A-Za-z0-9 ]+$').hasMatch(v)) {
                 return 'Use letters, numbers, and spaces only';
               }
@@ -1292,7 +1346,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             validator: (value) {
               final v = value?.trim() ?? '';
               if (v.isEmpty) return 'Please enter store URL';
-              if (v.length < 3) return 'Subdomain must be at least 3 characters';
+              if (v.length < 3) {
+                return 'Subdomain must be at least 3 characters';
+              }
               if (!RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(v)) {
                 return 'Use lowercase letters, numbers, and hyphens';
               }
@@ -1300,7 +1356,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 return 'Subdomain is unavailable';
               }
               if (_subdomainCheckFailed) {
-                return 'Unable to verify subdomain. Check API connection.';
+                return 'Please retry the store URL check.';
               }
               return null;
             },
@@ -1326,12 +1382,32 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            _subdomainMessage ?? 'Choose a unique subdomain',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: _subdomainStatusColor(theme),
-              fontWeight: _isCheckingSubdomain ? FontWeight.w600 : null,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  _subdomainMessage ?? 'Choose a unique subdomain',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: _subdomainStatusColor(theme),
+                    fontWeight: _isCheckingSubdomain ? FontWeight.w600 : null,
+                  ),
+                ),
+              ),
+              if (_subdomainCheckFailed) ...[
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: _isCheckingSubdomain ? null : _retrySubdomainCheck,
+                  style: TextButton.styleFrom(
+                    minimumSize: Size.zero,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ],
           ),
         ],
       ),
@@ -1339,12 +1415,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Widget _registerStep2Business(ThemeData theme, ColorScheme colorScheme) {
-    final showBizError =
-        (_didAttemptBusinessType || _didAttemptSubmit) && _selectedBusinessType == null;
+    final showBizError = (_didAttemptBusinessType || _didAttemptSubmit) &&
+        _selectedBusinessType == null;
     return Form(
       key: _formKeys[2],
-      autovalidateMode:
-          _didAttemptSubmit ? AutovalidateMode.always : AutovalidateMode.disabled,
+      autovalidateMode: _didAttemptSubmit
+          ? AutovalidateMode.always
+          : AutovalidateMode.disabled,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1366,11 +1443,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: showBizError ? colorScheme.error : Colors.transparent,
+                    color:
+                        showBizError ? colorScheme.error : Colors.transparent,
                     width: showBizError ? 1.5 : 0,
                   ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                 child: Row(
                   children: [
                     Expanded(
@@ -1379,12 +1458,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         style: theme.textTheme.bodyLarge?.copyWith(
                           fontWeight: FontWeight.w500,
                           color: _selectedBusinessType == null
-                              ? colorScheme.onSurfaceVariant.withValues(alpha: 0.45)
+                              ? colorScheme.onSurfaceVariant
+                                  .withValues(alpha: 0.45)
                               : colorScheme.onSurface,
                         ),
                       ),
                     ),
-                    Icon(Icons.expand_more_rounded, color: colorScheme.outline, size: 26),
+                    Icon(Icons.expand_more_rounded,
+                        color: colorScheme.outline, size: 26),
                   ],
                 ),
               ),
@@ -1446,7 +1527,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     color: colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 24),
+                  child: const Icon(Icons.auto_awesome_rounded,
+                      color: Colors.white, size: 24),
                 ),
                 const SizedBox(width: 20),
                 Expanded(
@@ -1461,7 +1543,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      if (_selectedBusinessType == null || _selectedBusinessType!.isEmpty)
+                      if (_selectedBusinessType == null ||
+                          _selectedBusinessType!.isEmpty)
                         Text(
                           'Choose an industry to see how we pre-configure your dashboard and editor.',
                           style: theme.textTheme.bodySmall?.copyWith(
@@ -1480,9 +1563,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               const TextSpan(text: 'By selecting '),
                               TextSpan(
                                 text: _selectedBusinessType,
-                                style: const TextStyle(fontWeight: FontWeight.w600),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600),
                               ),
-                              TextSpan(text: ', ${_tailoredBlurbForBusinessType()}'),
+                              TextSpan(
+                                  text: ', ${_tailoredBlurbForBusinessType()}'),
                             ],
                           ),
                         ),
@@ -1501,8 +1586,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget _registerStep3Contact(ThemeData theme, ColorScheme colorScheme) {
     return Form(
       key: _formKeys[3],
-      autovalidateMode:
-          _didAttemptSubmit ? AutovalidateMode.always : AutovalidateMode.disabled,
+      autovalidateMode: _didAttemptSubmit
+          ? AutovalidateMode.always
+          : AutovalidateMode.disabled,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1528,7 +1614,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   child: InkWell(
                     onTap: _isLoading ? null : _openCountryCodePicker,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 16),
                       child: Row(
                         children: [
                           Expanded(
@@ -1680,7 +1767,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               children: [
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 16),
                     child: Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 600),
@@ -1697,16 +1785,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                 sizing: StackFit.expand,
                                 children: [
                                   SingleChildScrollView(
-                                    child: _registerStep0Account(theme, colorScheme),
+                                    child: _registerStep0Account(
+                                        theme, colorScheme),
                                   ),
                                   SingleChildScrollView(
-                                    child: _registerStep1Store(theme, colorScheme),
+                                    child:
+                                        _registerStep1Store(theme, colorScheme),
                                   ),
                                   SingleChildScrollView(
-                                    child: _registerStep2Business(theme, colorScheme),
+                                    child: _registerStep2Business(
+                                        theme, colorScheme),
                                   ),
                                   SingleChildScrollView(
-                                    child: _registerStep3Contact(theme, colorScheme),
+                                    child: _registerStep3Contact(
+                                        theme, colorScheme),
                                   ),
                                 ],
                               ),
@@ -1730,7 +1822,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                     Expanded(
                                       flex: 2,
                                       child: _stitchPrimaryGradientButton(
-                                        onPressed: _isLoading ? null : _goNextFromStep,
+                                        onPressed:
+                                            _isLoading ? null : _goNextFromStep,
                                         child: const Text('Next step'),
                                       ),
                                     ),
@@ -1742,17 +1835,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                     Expanded(
                                       flex: 1,
                                       child: TextButton(
-                                        onPressed: _isLoading ? null : _decrementStep,
+                                        onPressed:
+                                            _isLoading ? null : _decrementStep,
                                         style: TextButton.styleFrom(
                                           foregroundColor: colorScheme.primary,
-                                          padding: const EdgeInsets.symmetric(vertical: 16),
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 16),
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
                                           ),
                                         ),
                                         child: const Text(
                                           'Back',
-                                          style: TextStyle(fontWeight: FontWeight.w600),
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w600),
                                         ),
                                       ),
                                     ),
@@ -1760,7 +1857,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                     Expanded(
                                       flex: 2,
                                       child: _stitchPrimaryGradientButton(
-                                        onPressed: _isLoading ? null : _goNextFromStep,
+                                        onPressed:
+                                            _isLoading ? null : _goNextFromStep,
                                         child: const Text('Next step'),
                                       ),
                                     ),
@@ -1772,17 +1870,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                 Expanded(
                                   flex: 1,
                                   child: TextButton(
-                                    onPressed: _isLoading ? null : _decrementStep,
+                                    onPressed:
+                                        _isLoading ? null : _decrementStep,
                                     style: TextButton.styleFrom(
                                       foregroundColor: colorScheme.primary,
-                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 16),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                     ),
                                     child: const Text(
                                       'Back',
-                                      style: TextStyle(fontWeight: FontWeight.w600),
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w600),
                                     ),
                                   ),
                                 ),
