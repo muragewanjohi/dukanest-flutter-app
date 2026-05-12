@@ -1333,6 +1333,62 @@
 						"description": "Send payment reminder emails to tenants with upcoming or overdue payments.\n\n**Day 25-26:** Subscription Management\n\n**Security:**\n- Requires CRON_SECRET_TOKEN in Authorization header\n- Should be called by cron jobs (daily or weekly), not manually\n\n**Actions:**\n- Finds tenants with subscriptions expiring in 7 days\n- Sends renewal reminder emails (7 days before expiry)\n- Sends payment due reminder emails\n\n**Response:**\n- Results object with checked, renewal_reminders_sent, payment_reminders_sent, errors"
 					},
 					"response": []
+				},
+				{
+					"name": "Tumizi Provision Pending Merchants",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Tumizi provisioning result returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success');",
+									"    pm.expect(jsonData).to.have.property('processed');",
+									"    pm.expect(jsonData).to.have.property('succeeded');",
+									"    pm.expect(jsonData).to.have.property('failed');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{cron_secret_token}}",
+								"description": "CRON_SECRET_TOKEN for authentication"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/admin/integrations/tumizi/provision-pending?limit=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"integrations",
+								"tumizi",
+								"provision-pending"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Max queued tenants to process in one run (1-100)"
+								}
+							]
+						},
+						"description": "Process pending Tumizi merchant provisioning tasks created during tenant registration.\n\n**Security:**\n- Requires CRON_SECRET/CRON_SECRET_TOKEN in Authorization header\n- Intended for scheduled cron execution and manual landlord-triggered retries\n\n**Response:**\n- processed: number of queued tenants evaluated\n- succeeded: successful merchant provisions\n- failed: failed provisions (inspect errors array)\n- errors: list of tenant-level provisioning errors"
+					},
+					"response": []
 				}
 			],
 			"description": "Admin tenant management endpoints for landlords (Day 13-14, 25-26)"
@@ -3952,6 +4008,46 @@
 				},
 				{
 					"name": "Mobile Register (create store)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 or 201\", function () {",
+									"    pm.expect([200, 201]).to.include(pm.response.code);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Register returns success envelope\", function () {",
+									"    pm.expect(jsonData).to.have.property('success');",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData).to.have.property('data');",
+									"});",
+									"",
+									"pm.test(\"Tumizi queue flag shape is valid when present\", function () {",
+									"    if (jsonData && jsonData.data && Object.prototype.hasOwnProperty.call(jsonData.data, 'tumiziProvisioningQueued')) {",
+									"        pm.expect(jsonData.data.tumiziProvisioningQueued).to.be.a('boolean');",
+									"    } else {",
+									"        pm.expect(true).to.eql(true);",
+									"    }",
+									"});",
+									"",
+									"if (jsonData.success && jsonData.data) {",
+									"    if (jsonData.data.tenant && jsonData.data.tenant.id) {",
+									"        pm.environment.set('tenant_id', jsonData.data.tenant.id);",
+									"    }",
+									"    if (jsonData.data.tenant && jsonData.data.tenant.subdomain) {",
+									"        pm.environment.set('tenant_subdomain', jsonData.data.tenant.subdomain);",
+									"    }",
+									"    if (Object.prototype.hasOwnProperty.call(jsonData.data, 'tumiziProvisioningQueued')) {",
+									"        pm.environment.set('tumizi_provisioning_queued', String(jsonData.data.tumiziProvisioningQueued));",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
 					"request": {
 						"method": "POST",
 						"header": [
@@ -4618,7 +4714,12 @@
 									"    pm.expect(jsonData.data).to.have.property('store');",
 									"    pm.expect(jsonData.data).to.have.property('currency');",
 									"    pm.expect(jsonData.data).to.have.property('payment');",
-									"});"
+									"});",
+									"if (jsonData.data.payment && Object.prototype.hasOwnProperty.call(jsonData.data.payment, 'tumiziEnabled')) {",
+									"    pm.test('payment.tumiziEnabled is boolean when present', function () {",
+									"        pm.expect(jsonData.data.payment.tumiziEnabled).to.be.a('boolean');",
+									"    });",
+									"}"
 								]
 							}
 						}
@@ -4639,7 +4740,65 @@
 								"settings"
 							]
 						},
-						"description": "Get core tenant settings for mobile dashboard."
+						"description": "Get core tenant settings for mobile dashboard. `data.payment` may include Tumizi parity fields (`tumiziEnabled`, `paymentMethod` / `defaultMethod`, M-Pesa sub-fields, etc.); see `docs/backend-context/tumizi/TUMIZI_MOBILE_AND_SETTINGS.md`. The Flutter merchant app also links merchants to the web Tumizi dashboard (`/dashboard/tumizi` on the tenant host) for wallet / withdrawals / refunds — that is a browser session, not this GET."
+					},
+					"response": []
+				},
+				{
+					"name": "Mobile Dashboard Settings (PATCH payment)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"var jsonData = pm.response.json();",
+									"pm.test(\"Patch settings envelope\", function () {",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{mobile_access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"payment\": {\n    \"cashEnabled\": true,\n    \"cash_enabled\": true,\n    \"mpesaEnabled\": true,\n    \"mpesa_enabled\": true,\n    \"tumiziEnabled\": false,\n    \"tumizi_enabled\": false,\n    \"payment_tumizi_enabled\": false,\n    \"paymentMethod\": \"cash\",\n    \"payment_method\": \"cash\",\n    \"defaultMethod\": \"cash\",\n    \"default_method\": \"cash\",\n    \"paymentTiming\": \"after_delivery\",\n    \"payment_timing\": \"after_delivery\",\n    \"mpesaMethod\": \"send_money\",\n    \"mpesa_method\": \"send_money\",\n    \"mpesaPhone\": \"\",\n    \"mpesa_phone\": \"\",\n    \"tillNumber\": \"\",\n    \"till_number\": \"\",\n    \"paybillNumber\": \"\",\n    \"paybill_number\": \"\",\n    \"paybillAccount\": \"\",\n    \"paybill_account\": \"\",\n    \"pochiPhone\": \"\",\n    \"pochi_phone\": \"\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/mobile/dashboard/settings",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"mobile",
+								"dashboard",
+								"settings"
+							]
+						},
+						"description": "Update payment-related settings via mobile Bearer (parity with Flutter `PaymentSettingsScreen`). **Scope:** merchant **admin configuration** only — does not initiate customer payments or Tumizi STK flows.\n\n**Body:** nested `payment` with **both camelCase and snake_case** for the same values (Flutter sends both). Includes: toggles (`cashEnabled`/`cash_enabled`, `mpesaEnabled`/`mpesa_enabled`, `tumiziEnabled`/`tumizi_enabled`/`payment_tumizi_enabled`), default method (`paymentMethod`/`payment_method`, `defaultMethod`/`default_method` — `cash` | `mpesa` | `tumizi`), `paymentTiming`/`payment_timing`, M-Pesa mode (`mpesaMethod`/`mpesa_method`) and numbers (`mpesaPhone`/`mpesa_phone`, `tillNumber`/`till_number`, `paybillNumber`/`paybill_number`, `paybillAccount`/`paybill_account`, `pochiPhone`/`pochi_phone`). Use `tumizi` as default only when Tumizi is enabled.\n\n**Prereq:** **Mobile Login** so `{{mobile_access_token}}` is set.\n\nSee `docs/backend-context/tumizi/TUMIZI_MOBILE_AND_SETTINGS.md`."
 					},
 					"response": []
 				},
@@ -4917,29 +5076,6 @@
 							]
 						},
 						"description": "Create a tenant-specific expense category. Use the returned category.id as expense_category_id when creating or updating expenses."
-					},
-					"response": []
-				},
-				{
-					"name": "Mobile Dashboard Expense Categories (Detail)",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/api/v1/mobile/dashboard/expense-categories/{{expense_category_id}}",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"mobile",
-								"dashboard",
-								"expense-categories",
-								"{{expense_category_id}}"
-							]
-						},
-						"description": "Get one tenant expense category by ID."
 					},
 					"response": []
 				},

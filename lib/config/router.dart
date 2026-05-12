@@ -9,6 +9,7 @@ import '../features/onboarding/screens/reset_password_screen.dart';
 import '../features/onboarding/screens/register_screen.dart';
 import '../features/onboarding/screens/session_restore_screen.dart';
 import '../features/onboarding/screens/mfa_screen.dart';
+import '../features/onboarding/screens/first_run_tutorial_screen.dart';
 import '../features/dashboard/screens/dashboard_shell.dart';
 import '../features/dashboard/screens/dashboard_screen.dart';
 import '../features/orders/screens/orders_list_screen.dart';
@@ -27,6 +28,7 @@ import '../features/settings/screens/settings_screen.dart';
 import '../features/settings/screens/store_identity_screen.dart';
 import '../features/settings/screens/tax_settings_screen.dart';
 import '../features/settings/screens/payment_settings_screen.dart';
+import '../features/settings/screens/tumizi_web_dashboard_screen.dart';
 import '../features/settings/screens/shipping_delivery_screen.dart';
 import '../features/settings/screens/manage_zones_screen.dart';
 import '../features/settings/screens/delivery_zone_editor_screen.dart';
@@ -39,6 +41,7 @@ import '../features/sales/screens/sales_editor_screen.dart';
 import '../features/customers/screens/customers_list_screen.dart';
 import '../features/onboarding/providers/auth_provider.dart';
 import '../core/auth/auth_state.dart';
+import '../core/providers/first_run_tutorial_seen_provider.dart';
 import '../core/providers/onboarding_seen_provider.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -47,6 +50,7 @@ GoRouter? _previousRouter;
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
   final onboardingSeenState = ref.watch(onboardingSeenProvider);
+  final firstRunTutorialSeenState = ref.watch(firstRunTutorialSeenProvider);
   final previousRouter = _previousRouter;
 
   final router = GoRouter(
@@ -57,13 +61,31 @@ final routerProvider = Provider<GoRouter>((ref) {
         previousRouter?.routerDelegate.currentConfiguration.uri.toString() ??
             '/splash',
     redirect: (context, state) {
+      bool isFirstRunSetupRoute(String location) {
+        return location == '/settings' ||
+            location == '/store-identity' ||
+            location == '/payment-settings' ||
+            location == '/tumizi-dashboard' ||
+            location == '/shipping-delivery' ||
+            location == '/shipping-zones' ||
+            location == '/shipping-zone-editor' ||
+            location.startsWith('/products') ||
+            location.startsWith('/categories');
+      }
+
+      final tutorialBypass = state.uri.queryParameters['tutorial'] == '1';
+      final tutorialReplay = state.uri.queryParameters['replay'] == '1';
+
       final isLoggingIn = state.matchedLocation == '/login';
       final isOnboarding = state.matchedLocation == '/onboarding';
       final isLanding = state.matchedLocation == '/landing';
       final isMfaPhase = state.matchedLocation == '/mfa';
+      final isFirstRunTutorial = state.matchedLocation == '/first-run-tutorial';
       final atSplash = state.matchedLocation == '/splash';
       final onboardingSeen = onboardingSeenState.valueOrNull;
       final onboardingKnown = onboardingSeenState.hasValue;
+      final firstRunTutorialSeen = firstRunTutorialSeenState.valueOrNull;
+      final firstRunTutorialKnown = firstRunTutorialSeenState.hasValue;
 
       final isResolvingSession = authState.status == AuthStatus.initial ||
           authState.status == AuthStatus.sessionRestoring;
@@ -76,7 +98,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
         switch (authState.status) {
           case AuthStatus.authenticated:
-            return '/dashboard';
+            if (!firstRunTutorialKnown) {
+              return null;
+            }
+            return firstRunTutorialSeen == true
+                ? '/dashboard'
+                : '/first-run-tutorial';
           case AuthStatus.awaitingMfa:
             return '/mfa';
           case AuthStatus.unauthenticated:
@@ -116,12 +143,25 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (authState.status == AuthStatus.authenticated) {
+        if (!firstRunTutorialKnown) {
+          return atSplash ? null : '/splash';
+        }
+        if (firstRunTutorialSeen != true) {
+          return (isFirstRunTutorial ||
+                  (tutorialBypass && isFirstRunSetupRoute(state.matchedLocation)))
+              ? null
+              : '/first-run-tutorial';
+        }
         final isRegister = state.matchedLocation == '/register';
         final isResetPassword = state.matchedLocation == '/reset-password';
+        if (isFirstRunTutorial && tutorialReplay) {
+          return null;
+        }
         if (isLanding ||
             isLoggingIn ||
             isMfaPhase ||
             isOnboarding ||
+            isFirstRunTutorial ||
             isRegister ||
             isResetPassword) {
           return '/dashboard';
@@ -160,6 +200,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const MfaScreen(),
       ),
       GoRoute(
+        path: '/first-run-tutorial',
+        builder: (context, state) => const FirstRunTutorialScreen(),
+      ),
+      GoRoute(
         path: '/notifications',
         builder: (context, state) => const NotificationsScreen(),
       ),
@@ -178,6 +222,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/payment-settings',
         builder: (context, state) => const PaymentSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/tumizi-dashboard',
+        builder: (context, state) => const TumiziWebDashboardScreen(),
       ),
       GoRoute(
         path: '/shipping-delivery',

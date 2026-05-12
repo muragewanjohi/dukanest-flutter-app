@@ -17,6 +17,7 @@ class TokenStorage {
       'product_detail_refresh_hint_seen';
   static const _productEditorDraftPrefix = 'product_editor_draft_';
   static const _onboardingSeenKey = 'onboarding_seen';
+  static const _firstRunTutorialSeenKey = 'first_run_tutorial_seen';
 
   /// Legacy key from multi-store experiment; still cleared on logout.
   static const _legacySelectedTenantKey = 'selected_tenant_id';
@@ -45,6 +46,7 @@ class TokenStorage {
     await _storage.delete(key: _storeSubdomainKey);
     await _storage.delete(key: _storeUrlKey);
     await _storage.delete(key: _storeLogoUrlKey);
+    await _storage.delete(key: _firstRunTutorialSeenKey);
   }
 
   Future<void> saveStoreIdentity({
@@ -104,5 +106,23 @@ class TokenStorage {
 
   Future<bool> getOnboardingSeen() async {
     return (await _storage.read(key: _onboardingSeenKey)) == '1';
+  }
+
+  Future<void> saveFirstRunTutorialSeen(bool seen) async {
+    await _storage.write(key: _firstRunTutorialSeenKey, value: seen ? '1' : '0');
+  }
+
+  Future<bool> hasFirstRunTutorialSeenFlag() async {
+    return (await _storage.read(key: _firstRunTutorialSeenKey)) != null;
+  }
+
+  Future<bool> getFirstRunTutorialSeen() async {
+    final raw = await _storage.read(key: _firstRunTutorialSeenKey);
+    if (raw == null) {
+      // Treat unknown state as "not seen" so users are not accidentally
+      // dropped into dashboard before finishing/skipping tutorial.
+      return false;
+    }
+    return raw == '1';
   }
 }

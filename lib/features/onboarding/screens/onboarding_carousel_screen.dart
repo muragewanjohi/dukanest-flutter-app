@@ -551,8 +551,8 @@ class _AnalyticsShowcaseState extends State<_AnalyticsShowcase> {
             const SizedBox(height: 12),
             Expanded(
               child: BarChart(
-                swapAnimationDuration: const Duration(milliseconds: 1000),
-                swapAnimationCurve: Curves.easeOutCubic,
+                duration: const Duration(milliseconds: 1000),
+                curve: Curves.easeOutCubic,
                 BarChartData(
                   maxY: 22,
                   minY: 0,

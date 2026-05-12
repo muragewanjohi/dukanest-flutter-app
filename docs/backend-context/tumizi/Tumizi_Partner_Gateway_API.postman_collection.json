@@ -1,0 +1,929 @@
+{
+    "info": {
+        "name": "Tumizi Partner Gateway API",
+        "_postman_id": "d6de0f53-f5c6-4fbd-86e7-6e37bc4ba3cf",
+        "description": "Partner-ready Tumizi collection for DukaNest and similar integrations.\n\nHow to use this collection:\n1. Set {{base_url}}, {{partner_api_key}}, and the example variables.\n2. Run the Merchant Lifecycle folder first if you are onboarding merchant customers.\n3. Run the Partner Self folder only after the integration app has its own Tumizi organisation and wallet configured in Platform > Integrations.\n4. Run Refunds only after the referenced payment already exists and succeeded.\n\nEach request includes a description that tells the operator what the request is for and what should already be in place.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://127.0.0.1:8000"
+        },
+        {
+            "key": "partner_api_key",
+            "value": ""
+        },
+        {
+            "key": "correlation_id",
+            "value": "dukanest-run-001"
+        },
+        {
+            "key": "merchant_external_id",
+            "value": "dukanest-store-001"
+        },
+        {
+            "key": "merchant_payment_reference",
+            "value": "dukanest-payment-1001"
+        },
+        {
+            "key": "merchant_withdrawal_reference",
+            "value": "dukanest-withdrawal-1001"
+        },
+        {
+            "key": "merchant_refund_reference",
+            "value": "dukanest-refund-1001"
+        },
+        {
+            "key": "partner_payment_reference",
+            "value": "dukanest-self-payment-1001"
+        },
+        {
+            "key": "partner_withdrawal_reference",
+            "value": "dukanest-self-withdrawal-1001"
+        },
+        {
+            "key": "partner_refund_reference",
+            "value": "dukanest-self-refund-1001"
+        },
+        {
+            "key": "merchant_search",
+            "value": "dukanest"
+        },
+        {
+            "key": "merchant_status",
+            "value": "active"
+        },
+        {
+            "key": "merchant_per_page",
+            "value": "20"
+        }
+    ],
+    "item": [
+        {
+            "name": "1. Merchant Lifecycle",
+            "description": "Use this folder when DukaNest is onboarding merchant customers into Tumizi. Create the merchant first, confirm the wallet, then move to merchant payments or withdrawals.",
+            "item": [
+                {
+                    "name": "Create Merchant",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/merchants",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "merchants"
+                            ]
+                        },
+                        "description": "Creates the merchant organisation, wallet, owner, and optional merchant-scoped webhook. Wallet account references must be uppercase alphanumeric only. Use this before any merchant payment or withdrawal tests.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"merchant_external_id\": \"dukanest-store-001\",\n  \"merchant\": {\n    \"name\": \"DukaNest Demo Store\",\n    \"email\": \"finance@dukanest-store.test\",\n    \"phone\": \"254700123123\",\n    \"country\": \"Kenya\",\n    \"domain\": \"dukanest-store.test\",\n    \"description\": \"Sandbox merchant\"\n  },\n  \"owner\": {\n    \"name\": \"DukaNest Owner\",\n    \"email\": \"owner@dukanest-store.test\"\n  },\n  \"wallet\": {\n    \"name\": \"Main Wallet\",\n    \"account_number\": \"DUKANEST001\",\n    \"currency\": \"KES\"\n  },\n  \"webhooks\": [\n    {\n      \"name\": \"Merchant callback\",\n      \"callback_url\": \"https://dukanest-store.test/api/tumizi/callback\",\n      \"events\": [\n        \"partner.customer_payment.updated\",\n        \"partner.withdrawal.updated\",\n        \"partner.refund.updated\"\n      ]\n    }\n  ]\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "List Merchants",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/merchants?search={{merchant_search}}&status={{merchant_status}}&per_page={{merchant_per_page}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "merchants"
+                            ],
+                            "query": [
+                                {
+                                    "key": "search",
+                                    "value": "{{merchant_search}}"
+                                },
+                                {
+                                    "key": "status",
+                                    "value": "{{merchant_status}}"
+                                },
+                                {
+                                    "key": "per_page",
+                                    "value": "{{merchant_per_page}}"
+                                }
+                            ]
+                        },
+                        "description": "Lists merchants for this partner. Use this to confirm onboarding or to search for the exact merchant_external_id before update, payment, withdrawal, or refund calls."
+                    }
+                },
+                {
+                    "name": "Get Merchant",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/merchants/{{merchant_external_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "merchants",
+                                "{{merchant_external_id}}"
+                            ]
+                        },
+                        "description": "Returns the merchant mapping, wallet, owner, and webhooks. Use this after create or update to verify the merchant is active."
+                    }
+                },
+                {
+                    "name": "Update Merchant",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/merchants/{{merchant_external_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "merchants",
+                                "{{merchant_external_id}}"
+                            ]
+                        },
+                        "description": "Updates merchant details, wallet details, owner details, or merchant status. You can reactivate with top-level status or merchant.status.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"merchant\": {\n    \"status\": \"active\",\n    \"name\": \"DukaNest Demo Store Updated\",\n    \"domain\": \"shop.dukanest-store.test\"\n  },\n  \"owner\": {\n    \"name\": \"DukaNest Owner Updated\",\n    \"email\": \"owner-updated@dukanest-store.test\"\n  },\n  \"wallet\": {\n    \"name\": \"Collections Wallet\",\n    \"account_number\": \"DUKANEST002\"\n  },\n  \"webhooks\": [\n    {\n      \"name\": \"Merchant callback\",\n      \"callback_url\": \"https://shop.dukanest-store.test/api/tumizi/callback\",\n      \"events\": [\n        \"partner.customer_payment.updated\",\n        \"partner.withdrawal.updated\",\n        \"partner.refund.updated\"\n      ]\n    }\n  ],\n  \"notes\": \"Updated during sandbox verification\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Activate Merchant",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/merchants/{{merchant_external_id}}/activate",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "merchants",
+                                "{{merchant_external_id}}",
+                                "activate"
+                            ]
+                        },
+                        "description": "Explicit reactivation endpoint. Use this if the merchant mapping was deactivated and you want a dedicated reactivation call.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": ""
+                        }
+                    }
+                },
+                {
+                    "name": "Deactivate Merchant",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/merchants/{{merchant_external_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "merchants",
+                                "{{merchant_external_id}}"
+                            ]
+                        },
+                        "description": "Deactivates only the partner-to-merchant mapping. It does not disable the underlying organisation, wallet, or webhooks."
+                    }
+                },
+                {
+                    "name": "Get Merchant Wallet",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/merchants/{{merchant_external_id}}/wallet",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "merchants",
+                                "{{merchant_external_id}}",
+                                "wallet"
+                            ]
+                        },
+                        "description": "Returns the current merchant wallet identity and balance. Use this before payment or withdrawal testing to confirm you are targeting the right wallet reference."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "2. Merchant Payments",
+            "description": "Use this folder when the end customer is paying one of DukaNest's onboarded merchants. Run Create Customer Payment first, then poll Get Customer Payment.",
+            "item": [
+                {
+                    "name": "Create Customer Payment",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/customer-payments",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "customer-payments"
+                            ]
+                        },
+                        "description": "Starts STK push for a merchant-owned customer payment. The merchant must already exist and the wallet account number must belong to that merchant.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"merchant_external_id\": \"{{merchant_external_id}}\",\n  \"external_reference\": \"{{merchant_payment_reference}}\",\n  \"source\": {\n    \"wallet_account_number\": \"DUKANEST001\"\n  },\n  \"payer\": {\n    \"phone_number\": \"254700000001\",\n    \"name\": \"Jane Customer\",\n    \"email\": \"jane@example.com\"\n  },\n  \"amount\": 1500,\n  \"currency\": \"KES\",\n  \"account_reference\": \"INV1001\",\n  \"description\": \"Invoice 1001\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Get Customer Payment",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/customer-payments/{{merchant_payment_reference}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "customer-payments",
+                                "{{merchant_payment_reference}}"
+                            ]
+                        },
+                        "description": "Poll this after STK initiation or after a webhook arrives. Successful records include mpesa_receipt_number. The response scope should be merchant."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "3. Merchant Withdrawals",
+            "description": "Use this when DukaNest is instructing Tumizi to send funds out from a merchant wallet. This flow is direct and does not sit in an internal approval queue.",
+            "item": [
+                {
+                    "name": "Create Merchant Withdrawal",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/withdrawals",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "withdrawals"
+                            ]
+                        },
+                        "description": "Creates a direct merchant withdrawal. The merchant wallet must have enough available balance. After create, use Get Merchant Withdrawal to poll the partner-facing payout state.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"merchant_external_id\": \"{{merchant_external_id}}\",\n  \"external_reference\": \"{{merchant_withdrawal_reference}}\",\n  \"source\": {\n    \"wallet_account_number\": \"DUKANEST001\"\n  },\n  \"destination\": {\n    \"type\": \"mpesa\",\n    \"phone_number\": \"254700000111\"\n  },\n  \"payee\": {\n    \"name\": \"Merchant Cashout\"\n  },\n  \"amount\": 1800,\n  \"description\": \"Merchant cashout\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Get Merchant Withdrawal",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/withdrawals/{{merchant_withdrawal_reference}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "withdrawals",
+                                "{{merchant_withdrawal_reference}}"
+                            ]
+                        },
+                        "description": "Polls the merchant withdrawal status. The response includes payout_request_id and payout_request_number for internal tracing if Tumizi support needs to investigate."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "4. Partner Self",
+            "description": "Use this folder only after the DukaNest integration app itself has a Tumizi organisation and wallet configured in Platform > Integrations. These are not merchant-customer endpoints.",
+            "item": [
+                {
+                    "name": "Get Partner Wallet",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/me/wallet",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "me",
+                                "wallet"
+                            ]
+                        },
+                        "description": "Checks that the DukaNest integration app itself has an active Tumizi organisation and wallet configured. Run this first before partner-owned payment, withdrawal, or refund tests."
+                    }
+                },
+                {
+                    "name": "Create Partner Customer Payment",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/me/customer-payments",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "me",
+                                "customer-payments"
+                            ]
+                        },
+                        "description": "Starts STK push for a payment that belongs to DukaNest itself rather than one of its merchants. The response scope should be partner.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"external_reference\": \"{{partner_payment_reference}}\",\n  \"source\": {\n    \"wallet_account_number\": \"DUKANESTOPS1\"\n  },\n  \"payer\": {\n    \"phone_number\": \"254700000222\",\n    \"name\": \"Platform Buyer\",\n    \"email\": \"buyer@example.com\"\n  },\n  \"amount\": 2300,\n  \"currency\": \"KES\",\n  \"account_reference\": \"DN1001\",\n  \"description\": \"Platform fee payment\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Get Partner Customer Payment",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/me/customer-payments/{{partner_payment_reference}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "me",
+                                "customer-payments",
+                                "{{partner_payment_reference}}"
+                            ]
+                        },
+                        "description": "Polls a partner-owned payment. Use this after STK initiation or after the payment webhook arrives. The response scope should be partner."
+                    }
+                },
+                {
+                    "name": "Create Partner Withdrawal",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/me/withdrawals",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "me",
+                                "withdrawals"
+                            ]
+                        },
+                        "description": "Creates a direct withdrawal from the DukaNest partner wallet. This is separate from merchant withdrawals and should be used for DukaNest-owned funds only.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"external_reference\": \"{{partner_withdrawal_reference}}\",\n  \"source\": {\n    \"wallet_account_number\": \"DUKANESTOPS1\"\n  },\n  \"destination\": {\n    \"type\": \"mpesa\",\n    \"phone_number\": \"254700000333\"\n  },\n  \"payee\": {\n    \"name\": \"DukaNest Ops\"\n  },\n  \"amount\": 1500,\n  \"description\": \"Platform cashout\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Get Partner Withdrawal",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/me/withdrawals/{{partner_withdrawal_reference}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "me",
+                                "withdrawals",
+                                "{{partner_withdrawal_reference}}"
+                            ]
+                        },
+                        "description": "Polls a partner-owned withdrawal. The response includes the payout request identifiers and should report scope=partner."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "5. Refunds",
+            "description": "Refunds are reference-based. Always run them after the original customer payment already exists and succeeded. Tumizi auto-fills amount, currency, and destination from that original payment reference.",
+            "item": [
+                {
+                    "name": "Create Merchant Refund",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/refunds",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "refunds"
+                            ]
+                        },
+                        "description": "Refunds a merchant-owned customer payment. You only send merchant_external_id, a new refund external_reference, and the original payment_reference. Amount and destination are auto-filled from the original payment.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"merchant_external_id\": \"{{merchant_external_id}}\",\n  \"external_reference\": \"{{merchant_refund_reference}}\",\n  \"payment_reference\": \"{{merchant_payment_reference}}\",\n  \"reason\": \"Customer order cancelled\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Get Merchant Refund",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/refunds/{{merchant_refund_reference}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "refunds",
+                                "{{merchant_refund_reference}}"
+                            ]
+                        },
+                        "description": "Polls a merchant refund. Use this after creation or after a refund webhook arrives."
+                    }
+                },
+                {
+                    "name": "Create Partner Refund",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/me/refunds",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "me",
+                                "refunds"
+                            ]
+                        },
+                        "description": "Refunds a partner-owned customer payment. The original payment must have been created under /me/customer-payments and must already have succeeded.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"external_reference\": \"{{partner_refund_reference}}\",\n  \"payment_reference\": \"{{partner_payment_reference}}\",\n  \"reason\": \"Platform charge reversed\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Get Partner Refund",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{partner_api_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "X-Correlation-Id",
+                                "value": "{{correlation_id}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/partner/v1/me/refunds/{{partner_refund_reference}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "partner",
+                                "v1",
+                                "me",
+                                "refunds",
+                                "{{partner_refund_reference}}"
+                            ]
+                        },
+                        "description": "Polls a partner-owned refund. The response scope should be partner."
+                    }
+                }
+            ]
+        }
+    ]
+}

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -37,6 +38,22 @@ final dashboardOverviewProvider =
 });
 
 final dashboardLastSyncedAtProvider = StateProvider<DateTime?>((ref) => null);
+
+final connectivityStatusProvider =
+    StreamProvider.autoDispose<ConnectivityResult>((ref) {
+  final connectivity = Connectivity();
+  ConnectivityResult toStatus(List<ConnectivityResult> results) {
+    if (results.isEmpty) return ConnectivityResult.none;
+    if (results.contains(ConnectivityResult.none)) return ConnectivityResult.none;
+    return results.first;
+  }
+
+  return (() async* {
+    final initial = await connectivity.checkConnectivity();
+    yield toStatus(initial);
+    yield* connectivity.onConnectivityChanged.map(toStatus);
+  })();
+});
 
 List<_OnboardingStepUi> _mergeLocalStepCompletion(
   List<_OnboardingStepUi> steps,
@@ -110,6 +127,40 @@ List<_OnboardingStepUi> _mergeGettingStartedItems(
   }).toList();
 }
 
+bool _onboardingStepUiIsPreview(_OnboardingStepUi s) {
+  final key = (s.stepKey ?? '').toLowerCase();
+  final title = s.title.toLowerCase();
+  return key.contains('preview_store') ||
+      key == 'preview' ||
+      (title.contains('preview') && title.contains('store'));
+}
+
+bool _onboardingStepUiIsShare(_OnboardingStepUi s) {
+  final key = (s.stepKey ?? '').toLowerCase();
+  final title = s.title.toLowerCase();
+  return key.contains('share_store') ||
+      key.contains('copy_link') ||
+      (title.contains('share') && title.contains('store')) ||
+      title.contains('store link');
+}
+
+List<_OnboardingStepUi> _orderOnboardingStepsPreviewShareLast(
+    List<_OnboardingStepUi> steps) {
+  final head = <_OnboardingStepUi>[];
+  final previews = <_OnboardingStepUi>[];
+  final shares = <_OnboardingStepUi>[];
+  for (final s in steps) {
+    if (_onboardingStepUiIsShare(s)) {
+      shares.add(s);
+    } else if (_onboardingStepUiIsPreview(s)) {
+      previews.add(s);
+    } else {
+      head.add(s);
+    }
+  }
+  return [...head, ...previews, ...shares];
+}
+
 void _postGettingStartedPreview(WidgetRef ref) {
   unawaited(
       ref.read(apiClientProvider).postGettingStartedAction('preview_done'));
@@ -145,6 +196,14 @@ String _dashboardGreetingName(AuthUser? user, String? storeName) {
     return user.name!.trim();
   }
   return '';
+}
+
+/// Uses the device's local clock (same as [DateTime.now]).
+String _timeOfDayGreeting(DateTime now) {
+  final hour = now.hour;
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
 }
 
 List<double> _normalizeChartFractions(List<dynamic>? raw, {int length = 7}) {
@@ -262,10 +321,13 @@ List<_OnboardingStepUi> _parseOnboardingStepsFromOverview(
       onAction: null,
     ));
   }
-  return out.isEmpty ? defaultSteps : out;
+  return out.isEmpty
+      ? defaultSteps
+      : _orderOnboardingStepsPreviewShareLast(out);
 }
 
 /// Matches web dashboard onboarding: 7 steps; only SMS alerts complete right after registration.
+/// Preview and share are always last (preview second-to-last, share last).
 List<_OnboardingStepUi> _defaultOnboardingStepsAfterRegistration() {
   return const [
     _OnboardingStepUi(
@@ -275,21 +337,6 @@ List<_OnboardingStepUi> _defaultOnboardingStepsAfterRegistration() {
       durationHint: 'Takes 2 minutes',
       actionLabel: 'Add product',
       stepKey: 'product',
-    ),
-    _OnboardingStepUi(
-      completed: false,
-      title: 'Preview your store',
-      description: 'Open your storefront and confirm it looks right.',
-      durationHint: 'Takes 1 minute',
-      actionLabel: 'Preview store',
-      stepKey: 'preview_store',
-    ),
-    _OnboardingStepUi(
-      completed: false,
-      title: 'Share your store',
-      description: 'Copy and share your store URL with customers.',
-      actionLabel: 'Copy link',
-      stepKey: 'share_store',
     ),
     _OnboardingStepUi(
       completed: true,
@@ -319,20 +366,26 @@ List<_OnboardingStepUi> _defaultOnboardingStepsAfterRegistration() {
       actionLabel: 'Add logo',
       stepKey: 'logo',
     ),
+    _OnboardingStepUi(
+      completed: false,
+      title: 'Preview your store',
+      description: 'Open your storefront and confirm it looks right.',
+      durationHint: 'Takes 1 minute',
+      actionLabel: 'Preview store',
+      stepKey: 'preview_store',
+    ),
+    _OnboardingStepUi(
+      completed: false,
+      title: 'Share your store',
+      description: 'Copy and share your store URL with customers.',
+      actionLabel: 'Copy link',
+      stepKey: 'share_store',
+    ),
   ];
 }
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
-
-  String _lastUpdatedLabel(DateTime? at) {
-    if (at == null) return 'Not synced yet';
-    final diff = DateTime.now().difference(at);
-    if (diff.inMinutes < 1) return 'Updated just now';
-    if (diff.inMinutes < 60) return 'Updated ${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return 'Updated ${diff.inHours}h ago';
-    return 'Updated ${diff.inDays}d ago';
-  }
 
   static const _cardShadow = [
     BoxShadow(
@@ -571,6 +624,11 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final connectivityStatus = ref.watch(connectivityStatusProvider);
+    final isOnline = connectivityStatus.maybeWhen(
+      data: (status) => status != ConnectivityResult.none,
+      orElse: () => true,
+    );
     final overview = ref.watch(dashboardOverviewProvider);
     final data = overview.asData?.value;
     final isLiveData = data != null;
@@ -592,6 +650,7 @@ class DashboardScreen extends ConsumerWidget {
         ? storeName
         : tenantNameFromApi;
     final greetingName = _dashboardGreetingName(authUser, displayStoreName);
+    final greetingPrefix = _timeOfDayGreeting(DateTime.now());
 
     final metrics = data?['metrics'] is Map<String, dynamic>
         ? Map<String, dynamic>.from(data!['metrics'] as Map)
@@ -628,14 +687,10 @@ class DashboardScreen extends ConsumerWidget {
         : (revenueMetrics['monthlyPaid'] ??
             metrics['weeklyRevenue'] ??
             metrics['revenue']);
-    final revenueValue = _toCurrency(
-      isLiveData ? revenuePrimaryAmount : 12450,
-      currency: currency,
-    );
+    final revenueValue = _toCurrency(revenuePrimaryAmount, currency: currency);
     final comparisonLineWeekly = useWeekly;
-    final revenueComparisonSubtitle = isLiveData
-        ? _comparisonSubtitle(revenueMetrics, weekly: comparisonLineWeekly)
-        : '+12.5% from last week';
+    final revenueComparisonSubtitle =
+        _comparisonSubtitle(revenueMetrics, weekly: comparisonLineWeekly);
     final revenueSecondaryLine = revenueComparisonSubtitle ??
         (useWeekly ? 'Last 7 days' : 'Current month');
     final seriesForChart = useWeekly
@@ -653,7 +708,7 @@ class DashboardScreen extends ConsumerWidget {
           metrics['pendingOrders'] ??
           metrics['pending_orders'] ??
           metrics['activeOrders'],
-      fallback: data == null ? 24 : 0,
+      fallback: 0,
     ).toString();
     final productsLiveValue = _toInt(
       productsMetrics['live'] ??
@@ -679,7 +734,7 @@ class DashboardScreen extends ConsumerWidget {
           metrics['completedOrders'] ??
           metrics['completed_orders'] ??
           metrics['ordersLast30Days'],
-      fallback: data == null ? 182 : 0,
+      fallback: 0,
     ).toString();
     final lowStockItems =
         _extractLowStockItems(data, productsMetrics: productsMetrics);
@@ -734,8 +789,13 @@ class DashboardScreen extends ConsumerWidget {
               20, 8 + MediaQuery.of(context).padding.top, 20, 120),
           children: [
             DashboardPageHeader(
-              title: greetingName.isEmpty ? 'Habari' : 'Habari, $greetingName',
-              subtitle: _lastUpdatedLabel(lastSyncedAt),
+              title: greetingName.isEmpty
+                  ? greetingPrefix
+                  : '$greetingPrefix, $greetingName',
+              subtitle: isOnline ? 'Online' : 'Offline',
+              subtitleColor: isOnline
+                  ? const Color(0xFF16A34A)
+                  : theme.colorScheme.onSurfaceVariant,
               actions: [
                 IconButton.filledTonal(
                   onPressed: () => refreshDashboard(),

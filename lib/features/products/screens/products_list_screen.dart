@@ -28,6 +28,7 @@ typedef ProductListItem = ({
   String meta,
   String status,
   bool active,
+  bool isDemo,
   String stock,
   bool stockWarn,
   String price,
@@ -67,15 +68,6 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
         DateTime savedAt,
       })> _productsCache = {};
 
-  static const _kSneaker =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuBItpyh7rifhulInTnFVxDIGg-AgrcC3dNLPMXbdw1QqOBNP-rF6vjac2o8a4ZxGE5iuht_h7q0yXNKub5Rm-TNJ_PSiFKpMdA54Wxnfa1i6ASERO_Hdung32CBZZVqy-kINY0JOsfm1fsgaM42KaOeFldn7sPtE0UIivsZMyG1_B9eD2q7R4ytB8bAmQ3hXU7wEEXbTza-mIpaY1YIiEOARaf61fVunRr4wtJNDHF096AEFOjVZGl4VXJunIdlDvTFIaPahiBAc9GG';
-  static const _kWatch =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuC0ei8XqCEmV8Zsq5Lv3E9w-dqx_f9FBaGX_NtmPyGDvsbqMO5w26wmb4DwQKtMNn8G7BAdrz1q74g1Kto-2e7h5rUwiAWhFrIZcQtztnqm9iI6X3D0Iv6TyjU_zPNWQxpotj7e5bndssIZsXOago1HETIinyDA3QAA2YT4O4P-6tBHmdeFPgrls1GNhErRK4XHE_KME8qkXjv4FsJCm7onxa0xF2uWrybLUks7O1yBZOFXePKNpP7frYkKFTZVtFXiFBKQ9rJ1NGiK';
-  static const _kHeadphones =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuD9cWmwiE-_lsX7IB3rEswMD2xUB-QYYIvTSR8jPsKAnxUdlperQpbtwgC2fzrRrSLFT6gHVTY4d1mKcgcsfMWE68jvOEQLbhz-19GYfd3EygJ5wHRMf0x0TqfrkpCFQNEA2dGov2KgaKcVcyc8Zr-JRBVwidom5CIfH_w3DSg3R4xmMKL3z0L7TSgqzaGh8eP-xIHOLjc-bPvG_iKrshB9CCskI8ZZQlUzsVUJ5KYYi46dmmWgtiTjLnyy3SP4GUEf4SjCq2-XY0eT';
-  static const _kAviators =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDuRZSDgVO8zLQfz9qgW7UgcfYppVXgR1YjV6lvUHp6lEtQrB3shE4GKMQecGWG-TG1t5CHFNEHhdR3eMTlqzXO0omYY2-4s4UZjJU2xjXJWud6xyyq7A41Q9jwgeYb2uiF27phDBDx1n2ZyoKax62T3Orl3-Ih5LuM4thz5K9QYR7AcQx84RnXhloSoWU8J3eJyGooJwggfD81exp9XUtokbVsipUDp8fHK9P5eqhCYjIYpjQqcfuBAnJBbtnD5CbXSn2hivnU3oT3';
-
   static const _kIconFacebook =
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCu39UMZ478Jp3AgkDfI97OE621gJthMTC3sW2JhVIOk2NdvshMKWOfMbess2O_geyGWG6uv9RDAqGd91aP_o68_XsPW_glXY_KoTYW52hpwIR6Ggx1FGOBY1GqLoqB0PwrihlUel4Cl8b7dPWftTTAvXLBUIxcswkyk6L_0gWHxoeeqjubEXBgC5YRnpXN8KhazuiarZ3uFPBARCsaqyOWZqZYm3rsQ3y_U4YcIBvpsIWgyRFPfM--LQTSYu7GsG8EfLS0ARIsIsVQ';
   static const _kIconWhatsApp =
@@ -85,61 +77,6 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
 
   static String _shareUrlFor(String sku) =>
       'https://dukanest.app/p/${Uri.encodeComponent(sku)}';
-
-  static List<ProductListItem> _fallbackProducts() => [
-        (
-          id: null,
-          name: 'Velocity Nitro Runner',
-          meta: 'Footwear • SKU: VN-2024-RD',
-          status: 'Active',
-          active: true,
-          stock: '124 units',
-          stockWarn: false,
-          price: '\$129.00',
-          sku: 'VN-2024-RD',
-          imageUrl: _kSneaker,
-          accentBar: true,
-        ),
-        (
-          id: null,
-          name: 'Minimalist Slate Watch',
-          meta: 'Accessories • SKU: MW-SL-01',
-          status: 'Active',
-          active: true,
-          stock: '42 units',
-          stockWarn: false,
-          price: '\$85.50',
-          sku: 'MW-SL-01',
-          imageUrl: _kWatch,
-          accentBar: false,
-        ),
-        (
-          id: null,
-          name: 'Studio Pro Wireless',
-          meta: 'Electronics • SKU: SPW-BLK-99',
-          status: 'Inactive',
-          active: false,
-          stock: '0 units',
-          stockWarn: false,
-          price: '\$199.00',
-          sku: 'SPW-BLK-99',
-          imageUrl: _kHeadphones,
-          accentBar: false,
-        ),
-        (
-          id: null,
-          name: 'Golden Aviators',
-          meta: 'Accessories • SKU: GA-GLD-45',
-          status: 'Active',
-          active: true,
-          stock: 'Low (5)',
-          stockWarn: true,
-          price: '\$45.00',
-          sku: 'GA-GLD-45',
-          imageUrl: _kAviators,
-          accentBar: false,
-        ),
-      ];
 
   bool _isLoading = true;
   bool _isLiveData = false;
@@ -155,6 +92,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
   DateTime? _lastSyncedAt;
   bool _hasSeenRefreshHint = false;
   bool _storeStructureExpanded = false;
+  bool _hideDemoProducts = false;
   _ProductsSortOption _sortOption = _ProductsSortOption.newest;
   Set<String> _selectedCategoryNames = {};
   Map<String, Set<String>> _selectedAttributeValuesById = {};
@@ -333,6 +271,9 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
         final active = statusRaw.isEmpty
             ? (p['isActive'] == true || p['active'] == true)
             : statusRaw == 'active' || statusRaw == 'enabled';
+        final isDemo = p['isDemo'] == true ||
+            p['demo'] == true ||
+            (p['source']?.toString().toLowerCase() == 'demo');
         final status = active ? 'Active' : 'Inactive';
         final currencyCode =
             (p['currencyCode'] ?? p['currency_code'])?.toString();
@@ -347,6 +288,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
           meta: '$category • SKU: $sku',
           status: status,
           active: active,
+          isDemo: isDemo,
           stock: stockWarn ? 'Low ($stockNum)' : '$stockNum units',
           stockWarn: stockWarn,
           price: price,
@@ -423,6 +365,9 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
 
   List<ProductListItem> _applyLocalFilters(List<ProductListItem> items) {
     final filtered = items.where((product) {
+      if (_hideDemoProducts && product.isDemo) {
+        return false;
+      }
       if (_selectedCategoryNames.isNotEmpty) {
         final category = _categoryFor(product);
         if (!_selectedCategoryNames.contains(category)) return false;
@@ -490,6 +435,13 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
   void _selectSortOption(_ProductsSortOption option) {
     setState(() {
       _sortOption = option;
+      _products = _applyLocalFilters(_allProducts);
+    });
+  }
+
+  void _toggleHideDemoProducts(bool hideDemoProducts) {
+    setState(() {
+      _hideDemoProducts = hideDemoProducts;
       _products = _applyLocalFilters(_allProducts);
     });
   }
@@ -726,6 +678,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                           meta: old.meta,
                           status: nextStatus,
                           active: nextActive,
+                          isDemo: old.isDemo,
                           stock: old.stock,
                           stockWarn: old.stockWarn,
                           price: old.price,
@@ -1015,8 +968,10 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   selectedCategoryNames: _selectedCategoryNames,
                   selectedSortOption: _sortOption,
                   visibleProductCount: products.length,
+                  hideDemoProducts: _hideDemoProducts,
                   onSelectCategory: _selectCategoryChip,
                   onSelectSort: _selectSortOption,
+                  onToggleHideDemoProducts: _toggleHideDemoProducts,
                 ),
                 const SizedBox(height: 14),
                 if (!wide)
@@ -2020,16 +1975,20 @@ class _CategoryAndSortRow extends StatelessWidget {
     required this.selectedCategoryNames,
     required this.selectedSortOption,
     required this.visibleProductCount,
+    required this.hideDemoProducts,
     required this.onSelectCategory,
     required this.onSelectSort,
+    required this.onToggleHideDemoProducts,
   });
 
   final List<String> categories;
   final Set<String> selectedCategoryNames;
   final _ProductsSortOption selectedSortOption;
   final int visibleProductCount;
+  final bool hideDemoProducts;
   final ValueChanged<String?> onSelectCategory;
   final ValueChanged<_ProductsSortOption> onSelectSort;
+  final ValueChanged<bool> onToggleHideDemoProducts;
 
   @override
   Widget build(BuildContext context) {
@@ -2072,6 +2031,25 @@ class _CategoryAndSortRow extends StatelessWidget {
                 ),
               ),
             ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Hide demo',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppTheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Switch.adaptive(
+                  value: hideDemoProducts,
+                  onChanged: onToggleHideDemoProducts,
+                ),
+              ],
+            ),
+            const SizedBox(width: 8),
             PopupMenuButton<_ProductsSortOption>(
               initialValue: selectedSortOption,
               onSelected: onSelectSort,
@@ -2182,7 +2160,7 @@ class _CatalogProductCard extends StatelessWidget {
                 ? Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      _thumb(theme, inactive),
+                      _thumb(theme, inactive, product.isDemo),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
@@ -2229,7 +2207,7 @@ class _CatalogProductCard extends StatelessWidget {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _thumb(theme, inactive),
+                          _thumb(theme, inactive, product.isDemo),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -2295,7 +2273,7 @@ class _CatalogProductCard extends StatelessWidget {
     );
   }
 
-  Widget _thumb(ThemeData theme, bool inactive) {
+  Widget _thumb(ThemeData theme, bool inactive, bool isDemo) {
     String fallbackUrl(String raw) {
       try {
         final u = Uri.parse(raw);
@@ -2411,7 +2389,40 @@ class _CatalogProductCard extends StatelessWidget {
                 ),
               ),
             ),
+          if (isDemo)
+            const Positioned(
+              top: 8,
+              right: 8,
+              child: _DemoImageBadge(),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+class _DemoImageBadge extends StatelessWidget {
+  const _DemoImageBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Demo product',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: const Color(0xCC111827),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          'DEMO',
+          style: GoogleFonts.inter(
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: 0.6,
+          ),
+        ),
       ),
     );
   }

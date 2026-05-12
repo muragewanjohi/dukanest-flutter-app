@@ -17,6 +17,7 @@ class DashboardPageHeader extends ConsumerWidget {
     super.key,
     required this.title,
     this.subtitle,
+    this.subtitleColor,
     this.actions = const <Widget>[],
     this.leading,
     this.storeNameOverride,
@@ -28,6 +29,7 @@ class DashboardPageHeader extends ConsumerWidget {
 
   /// Optional supporting copy rendered beneath the title.
   final String? subtitle;
+  final Color? subtitleColor;
 
   /// Icon buttons / widgets rendered after the store name (right side of row).
   final List<Widget> actions;
@@ -90,7 +92,7 @@ class DashboardPageHeader extends ConsumerWidget {
             Text(
               subtitle!,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+                color: subtitleColor ?? theme.colorScheme.onSurfaceVariant,
                 height: 1.4,
               ),
             ),

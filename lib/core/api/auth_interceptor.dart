@@ -67,9 +67,14 @@ class AuthInterceptor extends Interceptor {
           'refresh_token': refreshToken,
         });
 
-        if (refreshResult.data != null &&
-            refreshResult.data['success'] == true) {
-          final dataMap = refreshResult.data['data'] as Map<String, dynamic>?;
+        final refreshBody = refreshResult.data;
+        if (refreshBody is! Map) {
+          throw err;
+        }
+        final refreshMap = Map<String, dynamic>.from(refreshBody);
+
+        if (refreshMap['success'] == true) {
+          final dataMap = refreshMap['data'] as Map<String, dynamic>?;
           final sessionRaw = dataMap?['session'];
           final session =
               sessionRaw is Map<String, dynamic> ? sessionRaw : dataMap;

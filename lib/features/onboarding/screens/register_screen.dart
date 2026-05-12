@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -15,6 +16,7 @@ import '../../../config/theme.dart';
 import '../../../core/auth/google_sign_in_config.dart';
 import '../../../core/auth/auth_state.dart';
 import '../../../core/auth/token_storage.dart';
+import '../../../core/providers/first_run_tutorial_seen_provider.dart';
 import '../data/business_types.dart';
 import '../data/country_dial_codes.dart';
 import '../providers/auth_provider.dart';
@@ -143,40 +145,49 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await ensureGoogleSignInInitialized();
-      final account = await GoogleSignIn.instance.authenticate(
-        scopeHint: const ['email', 'profile'],
-      );
+      final account = await authenticateGoogleInteractive();
       final auth = account.authentication;
       if (!mounted) return;
       final token = auth.idToken;
+      final accessToken = await resolveGoogleAccessToken(account);
+      final email = account.email.trim();
       setState(() {
         _googleIdToken = token;
-        _googleAccessToken = null;
-        // Only show "connected" when we actually have a usable token.
-        _googleEmail = token == null ? null : account.email;
+        _googleAccessToken = accessToken;
+        _googleEmail = email.isEmpty ? null : email;
+        _authErrorMessage = null;
       });
-      if (token == null && mounted) {
+      if ((token == null || token.isEmpty) &&
+          (accessToken == null || accessToken.isEmpty) &&
+          mounted) {
+        setState(() {
+          _authErrorMessage =
+              'Google account was linked but sign-in could not be verified. Tap Continue with Google again, or use email below.';
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Google sign-in succeeded but no ID token was returned. Please try again.',
+              'Could not get a Google sign-in token. Tap Continue with Google to try again.',
             ),
           ),
         );
       }
     } on GoogleSignInException catch (e) {
-      if (mounted &&
-          e.code != GoogleSignInExceptionCode.canceled &&
-          e.code != GoogleSignInExceptionCode.interrupted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google Sign In failed: ${e.description}')),
+          SnackBar(
+            content: Text(e.description ?? 'Google sign-in failed. Please try again.'),
+            duration: const Duration(seconds: 6),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google Sign In failed: $e')),
+          SnackBar(
+            content: Text('Google debug (exception): $e'),
+            duration: const Duration(seconds: 6),
+          ),
         );
       }
     } finally {
@@ -196,7 +207,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   bool _hasAuthForSubmit() {
-    final googleOk = _googleIdToken != null && _googleIdToken!.isNotEmpty;
+    final googleOk = (_googleIdToken != null && _googleIdToken!.isNotEmpty) ||
+        (_googleAccessToken != null && _googleAccessToken!.isNotEmpty);
     final emailOk = _emailController.text.trim().isNotEmpty &&
         _passwordController.text.isNotEmpty;
     return googleOk || emailOk;
@@ -254,9 +266,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     required String adminEmail,
   }) async {
     if (isGooglePath) {
-      if (_googleIdToken == null || _googleIdToken!.isEmpty) return false;
+      final hasIdToken = _googleIdToken != null && _googleIdToken!.isNotEmpty;
+      final hasAccessToken =
+          _googleAccessToken != null && _googleAccessToken!.isNotEmpty;
+      if (!hasIdToken && !hasAccessToken) return false;
       await ref.read(authProvider.notifier).googleSignIn(
-            _googleIdToken!,
+            _googleIdToken,
             accessToken: _googleAccessToken,
           );
     } else {
@@ -341,6 +356,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         _subdomainCheckFailed = false;
       });
     }
+
+    final connectivity = await Connectivity().checkConnectivity();
+    final online = connectivity.any((r) => r != ConnectivityResult.none);
+    if (!online) {
+      if (!mounted || requestId != _subdomainRequestId) return;
+      setState(() {
+        _isCheckingSubdomain = false;
+        _isSubdomainAvailable = null;
+        _subdomainMessage =
+            "You're offline. Connect to the internet to check your store URL.";
+        _subdomainCheckFailed = true;
+      });
+      return;
+    }
+
     if (kDebugMode) {
       debugPrint('[register] checking subdomain -> $requestUrl');
     }
@@ -424,14 +454,30 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     if (!_hasAuthForSubmit()) {
       setState(() {
-        _authErrorMessage =
-            'Connect with Google or enter email and password to continue.';
+        final hasGoogleEmail =
+            _googleEmail != null && _googleEmail!.trim().isNotEmpty;
+        final missingIdToken =
+            _googleIdToken == null || _googleIdToken!.isEmpty;
+        final missingAccessToken =
+            _googleAccessToken == null || _googleAccessToken!.isEmpty;
+        if (hasGoogleEmail &&
+            missingIdToken &&
+            missingAccessToken &&
+            !_showEmailPasswordForm) {
+          _authErrorMessage =
+              'Google sign-in did not finish securely. Tap Continue with Google again, or use email and password.';
+        } else {
+          _authErrorMessage =
+              'Connect with Google or enter email and password to continue.';
+        }
       });
       return;
     }
 
     final slug = _storeUrlController.text.trim();
-    final isGooglePath = _googleIdToken != null && _googleIdToken!.isNotEmpty;
+    final isGooglePath =
+        (_googleIdToken != null && _googleIdToken!.isNotEmpty) ||
+            (_googleAccessToken != null && _googleAccessToken!.isNotEmpty);
     final adminEmail = isGooglePath
         ? (_googleEmail?.trim() ?? '')
         : _emailController.text.trim();
@@ -516,6 +562,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         );
       }
 
+      // Mark tutorial as not-seen for newly created accounts so authenticated
+      // routing can launch first-run guidance exactly once.
+      await ref.read(tokenStorageProvider).saveFirstRunTutorialSeen(false);
+      ref.invalidate(firstRunTutorialSeenProvider);
+      await ref.read(firstRunTutorialSeenProvider.future);
+
       if (registerResp.data is Map<String, dynamic>) {
         final registerData = registerResp.data as Map<String, dynamic>;
         final tenantRaw = registerData['tenant'];
@@ -547,6 +599,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       final auth = ref.read(authProvider);
       if (auth.status == AuthStatus.authenticated ||
           auth.status == AuthStatus.awaitingMfa) {
+        if (!isGooglePath && auth.status == AuthStatus.awaitingMfa) {
+          // Keep existing email OTP path, and request SMS OTP as best effort.
+          unawaited(ref.read(authProvider.notifier).requestSmsMfaCodeSilently());
+        }
         // Router redirect handles /dashboard or /mfa.
         context.go('/dashboard');
       } else {
@@ -656,8 +712,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       if (!_formKeys[0].currentState!.validate()) return;
       if (!_hasAuthForSubmit()) {
         setState(() {
-          _authErrorMessage =
-              'Connect with Google or enter email and password to continue.';
+          final hasGoogleEmail =
+              _googleEmail != null && _googleEmail!.trim().isNotEmpty;
+          final missingIdToken =
+              _googleIdToken == null || _googleIdToken!.isEmpty;
+          final missingAccessToken =
+              _googleAccessToken == null || _googleAccessToken!.isEmpty;
+          if (hasGoogleEmail &&
+              missingIdToken &&
+              missingAccessToken &&
+              !_showEmailPasswordForm) {
+            _authErrorMessage =
+                'Google sign-in did not finish securely. Tap Continue with Google again, or use email and password.';
+          } else {
+            _authErrorMessage =
+                'Connect with Google or enter email and password to continue.';
+          }
         });
         return;
       }
@@ -1170,12 +1240,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               ),
             ),
           ),
-          if (_googleEmail != null) ...[
+          if (_googleEmail != null && _googleEmail!.trim().isNotEmpty) ...[
             const SizedBox(height: 12),
             Text(
-              'Google connected: $_googleEmail',
+              (_googleIdToken != null && _googleIdToken!.isNotEmpty)
+                  ? 'Google connected: $_googleEmail'
+                  : 'Google account: $_googleEmail — tap Continue with Google again to finish.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.green.shade700,
+                color: (_googleIdToken != null && _googleIdToken!.isNotEmpty)
+                    ? Colors.green.shade700
+                    : Colors.orange.shade800,
                 fontWeight: FontWeight.w600,
               ),
             ),

@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:dio/dio.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
+import '../providers/dashboard_settings_provider.dart';
 import '../providers/delivery_zones_provider.dart';
 
 /// Arguments when opening the editor from the manage-zones list (optional).
@@ -19,6 +21,7 @@ class DeliveryZoneEditorArgs {
     this.initialFreeOverKes,
     this.initialHandlingDays,
     this.initialIsDefault = false,
+    this.returnToTutorialOnCreate = false,
   });
 
   final String? zoneKey;
@@ -28,6 +31,7 @@ class DeliveryZoneEditorArgs {
   final String? initialFreeOverKes;
   final String? initialHandlingDays;
   final bool initialIsDefault;
+  final bool returnToTutorialOnCreate;
 
   bool get isEditing => zoneKey != null && zoneKey!.isNotEmpty;
 }
@@ -91,6 +95,89 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
     };
   }
 
+  ({String fieldId, String message})? _mapServerValidationToField(dynamic raw) {
+    Map<String, dynamic>? asMap(dynamic v) {
+      if (v is Map<String, dynamic>) return v;
+      if (v is Map) return Map<String, dynamic>.from(v);
+      return null;
+    }
+
+    final body = asMap(raw);
+    if (body == null) return null;
+
+    String? firstMessageFor(dynamic value) {
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+      if (value is List) {
+        for (final item in value) {
+          if (item is String && item.trim().isNotEmpty) return item.trim();
+          if (item is Map) {
+            final m = Map<String, dynamic>.from(item);
+            final nested = firstMessageFor(
+              m['message'] ?? m['msg'] ?? m['error'] ?? m['detail'],
+            );
+            if (nested != null) return nested;
+          }
+        }
+      }
+      if (value is Map) {
+        final m = Map<String, dynamic>.from(value);
+        return firstMessageFor(
+          m['message'] ?? m['msg'] ?? m['error'] ?? m['detail'],
+        );
+      }
+      return null;
+    }
+
+    String mapFieldId(String key) {
+      final k = key.toLowerCase();
+      if (k.contains('name')) return 'name';
+      if (k.contains('area') || k.contains('coverage')) return 'areas';
+      if (k.contains('free') || k.contains('threshold')) return 'freeOver';
+      if (k.contains('day') || k.contains('handling') || k.contains('estimate')) {
+        return 'handlingDays';
+      }
+      if (k.contains('fee') || k.contains('rate') || k.contains('price')) return 'fee';
+      return 'name';
+    }
+
+    for (final key in ['errors', 'fieldErrors', 'validation', 'details']) {
+      final segment = body[key];
+      if (segment is Map) {
+        final map = Map<String, dynamic>.from(segment);
+        for (final entry in map.entries) {
+          final msg = firstMessageFor(entry.value);
+          if (msg != null) {
+            return (fieldId: mapFieldId(entry.key), message: msg);
+          }
+        }
+      }
+      if (segment is List) {
+        for (final item in segment) {
+          if (item is Map) {
+            final m = Map<String, dynamic>.from(item);
+            final keyName = (m['field'] ?? m['path'] ?? m['key'] ?? '').toString();
+            final msg = firstMessageFor(
+              m['message'] ?? m['msg'] ?? m['error'] ?? m['detail'],
+            );
+            if (keyName.isNotEmpty && msg != null) {
+              return (fieldId: mapFieldId(keyName), message: msg);
+            }
+          }
+        }
+      }
+    }
+
+    for (final entry in body.entries) {
+      if (entry.value is String || entry.value is List) {
+        final msg = firstMessageFor(entry.value);
+        if (msg != null) {
+          return (fieldId: mapFieldId(entry.key), message: msg);
+        }
+      }
+    }
+    return null;
+  }
+
   Future<void> _save() async {
     final name = _name.text.trim();
     if (name.isEmpty) {
@@ -133,21 +220,62 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
     final id = widget.args?.zoneKey;
     final editing = id != null && id.isNotEmpty;
     final body = _buildZoneBody();
-    final response =
-        editing ? await api.updateDeliveryZone(id, body) : await api.createDeliveryZone(body);
-    if (!mounted) return;
-    setState(() => _saving = false);
-    if (!response.success) {
+    try {
+      final response = editing
+          ? await api.updateDeliveryZone(id, body)
+          : await api.createDeliveryZone(body);
+      if (!mounted) return;
+      if (!response.success) {
+        final mapped = _mapServerValidationToField(response.error?.details);
+        if (mapped != null) {
+          reportFieldError(fieldId: mapped.fieldId, message: mapped.message);
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response.error?.message ?? 'Could not save zone')),
+        );
+        return;
+      }
+      ref.invalidate(deliveryZonesListProvider);
+      ref.invalidate(dashboardSettingsProvider);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(response.error?.message ?? 'Could not save zone')),
+        SnackBar(content: Text(editing ? 'Zone updated' : 'Zone created')),
       );
-      return;
+      if (!editing && (widget.args?.returnToTutorialOnCreate ?? false)) {
+        context.go('/first-run-tutorial');
+      } else {
+        context.pop();
+      }
+    } on DioException catch (e) {
+      if (!mounted) return;
+      String message = 'Could not save zone';
+      final body = e.response?.data;
+      if (body is Map<String, dynamic>) {
+        final mapped = _mapServerValidationToField(body);
+        if (mapped != null) {
+          reportFieldError(fieldId: mapped.fieldId, message: mapped.message);
+          return;
+        }
+        if (body['message'] is String && (body['message'] as String).isNotEmpty) {
+          message = body['message'] as String;
+        } else if (body['error'] is Map &&
+            (body['error'] as Map)['message'] is String) {
+          message = (body['error'] as Map)['message'] as String;
+        }
+      } else if ((e.message ?? '').isNotEmpty) {
+        message = e.message!;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not save zone')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-    ref.invalidate(deliveryZonesListProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(editing ? 'Zone updated' : 'Zone created')),
-    );
-    context.pop();
   }
 
   void _addAreaPrompt() {
@@ -363,7 +491,9 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                   theme,
                   icon: Icons.map_outlined,
                   title: 'Coverage',
-                  child: Column(
+                  child: KeyedSubtree(
+                    key: keyFor('areas'),
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
@@ -377,7 +507,7 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                       const SizedBox(height: 10),
                       if (_areas.isEmpty)
                         Text(
-                          'No areas yet. Add counties, cities, or neighborhoods customers can order from within this zone.',
+                          'No areas yet. Add counties, cities, or neighborhoods customers can order from within this zone (e.g. Nairobi CBD, Westlands, Nanyuki, Nakuru).',
                           style: GoogleFonts.inter(fontSize: 13, height: 1.4, color: theme.colorScheme.outline),
                         )
                       else
@@ -413,6 +543,7 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                         ),
                       ),
                     ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),

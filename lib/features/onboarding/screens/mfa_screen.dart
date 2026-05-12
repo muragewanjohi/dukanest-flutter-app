@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/auth/auth_state.dart';
+import '../../../core/providers/first_run_tutorial_seen_provider.dart';
 import '../providers/auth_provider.dart';
 
 /// Email OTP / MFA step after password login — layout from Stitch
@@ -102,20 +103,26 @@ class _MfaScreenState extends ConsumerState<MfaScreen> {
     setState(() => _isVerifying = false);
 
     if (ref.read(authProvider).status == AuthStatus.authenticated) {
+      ref.invalidate(firstRunTutorialSeenProvider);
+      await ref.read(firstRunTutorialSeenProvider.future);
       return;
     }
   }
 
   Future<void> _resend() async {
     setState(() => _isResending = true);
-    await ref.read(authProvider.notifier).resendMfaCode();
+    await ref.read(authProvider.notifier).resendMfaCode(includeSmsFallback: true);
     if (!mounted) return;
     setState(() => _isResending = false);
 
     if (!mounted) return;
     if (ref.read(authProvider).error == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('A new code has been sent to your email.')),
+        const SnackBar(
+          content: Text(
+            'A new code has been sent to your email. SMS delivery was also requested.',
+          ),
+        ),
       );
     }
   }

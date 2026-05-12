@@ -10,6 +10,7 @@ import '../../../core/auth/google_sign_in_config.dart';
 import '../providers/auth_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/providers/first_run_tutorial_seen_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -74,6 +75,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             _emailController.text.trim(),
             _passwordController.text,
           );
+      ref.invalidate(firstRunTutorialSeenProvider);
+      await ref.read(firstRunTutorialSeenProvider.future);
       final status = ref.read(authProvider).status;
       if (mounted) {
         if (status == AuthStatus.authenticated) {
@@ -110,30 +113,48 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _startSignInProgress();
     });
     try {
-      await ensureGoogleSignInInitialized();
-      final account = await GoogleSignIn.instance.authenticate(
-        scopeHint: const ['email', 'profile'],
-      );
+      final account = await authenticateGoogleInteractive();
       final auth = account.authentication;
-      if (auth.idToken != null) {
-        await ref.read(authProvider.notifier).googleSignIn(auth.idToken!);
-        final status = ref.read(authProvider).status;
+      final idToken = auth.idToken;
+      final accessToken = await resolveGoogleAccessToken(account);
+      if ((idToken != null && idToken.isNotEmpty) ||
+          (accessToken != null && accessToken.isNotEmpty)) {
+        await ref.read(authProvider.notifier).googleSignIn(
+              idToken,
+              accessToken: accessToken,
+            );
+        final authState = ref.read(authProvider);
+        ref.invalidate(firstRunTutorialSeenProvider);
+        await ref.read(firstRunTutorialSeenProvider.future);
+        final status = authState.status;
         if (mounted && status == AuthStatus.authenticated) {
           context.go('/dashboard');
         }
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not get Google sign-in credentials. Tap Continue with Google to try again.',
+            ),
+          ),
+        );
       }
     } on GoogleSignInException catch (e) {
-      if (mounted &&
-          e.code != GoogleSignInExceptionCode.canceled &&
-          e.code != GoogleSignInExceptionCode.interrupted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google Sign In failed: ${e.description}')),
+          SnackBar(
+            content: Text(e.description ?? 'Google sign-in failed. Please try again.'),
+            duration: const Duration(seconds: 6),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Google Sign In failed: $e')),
+          SnackBar(
+            content: Text('Google debug (exception): $e'),
+            duration: const Duration(seconds: 6),
+          ),
         );
       }
     } finally {

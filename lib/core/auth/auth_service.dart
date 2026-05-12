@@ -12,20 +12,36 @@ class AuthService {
 
   AuthService(this._dio);
 
+  static Map<String, dynamic>? _asObjectMap(dynamic raw) {
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    return null;
+  }
+
+  static ApiResponse<Map<String, dynamic>> _invalidEnvelope() {
+    return ApiResponse(
+      success: false,
+      error: ApiError(
+        code: 'INVALID_RESPONSE',
+        message: 'Unexpected response from server',
+      ),
+    );
+  }
+
   /// `GET /auth/me` — session restore (see API_MULTI_STORE_CHANGES / flutter_apis.md).
   Future<ApiResponse<Map<String, dynamic>>> getAuthMe() async {
     try {
       final response = await _dio.get('/auth/me');
+      final map = _asObjectMap(response.data);
+      if (map == null) return _invalidEnvelope();
       return ApiResponse.fromJson(
-        response.data as Map<String, dynamic>,
+        map,
         (json) => json as Map<String, dynamic>,
       );
     } on DioException catch (e) {
-      if (e.response != null) {
-        final raw = e.response!.data;
-        if (raw is Map<String, dynamic>) {
-          return ApiResponse.fromJson(raw, (json) => json as Map<String, dynamic>);
-        }
+      final errMap = _asObjectMap(e.response?.data);
+      if (errMap != null) {
+        return ApiResponse.fromJson(errMap, (json) => json as Map<String, dynamic>);
       }
       return ApiResponse(
         success: false,
@@ -40,10 +56,13 @@ class AuthService {
         'email': email,
         'password': password,
       });
-      return ApiResponse.fromJson(response.data, (json) => json as Map<String, dynamic>);
+      final map = _asObjectMap(response.data);
+      if (map == null) return _invalidEnvelope();
+      return ApiResponse.fromJson(map, (json) => json as Map<String, dynamic>);
     } on DioException catch (e) {
-      if (e.response != null) {
-        return ApiResponse.fromJson(e.response!.data as Map<String, dynamic>, (json) => json as Map<String, dynamic>);
+      final errMap = _asObjectMap(e.response?.data);
+      if (errMap != null) {
+        return ApiResponse.fromJson(errMap, (json) => json as Map<String, dynamic>);
       }
       return ApiResponse(success: false, error: ApiError(code: 'NETWORK_ERROR', message: e.message ?? 'Network error'));
     }
@@ -64,14 +83,17 @@ class AuthService {
           'refreshToken': tempRefreshToken,
         },
       });
+      final map = _asObjectMap(response.data);
+      if (map == null) return _invalidEnvelope();
       return ApiResponse.fromJson(
-        response.data as Map<String, dynamic>,
+        map,
         (json) => json as Map<String, dynamic>,
       );
     } on DioException catch (e) {
-      if (e.response != null) {
+      final errMap = _asObjectMap(e.response?.data);
+      if (errMap != null) {
         return ApiResponse.fromJson(
-          e.response!.data as Map<String, dynamic>,
+          errMap,
           (json) => json as Map<String, dynamic>,
         );
       }
@@ -82,19 +104,37 @@ class AuthService {
     }
   }
 
-  Future<ApiResponse<Map<String, dynamic>>> sendMfaCode(String userId) async {
+  Future<ApiResponse<Map<String, dynamic>>> sendMfaCode(
+    String userId, {
+    String? channel,
+    List<String>? channels,
+    String? phone,
+  }) async {
     try {
-      final response = await _dio.post('/auth/mfa/send-code', data: {
+      final payload = <String, dynamic>{
         'userId': userId,
-      });
+      };
+      if (channel != null && channel.trim().isNotEmpty) {
+        payload['channel'] = channel.trim();
+      }
+      if (channels != null && channels.isNotEmpty) {
+        payload['channels'] = channels;
+      }
+      if (phone != null && phone.trim().isNotEmpty) {
+        payload['phone'] = phone.trim();
+      }
+      final response = await _dio.post('/auth/mfa/send-code', data: payload);
+      final map = _asObjectMap(response.data);
+      if (map == null) return _invalidEnvelope();
       return ApiResponse.fromJson(
-        response.data as Map<String, dynamic>,
+        map,
         (json) => json as Map<String, dynamic>,
       );
     } on DioException catch (e) {
-      if (e.response != null) {
+      final errMap = _asObjectMap(e.response?.data);
+      if (errMap != null) {
         return ApiResponse.fromJson(
-          e.response!.data as Map<String, dynamic>,
+          errMap,
           (json) => json as Map<String, dynamic>,
         );
       }
@@ -112,14 +152,17 @@ class AuthService {
       final response = await _dio.post('/auth/forgot-password', data: {
         'email': email,
       });
+      final map = _asObjectMap(response.data);
+      if (map == null) return _invalidEnvelope();
       return ApiResponse.fromJson(
-        response.data as Map<String, dynamic>,
+        map,
         (json) => json as Map<String, dynamic>,
       );
     } on DioException catch (e) {
-      if (e.response != null) {
+      final errMap = _asObjectMap(e.response?.data);
+      if (errMap != null) {
         return ApiResponse.fromJson(
-          e.response!.data as Map<String, dynamic>,
+          errMap,
           (json) => json as Map<String, dynamic>,
         );
       }
@@ -134,21 +177,34 @@ class AuthService {
   }
 
   Future<ApiResponse<Map<String, dynamic>>> googleSignIn(
-    String idToken, {
+    String? idToken, {
     String? accessToken,
   }) async {
+    if ((idToken == null || idToken.isEmpty) &&
+        (accessToken == null || accessToken.isEmpty)) {
+      return ApiResponse(
+        success: false,
+        error: ApiError(
+          code: 'MISSING_GOOGLE_TOKEN',
+          message: 'Missing Google sign-in token',
+        ),
+      );
+    }
     try {
       final response = await _dio.post(
         '/auth/google',
         data: {
-          'idToken': idToken,
+          if (idToken != null && idToken.isNotEmpty) 'idToken': idToken,
           if (accessToken != null && accessToken.isNotEmpty) 'accessToken': accessToken,
         },
       );
-      return ApiResponse.fromJson(response.data, (json) => json as Map<String, dynamic>);
+      final map = _asObjectMap(response.data);
+      if (map == null) return _invalidEnvelope();
+      return ApiResponse.fromJson(map, (json) => json as Map<String, dynamic>);
     } on DioException catch (e) {
-      if (e.response != null) {
-        return ApiResponse.fromJson(e.response!.data as Map<String, dynamic>, (json) => json as Map<String, dynamic>);
+      final errMap = _asObjectMap(e.response?.data);
+      if (errMap != null) {
+        return ApiResponse.fromJson(errMap, (json) => json as Map<String, dynamic>);
       }
       return ApiResponse(success: false, error: ApiError(code: 'NETWORK_ERROR', message: e.message ?? 'Network error'));
     }

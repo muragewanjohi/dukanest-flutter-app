@@ -245,10 +245,15 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                     children: [
                       _switchRow(
                         theme,
-                        title: 'Local delivery',
+                        title: 'Allow delivery',
                         subtitle: 'Deliver within your city or metro area',
                         value: _localDelivery,
-                        onChanged: (v) => setState(() => _localDelivery = v),
+                        onChanged: (v) => setState(() {
+                          _localDelivery = v;
+                          if (!v) {
+                            _nationwide = false;
+                          }
+                        }),
                       ),
                       const Divider(height: 24),
                       _switchRow(
@@ -256,7 +261,10 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                         title: 'Nationwide shipping',
                         subtitle: 'Courier or partner delivery across the country',
                         value: _nationwide,
-                        onChanged: (v) => setState(() => _nationwide = v),
+                        onChanged: (v) {
+                          if (!_localDelivery && v) return;
+                          setState(() => _nationwide = v);
+                        },
                       ),
                       const Divider(height: 24),
                       _switchRow(
@@ -518,37 +526,97 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
   }
 
   Widget _manageZonesRow(BuildContext context, ThemeData theme) {
+    final inTutorialFlow =
+        GoRouterState.of(context).uri.queryParameters['tutorial'] == '1';
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => context.push('/shipping-zones'),
+        onTap: () => context.push(
+          inTutorialFlow ? '/shipping-zones?tutorial=1' : '/shipping-zones',
+        ),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Manage zones',
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Group areas and set fees per delivery zone',
-                      style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.colorScheme.primary.withValues(alpha: 0.18),
               ),
-              Icon(Icons.chevron_right_rounded, color: theme.colorScheme.outlineVariant),
-            ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Manage zones',
+                        style: GoogleFonts.inter(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Group areas and set fees per delivery zone',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Zone A: UpperHill, Town CBD, Delivery Cost: Ksh 250',
+                        style: GoogleFonts.inter(
+                          fontSize: 11.5,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Zone B: Westlands, HighRidge, Delivery Cost: Ksh 350',
+                        style: GoogleFonts.inter(
+                          fontSize: 11.5,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Open',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

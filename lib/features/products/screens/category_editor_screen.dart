@@ -291,6 +291,14 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
                         style: GoogleFonts.inter(fontSize: 15),
                         decoration: InputDecoration(
                           hintText: 'Enter category name',
+                          helperText:
+                              'Examples: Beverages, Snacks, Fresh produce, Electronics, Clothing & footwear.',
+                          helperMaxLines: 3,
+                          helperStyle: GoogleFonts.inter(
+                            fontSize: 12,
+                            height: 1.35,
+                            color: AppTheme.onSurfaceVariant,
+                          ),
                           filled: true,
                           fillColor: invalid
                               ? errorColor.withValues(alpha: 0.06)

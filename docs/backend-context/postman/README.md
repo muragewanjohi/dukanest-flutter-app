@@ -49,6 +49,8 @@ Update these variables in the environment:
 - **`mobile_mfa_code`** - OTP code for MFA verify (set manually while testing)
 - **`plan_id`** - Price plan ID (auto-set by Get Price Plans request)
 - **`cron_secret_token`** - Secret token for cron endpoints (set manually)
+- **`tumizi_base_url`** - Tumizi partner gateway base URL (e.g. `https://app.tumizi.africa`)
+- **`tumizi_partner_api_key`** - Tumizi partner bearer token
 - **`product_id`** - Product ID (auto-set by product requests)
 - **`variant_id`** - Product variant ID (auto-set by variant requests)
 - **`expense_id`** - Expense ID (set manually or from expense create/list response)
@@ -63,6 +65,7 @@ Update these variables in the environment:
 - **`mobile_device_id`** - Stable device id for register-device / notification preferences (default: `postman-device-1`)
 - **`mobile_push_token`** - FCM/APNs registration token for **Mobile Register Device**
 - **`mobile_mpesa_checkout_request_id`** - Set automatically by **Mobile M-Pesa Initiate** for **Mobile M-Pesa Status**
+- **`tumizi_provisioning_queued`** - Captures registration response flag indicating async Tumizi merchant provisioning was queued
 
 ---
 
@@ -82,6 +85,18 @@ Update these variables in the environment:
 - **Get Billing History** - View tenant billing history
 - **Get Price Plans** - List available price plans
 - **Subscription Expiry Checker** - Check for expired subscriptions (cron)
+
+### Tumizi Provisioning & Payments
+- **Register Tenant (mobile/web register endpoint)** - Creates tenant and queues Tumizi provisioning when Tumizi env is configured.
+- **Tumizi Provision Pending Merchants** (`/api/admin/integrations/tumizi/provision-pending`) - Cron worker that creates merchants for queued tenants.
+- **Tumizi Create Merchant** (`npm run tumizi:create-merchant ...`) - Script for manual create/validation.
+- **Tumizi Test Customer Payment** (`npm run tumizi:test-customer-payment ...`) - Script for live payment + status polling.
+
+Queue values written after registration:
+- `tenant_tumizi_integrations.metadata.autoProvision = true`
+- `tenant_tumizi_integrations.metadata.provisioning_status = "pending"`
+
+The merchant is created asynchronously by the provision-pending cron worker, not inline in registration.
 
 ### Products (Day 15)
 - **List Products** - List products with search, filtering, and pagination
@@ -116,7 +131,9 @@ Update these variables in the environment:
 - **Mobile Dashboard Orders** - Mobile order list with filters/pagination
 - **Mobile Dashboard Customers** - Mobile customer list with filters/pagination
 - **Mobile Dashboard Inventory** - Mobile inventory list with stock metrics
-- **Mobile Dashboard Settings** - Core store settings for mobile app
+- **Mobile Dashboard Settings** - Core store settings for mobile app (`GET`; includes `payment` with Tumizi parity fields when backend exposes them)
+- **Mobile Dashboard Settings (PATCH payment)** - Update payment block (cash / M-Pesa / Tumizi toggles, default method, timing, and M-Pesa sub-fields: send-money phone, till, paybill + account, pochi). **Camel + snake_case** keys mirror Flutter `PaymentSettingsScreen`. **Configuration only** — no customer payment or Tumizi STK from this endpoint. Requires `Authorization: Bearer {{mobile_access_token}}` after Mobile Login. See [TUMIZI_MOBILE_AND_SETTINGS.md](../tumizi/TUMIZI_MOBILE_AND_SETTINGS.md).
+- **Flutter merchant app (not in Postman):** wallet, withdrawals, refunds, and merchant profile edits for Tumizi use the **tenant web** session at `https://{store host}/dashboard/tumizi` (opened from the app’s Tumizi web dashboard screen / Payments link). Partner Gateway (`/api/partner/v1`) remains **server-side** reference only.
 - **Mobile Dashboard Sales** - Sales/promotions list with pagination
 - **Mobile Dashboard Analytics** - Revenue/trends/top products (`days` query)
 - **Mobile Dashboard P&L** - Profit & loss summary (`start_date`, `end_date`)
@@ -428,7 +445,7 @@ After each day, verify:
 ## 📝 Notes
 
 - **Collection:** `StoreFlow_API_Collection.json` — keep in sync when adding or changing API routes.
-- **Last documentation pass:** March 2026 (mobile dashboard extensions + onboarding starter-pack requests).
+- **Last documentation pass:** May 2026 (Tumizi mobile PATCH field parity with Flutter; Tumizi web dashboard scope note).
 
 ---
 

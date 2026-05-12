@@ -58,6 +58,16 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
   /// must persist the cleared value instead of leaving the server logo untouched.
   bool _logoClearedByUser = false;
 
+  String _normalizeAbsoluteUrl(String? raw) {
+    final s = (raw ?? '').trim();
+    if (s.isEmpty) return '';
+    if (s.startsWith('http://') || s.startsWith('https://')) return s;
+    if (s.startsWith('//')) return 'https:$s';
+    final base = AppConfig.publicApiBaseUrl.replaceFirst(RegExp(r'/$'), '');
+    if (s.startsWith('/')) return '$base$s';
+    return '$base/$s';
+  }
+
   static const _businessTypeOptions = [
     'Retail',
     'Wholesale',
@@ -115,10 +125,13 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     _supportEmail.text = settingsPick(store, ['contactEmail', 'contact_email', 'supportEmail']);
     _description.text = settingsPick(store, ['description', 'tagline']);
 
-    _logoImageUrl = settingsPick(store, ['logoUrl', 'logo', 'storeLogo', 'logo_url'], fallback: '')
-        .isEmpty
-        ? null
-        : settingsPick(store, ['logoUrl', 'logo', 'storeLogo', 'logo_url']);
+    final rawLogo = settingsPick(
+      store,
+      ['logoUrl', 'logo', 'storeLogo', 'logo_url'],
+      fallback: '',
+    );
+    final normalizedLogo = _normalizeAbsoluteUrl(rawLogo);
+    _logoImageUrl = normalizedLogo.isEmpty ? null : normalizedLogo;
 
     final bt = settingsPick(data, ['businessType', 'business_type']);
     if (bt.isNotEmpty && _businessTypeOptions.contains(bt)) {
@@ -272,9 +285,23 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       ref.invalidate(storeIdentityProvider);
       _logoClearedByUser = false;
       if (!mounted) return;
+      final fromTutorial =
+          GoRouterState.of(context).uri.queryParameters['tutorial'] == '1';
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Changes saved')),
+        SnackBar(
+          content: Text(
+            fromTutorial
+                ? 'Changes saved. Returning to tutorial…'
+                : 'Changes saved',
+          ),
+          duration: Duration(seconds: fromTutorial ? 3 : 2),
+        ),
       );
+      if (fromTutorial) {
+        await Future<void>.delayed(const Duration(milliseconds: 900));
+        if (!mounted) return;
+        context.go('/first-run-tutorial');
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -288,7 +315,9 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
 
   Future<void> _pickAndUploadLogo() async {
     if (_uploadingLogo) return;
-    final file = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 2048);
+    final source = await _showLogoSourcePicker();
+    if (!mounted || source == null) return;
+    final file = await _picker.pickImage(source: source, maxWidth: 2048);
     if (!mounted || file == null) return;
     setState(() {
       _uploadingLogo = true;
@@ -328,12 +357,14 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
         'public_url',
         'src',
       ]);
-      url = url.trim();
+      url = _normalizeAbsoluteUrl(url);
       if (url.isEmpty) {
         final data = inner['data'];
         if (data is Map) {
           final m = Map<String, dynamic>.from(data);
-          final u = settingsPick(m, ['url', 'publicUrl', 'path']);
+          final u = _normalizeAbsoluteUrl(
+            settingsPick(m, ['url', 'publicUrl', 'path']),
+          );
           if (u.isNotEmpty) {
             setState(() {
               _logoImageUrl = u;
@@ -366,6 +397,32 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
         });
       }
     }
+  }
+
+  Future<ImageSource?> _showLogoSourcePicker() async {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take photo'),
+              onTap: () => Navigator.of(ctx).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Upload from gallery'),
+              onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _clearLogo() {
@@ -878,7 +935,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       hint = 'Tap the X to remove the current logo.';
     } else {
       headline = 'Upload Store Logo';
-      hint = 'PNG, JPG up to 5MB (512x512px)';
+      hint = 'Take photo or upload PNG/JPG up to 5MB (512x512px)';
     }
 
     return Material(

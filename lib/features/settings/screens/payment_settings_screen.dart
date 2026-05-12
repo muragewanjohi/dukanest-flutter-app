@@ -12,7 +12,7 @@ import '../../../core/widgets/form_error_highlight.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../providers/dashboard_settings_provider.dart';
 
-/// Payment / M-Pesa configuration — Stitch: Payment Settings (d63f85c750fe4eb09247834fad7ca49f).
+/// Merchant admin: storefront payment options (cash / M-Pesa / Tumizi, defaults). Does not initiate customer payments. Stitch: Payment Settings (d63f85c750fe4eb09247834fad7ca49f).
 class PaymentSettingsScreen extends ConsumerStatefulWidget {
   const PaymentSettingsScreen({super.key});
 
@@ -23,12 +23,15 @@ class PaymentSettingsScreen extends ConsumerStatefulWidget {
 enum _PayTiming { beforeDelivery, afterDelivery, either }
 
 enum _MpesaMethod { sendMoney, buyGoods, paybill, pochi }
+enum _DefaultPaymentMethod { cash, mpesa, tumizi }
 
 class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     with FormErrorHighlightMixin {
   _PayTiming _timing = _PayTiming.afterDelivery;
   bool _cashEnabled = true;
   bool _mpesaEnabled = true;
+  bool _tumiziEnabled = false;
+  _DefaultPaymentMethod _defaultMethod = _DefaultPaymentMethod.cash;
   _MpesaMethod _mpesaMethod = _MpesaMethod.sendMoney;
   bool _saving = false;
   /// Server snapshot signature; avoids re-applying GET data on every local [setState] while still hydrating after refetch.
@@ -54,8 +57,21 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     final p = settingsSection(root, 'payment') ?? {};
     _cashEnabled = settingsPickBool(p, ['cash_enabled', 'cashEnabled', 'cod_enabled', 'cash'], fallback: true);
     _mpesaEnabled = settingsPickBool(p, ['mpesa_enabled', 'mpesaEnabled', 'mpesa'], fallback: true);
+    _tumiziEnabled = settingsPickBool(
+      p,
+      ['tumizi_enabled', 'tumiziEnabled', 'payment_tumizi_enabled'],
+      fallback: false,
+    );
     _timing = _parsePayTiming(
       settingsPick(p, ['payment_timing', 'paymentTiming', 'pay_timing', 'when_to_pay', 'whenToPay']),
+    );
+    _defaultMethod = _parseDefaultMethod(
+      settingsPick(p, [
+        'payment_method',
+        'paymentMethod',
+        'default_method',
+        'defaultMethod',
+      ]),
     );
     _mpesaMethod = _parseMpesa(
       settingsPick(p, ['mpesa_method', 'mpesaMethod', 'mpesa_type', 'mpesaType', 'lipa_method']),
@@ -105,6 +121,24 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     return _MpesaMethod.sendMoney;
   }
 
+  static _DefaultPaymentMethod _parseDefaultMethod(String raw) {
+    final s = raw.toLowerCase().trim();
+    if (s == 'mpesa') return _DefaultPaymentMethod.mpesa;
+    if (s == 'tumizi') return _DefaultPaymentMethod.tumizi;
+    return _DefaultPaymentMethod.cash;
+  }
+
+  String _apiDefaultMethod() {
+    switch (_defaultMethod) {
+      case _DefaultPaymentMethod.cash:
+        return 'cash';
+      case _DefaultPaymentMethod.mpesa:
+        return 'mpesa';
+      case _DefaultPaymentMethod.tumizi:
+        return 'tumizi';
+    }
+  }
+
   String _apiTiming() {
     switch (_timing) {
       case _PayTiming.beforeDelivery:
@@ -133,7 +167,28 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     if (!_cashEnabled && !_mpesaEnabled) {
       reportFieldError(
         fieldId: 'paymentMethods',
-        message: 'Enable cash or M-Pesa before saving.',
+        message: 'Enable at least one payment method before saving.',
+      );
+      return;
+    }
+    if (_defaultMethod == _DefaultPaymentMethod.cash && !_cashEnabled) {
+      reportFieldError(
+        fieldId: 'defaultPaymentMethod',
+        message: 'Cash is selected as default but Cash is disabled.',
+      );
+      return;
+    }
+    if (_defaultMethod == _DefaultPaymentMethod.mpesa && !_mpesaEnabled) {
+      reportFieldError(
+        fieldId: 'defaultPaymentMethod',
+        message: 'M-Pesa is selected as default but M-Pesa is disabled.',
+      );
+      return;
+    }
+    if (_defaultMethod == _DefaultPaymentMethod.tumizi && !_tumiziEnabled) {
+      reportFieldError(
+        fieldId: 'defaultPaymentMethod',
+        message: 'Tumizi can be default only when Tumizi is enabled.',
       );
       return;
     }
@@ -190,6 +245,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     try {
       final timing = _apiTiming();
       final mpesaMethod = _apiMpesaMethod();
+      final defaultMethod = _apiDefaultMethod();
       final mpesaPhone = _sendMoneyPhone.text.trim();
       final till = _tillNumber.text.trim();
       final paybill = _paybillNumber.text.trim();
@@ -202,6 +258,13 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
           'cash_enabled': _cashEnabled,
           'mpesaEnabled': _mpesaEnabled,
           'mpesa_enabled': _mpesaEnabled,
+          'tumiziEnabled': _tumiziEnabled,
+          'tumizi_enabled': _tumiziEnabled,
+          'payment_tumizi_enabled': _tumiziEnabled,
+          'paymentMethod': defaultMethod,
+          'payment_method': defaultMethod,
+          'defaultMethod': defaultMethod,
+          'default_method': defaultMethod,
           'paymentTiming': timing,
           'payment_timing': timing,
           'mpesaMethod': mpesaMethod,
@@ -375,6 +438,61 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                   onChanged: (v) => setState(() => _cashEnabled = v),
                 ),
                 const SizedBox(height: 12),
+                _methodToggleRow(
+                  theme,
+                  icon: Icons.account_balance_wallet_rounded,
+                  title: 'Tumizi',
+                  subtitle: 'Enable M-Pesa via Tumizi checkout',
+                  value: _tumiziEnabled,
+                  onChanged: (v) => setState(() => _tumiziEnabled = v),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Tumizi wallet & payouts (web)',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryDark,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'General information, merchant edits, withdrawals, and refunds use the tenant web '
+                  'dashboard (session sign-in), not separate tabs here.',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    height: 1.45,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => context.push('/tumizi-dashboard'),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 20),
+                  label: Text(
+                    'Open Tumizi dashboard',
+                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 46),
+                    alignment: Alignment.center,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Default Payment Method',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryDark,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                KeyedSubtree(
+                  key: keyFor('defaultPaymentMethod'),
+                  child: _defaultMethodCard(theme),
+                ),
+                const SizedBox(height: 12),
                 _mpesaSection(theme),
               ],
             ),
@@ -405,6 +523,84 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _defaultMethodCard(ThemeData theme) {
+    Widget tile({
+      required _DefaultPaymentMethod value,
+      required String label,
+      required bool enabled,
+    }) {
+      final selected = _defaultMethod == value;
+      return Opacity(
+        opacity: enabled ? 1 : 0.55,
+        child: InkWell(
+          onTap: enabled ? () => setState(() => _defaultMethod = value) : null,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                _radioDot(theme, selected: selected),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                if (!enabled)
+                  Text(
+                    'Disabled',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isFieldInvalid('defaultPaymentMethod')
+              ? theme.colorScheme.error
+              : theme.colorScheme.outlineVariant.withValues(alpha: 0.25),
+          width: isFieldInvalid('defaultPaymentMethod') ? 1.5 : 1,
+        ),
+      ),
+      child: Column(
+        children: [
+          tile(
+            value: _DefaultPaymentMethod.cash,
+            label: 'Cash',
+            enabled: _cashEnabled,
+          ),
+          tile(
+            value: _DefaultPaymentMethod.mpesa,
+            label: 'M-Pesa',
+            enabled: _mpesaEnabled,
+          ),
+          tile(
+            value: _DefaultPaymentMethod.tumizi,
+            label: 'Tumizi',
+            enabled: _tumiziEnabled,
           ),
         ],
       ),
@@ -586,14 +782,14 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.errorContainer.withValues(alpha: 0.45),
+                  color: const Color(0xFFFFF7E6),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: theme.colorScheme.error.withValues(alpha: 0.12)),
+                  border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.35)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.warning_amber_rounded, color: theme.colorScheme.error, size: 22),
+                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 22),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -604,7 +800,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: theme.colorScheme.onErrorContainer,
+                              color: const Color(0xFFB45309),
                             ),
                           ),
                           const SizedBox(height: 6),
@@ -613,7 +809,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               height: 1.4,
-                              color: theme.colorScheme.onErrorContainer,
+                              color: const Color(0xFF9A3412),
                             ),
                           ),
                         ],

@@ -4,11 +4,11 @@ Use this document as the bootstrap context for the new Flutter repository.
 
 ## Goal
 
-Build the **Flutter Shop Owner App (MVP)** for DukaNest using the existing backend mobile APIs under:
+Build the **Flutter Shop Owner / tenant admin app (MVP)** for DukaNest using the existing backend mobile APIs under:
 
 - `/api/v1/mobile/*`
 
-The app should let shop owners manage core operations from mobile (dashboard, orders, products, customers, inventory, notifications, settings), with Google Sign-In and M-Pesa support.
+The app should let shop owners manage core operations from mobile (dashboard, orders, products, customers, inventory, notifications, settings), with Google Sign-In and M-Pesa support. **It is not a customer checkout app** — payment method toggles (including Tumizi) configure what the **storefront** offers; they do not run customer payments in Flutter.
 
 ## Primary Reference Docs To Copy
 
@@ -28,6 +28,7 @@ Payments-specific (recommended):
 - `docs/mpesa-integration-quick-start.md`
 - `docs/mpesa-stk-push-troubleshooting.md`
 - `docs/mpesa-callback-url-setup.md`
+- `docs/backend-context/tumizi/TUMIZI_MOBILE_AND_SETTINGS.md` (Tumizi: **merchant admin** — configure storefront payment options; no in-app payment execution; browser link to web `/dashboard/tumizi` for wallet/refunds). Keep `postman/StoreFlow_API_Collection.json` **Mobile Dashboard Settings (PATCH payment)** body aligned with Flutter `PaymentSettingsScreen`.
 
 ## Current Backend Status (March 2026)
 

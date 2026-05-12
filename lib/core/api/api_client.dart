@@ -223,6 +223,11 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
+  Future<ApiResponse<dynamic>> removeDemoProducts() async {
+    final response = await _dio.delete('/dashboard/products/demo');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
   Future<ApiResponse<dynamic>> getProductVariants(String productId) async {
     final response = await _dio.get('/dashboard/products/$productId/variants');
     return ApiResponse.fromJson(response.data, (json) => json);

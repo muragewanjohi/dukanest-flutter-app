@@ -83,6 +83,25 @@ class MoreMenuScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 22),
           _MoreItem(
+            icon: Icons.account_balance_wallet_outlined,
+            iconColor: const Color(0xFF0F766E),
+            iconBackground: const Color(0xFFCCFBF1),
+            title: 'Tumizi (web dashboard)',
+            subtitle:
+                'Wallet, withdrawals, refunds, and merchant profile — opens your store site in the browser.',
+            onTap: () => context.push('/tumizi-dashboard'),
+          ),
+          const SizedBox(height: 12),
+          _MoreItem(
+            icon: Icons.school_outlined,
+            iconColor: const Color(0xFFD97706),
+            iconBackground: const Color(0xFFFFF4E5),
+            title: 'View Tutorial Again',
+            subtitle: 'Replay the getting-started walkthrough anytime.',
+            onTap: () => context.push('/first-run-tutorial?replay=1'),
+          ),
+          const SizedBox(height: 12),
+          _MoreItem(
             icon: Icons.settings_outlined,
             iconColor: theme.colorScheme.outline,
             iconBackground: const Color(0xFFF1F5F9),

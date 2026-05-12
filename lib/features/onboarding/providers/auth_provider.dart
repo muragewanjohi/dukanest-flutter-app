@@ -112,6 +112,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  Future<void> _ensureFirstRunTutorialFlagInitialized() async {
+    final exists = await _tokenStorage.hasFirstRunTutorialSeenFlag();
+    if (!exists) {
+      // On first successful login path, show tutorial exactly once.
+      await _tokenStorage.saveFirstRunTutorialSeen(false);
+    }
+  }
+
   Future<void> _checkInitialAuth() async {
     if (kDemoMode) {
       final token = await _tokenStorage.getAccessToken();
@@ -239,6 +247,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           : null;
 
       if (pendingMfa) {
+        await _ensureFirstRunTutorialFlagInitialized();
         final tokens = _extractTokens(data);
         final access = tokens.access;
         final refresh = tokens.refresh;
@@ -259,6 +268,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           clearError: true,
         );
       } else {
+        await _ensureFirstRunTutorialFlagInitialized();
         final tokens = _extractDirectTokens(data);
         final access = tokens.access;
         final refresh = tokens.refresh;
@@ -319,6 +329,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     );
 
     if (response.success && response.data != null) {
+      await _ensureFirstRunTutorialFlagInitialized();
       final d = response.data!;
       final tokens = _extractTokens(d);
       final access = tokens.access;
@@ -346,15 +357,33 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> resendMfaCode() async {
+  Future<void> resendMfaCode({bool includeSmsFallback = false}) async {
     final user = state.user;
     if (user == null) return;
     state = state.copyWith(clearError: true);
     final response = await _authService.sendMfaCode(user.id);
+    if (includeSmsFallback) {
+      await requestSmsMfaCodeSilently();
+    }
     if (!response.success) {
       state = state.copyWith(
         error: response.error?.message ?? 'Could not resend code',
       );
+    }
+  }
+
+  /// Best-effort secondary SMS request; never surfaces error to avoid
+  /// interrupting the primary email OTP flow.
+  Future<void> requestSmsMfaCodeSilently() async {
+    final user = state.user;
+    if (user == null) return;
+    try {
+      await _authService.sendMfaCode(
+        user.id,
+        channel: 'sms',
+      );
+    } catch (_) {
+      // Ignore — backend may not support SMS channel yet.
     }
   }
 
@@ -367,7 +396,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     );
   }
 
-  Future<void> googleSignIn(String idToken, {String? accessToken}) async {
+  Future<void> googleSignIn(String? idToken, {String? accessToken}) async {
     if (kDemoMode) {
       state = state.copyWith(
         status: AuthStatus.authenticated,
@@ -385,12 +414,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
 
     state = state.copyWith(clearError: true);
+    if ((idToken == null || idToken.isEmpty) &&
+        (accessToken == null || accessToken.isEmpty)) {
+      state = state.copyWith(
+        error: 'Could not complete Google sign-in. Please try again.',
+      );
+      return;
+    }
     final response = await _authService.googleSignIn(
       idToken,
       accessToken: accessToken,
     );
 
     if (response.success && response.data != null) {
+      await _ensureFirstRunTutorialFlagInitialized();
       final data = response.data!;
       final userMap = data['user'];
       if (userMap is! Map) {

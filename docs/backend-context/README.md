@@ -13,10 +13,9 @@
 
 ### 🔌 **API & Integration**
 - **[API_DOCUMENTATION.md](./API_DOCUMENTATION.md)** - Complete API reference and endpoints
-- **[API_MULTI_STORE_CHANGES.md](./API_MULTI_STORE_CHANGES.md)** - Mobile store context, pagination, and registration contract
-- **[MOBILE_PROJECT_CONTEXT.md](./MOBILE_PROJECT_CONTEXT.md)** - Flutter shop-owner MVP and `/api/v1/mobile/*` overview
-- **[FLUTTER_TENANT_WEB_PARITY_CHECKLIST.md](./FLUTTER_TENANT_WEB_PARITY_CHECKLIST.md)** - QA checklist: tenant mobile vs web dashboard parity
-- **[GOOGLE_SIGNIN_TEST_TO_PRODUCTION_CHECKLIST.md](./GOOGLE_SIGNIN_TEST_TO_PRODUCTION_CHECKLIST.md)** - Release checklist for Google Sign-In (includes OAuth consent switch to Production)
+- **[MOBILE_PROJECT_CONTEXT.md](./MOBILE_PROJECT_CONTEXT.md)** - Flutter merchant admin scope (dashboard, settings, no in-app customer checkout)
+- **[TUMIZI_MOBILE_AND_SETTINGS.md](./tumizi/TUMIZI_MOBILE_AND_SETTINGS.md)** - Tumizi: mobile **settings PATCH** parity, storefront readiness, web `/dashboard/tumizi` vs native app boundaries
+- **[postman/](./postman/)** - `StoreFlow_API_Collection.json` (keep mobile `PATCH …/dashboard/settings` payment examples aligned with Flutter `PaymentSettingsScreen`)
 
 ### 🚀 **Deployment & Operations**
 - **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - Production deployment and hosting
@@ -94,5 +93,5 @@ dukanest/
 
 **🚀 Ready to work with DukaNest? Start with the [Development Setup](../DEVELOPMENT.md) or explore the [System Architecture](./ARCHITECTURE.md).**
 
-**Last Updated:** January 2026
+**Last Updated:** May 2026 (mobile Tumizi docs + Postman payment payload sync)
 

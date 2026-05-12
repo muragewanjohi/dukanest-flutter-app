@@ -105,7 +105,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   late final TextEditingController _sku;
   late final TextEditingController _stock;
 
-  late List<String> _categoryOptions;
   late String _category;
   String? _campaign;
   bool _visible = true;
@@ -399,13 +398,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         p['quantity'];
     _stock.text = stock == null ? '' : stock.toString();
 
-    final category = _asString(
-      p['categoryName'] ?? p['category'],
-      fallback: _categoryOptions.isNotEmpty ? _categoryOptions.first : '',
+    _category = _asString(
+      p['categoryName'] ??
+          p['category'] ??
+          p['category_name'] ??
+          p['categoryLabel'],
     );
-    _category = _categoryOptions.contains(category)
-        ? category
-        : (_categoryOptions.isNotEmpty ? _categoryOptions.first : '');
 
     final statusRaw = (p['status'] ?? '').toString().toLowerCase();
     if (statusRaw.isNotEmpty) {
@@ -446,6 +444,11 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     }
 
     _applyVariantsFromProduct(p);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(categoriesListProvider).whenData(_syncCategoryAfterCategoriesLoad);
+    });
   }
 
   Future<void> _loadLiveProductIfEditing({bool forceRefresh = false}) async {
@@ -2145,7 +2148,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     super.initState();
     _loadRefreshHintPref();
     final isNew = widget.initialSku == null;
-    _categoryOptions = <String>[];
     _category = '';
     _name = TextEditingController();
     _description = TextEditingController();
@@ -2161,27 +2163,49 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     if (!isNew) {
       _loadLiveProductIfEditing();
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(categoriesListProvider.future).then((list) {
-        if (!mounted) return;
-        setState(() {
-          final names = list
-              .map((c) => c.name.trim())
-              .where((name) => name.isNotEmpty)
-              .toSet()
-              .toList()
-            ..sort();
-          _categoryOptions = names;
-          if (_categoryOptions.isNotEmpty) {
-            if (!_categoryOptions.contains(_category)) {
-              _category = _categoryOptions.first;
-            }
-          } else {
-            _category = '';
-          }
-        });
-      }).catchError((_) {});
-    });
+  }
+
+  List<String> _dropdownCategoryNames(List<CategoryEntry> categories) {
+    final names = categories
+        .map((c) => c.name.trim())
+        .where((n) => n.isNotEmpty)
+        .toList();
+    final seen = <String>{};
+    final unique = <String>[];
+    for (final n in names) {
+      final key = n.toLowerCase();
+      if (seen.add(key)) unique.add(n);
+    }
+    unique.sort(
+      (a, b) => a.toLowerCase().compareTo(b.toLowerCase()),
+    );
+    final cur = _category.trim();
+    if (cur.isNotEmpty &&
+        !unique.any((n) => n.toLowerCase() == cur.toLowerCase())) {
+      unique.insert(0, cur);
+    }
+    return unique;
+  }
+
+  void _syncCategoryAfterCategoriesLoad(List<CategoryEntry> list) {
+    final names = _dropdownCategoryNames(list);
+    if (names.isEmpty) return;
+    final desired = _category.trim();
+    if (desired.isEmpty) {
+      setState(() => _category = names.first);
+      return;
+    }
+    String? match;
+    for (final n in names) {
+      if (n.toLowerCase() == desired.toLowerCase()) {
+        match = n;
+        break;
+      }
+    }
+    if (match != null && match != _category) {
+      final canonical = match;
+      setState(() => _category = canonical);
+    }
   }
 
   Future<void> _loadRefreshHintPref() async {
@@ -2215,8 +2239,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     final theme = Theme.of(context);
     final isNew = widget.initialSku == null;
     final hasVariants = _variantLines.isNotEmpty;
-    final categories = ref.watch(categoriesListProvider).valueOrNull ??
-        const <CategoryEntry>[];
+    final categoriesAsync = ref.watch(categoriesListProvider);
+    ref.listen(categoriesListProvider, (_, next) {
+      next.whenData(_syncCategoryAfterCategoriesLoad);
+    });
+    final categories = categoriesAsync.valueOrNull ?? const <CategoryEntry>[];
+    final categoryNames = _dropdownCategoryNames(categories);
     CategoryEntry? selectedCategory;
     for (final c in categories) {
       if (c.name.trim().toLowerCase() == _category.trim().toLowerCase()) {
@@ -2553,43 +2581,164 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            Container(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.surfaceContainerLow,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: _categoryOptions.contains(_category)
-                                      ? _category
-                                      : null,
-                                  isExpanded: true,
-                                  icon: Icon(Icons.expand_more,
-                                      color:
-                                          theme.colorScheme.onSurfaceVariant),
-                                  hint: Text(
-                                    _categoryOptions.isEmpty
-                                        ? 'No categories yet. Create one first.'
-                                        : 'Select category',
+                            if (categoriesAsync.isLoading)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(999),
+                                  child: LinearProgressIndicator(
+                                    minHeight: 4,
+                                    backgroundColor: theme
+                                        .colorScheme.surfaceContainerHighest,
                                   ),
-                                  items: _categoryOptions
-                                      .map((c) => DropdownMenuItem(
-                                          value: c, child: Text(c)))
-                                      .toList(),
-                                  onChanged: _categoryOptions.isEmpty
-                                      ? null
-                                      : (v) => setState(
-                                          () => _category = v ?? _category),
                                 ),
                               ),
-                            ),
+                            if (categoriesAsync.hasError)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Could not load categories.',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.error,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        OutlinedButton.icon(
+                                          onPressed: () => ref.invalidate(
+                                              categoriesListProvider),
+                                          icon: const Icon(Icons.refresh_rounded,
+                                              size: 18),
+                                          label: const Text('Retry'),
+                                        ),
+                                        FilledButton.icon(
+                                          onPressed: () async {
+                                            await context.push('/categories');
+                                            ref.invalidate(
+                                                categoriesListProvider);
+                                          },
+                                          icon: const Icon(
+                                              Icons.category_outlined,
+                                              size: 18),
+                                          label:
+                                              const Text('Manage categories'),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            if (!categoriesAsync.isLoading &&
+                                !categoriesAsync.hasError &&
+                                categoryNames.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      'No categories yet. Create one to organize products on your storefront.',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    OutlinedButton.icon(
+                                      onPressed: () async {
+                                        await context.push('/categories');
+                                        ref.invalidate(categoriesListProvider);
+                                      },
+                                      icon: const Icon(Icons.add_rounded,
+                                          size: 20),
+                                      label: const Text('Add category'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            if (!categoriesAsync.isLoading &&
+                                !categoriesAsync.hasError &&
+                                categoryNames.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12),
+                                decoration: BoxDecoration(
+                                  color:
+                                      theme.colorScheme.surfaceContainerLow,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: () {
+                                      final cur = _category.trim();
+                                      if (cur.isEmpty) return null;
+                                      for (final n in categoryNames) {
+                                        if (n.toLowerCase() ==
+                                            cur.toLowerCase()) {
+                                          return n;
+                                        }
+                                      }
+                                      return null;
+                                    }(),
+                                    isExpanded: true,
+                                    icon: Icon(Icons.expand_more,
+                                        color: theme
+                                            .colorScheme.onSurfaceVariant),
+                                    hint: Text(
+                                      categoryNames.isEmpty
+                                          ? 'No categories yet'
+                                          : 'Select category',
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                        color: theme.colorScheme.outline,
+                                      ),
+                                    ),
+                                    items: categoryNames
+                                        .map((c) => DropdownMenuItem(
+                                            value: c, child: Text(c)))
+                                        .toList(),
+                                    onChanged: (v) => setState(
+                                        () => _category = v ?? _category),
+                                  ),
+                                ),
+                              ),
+                            if (!categoriesAsync.isLoading &&
+                                !categoriesAsync.hasError &&
+                                categoryNames.isNotEmpty)
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  onPressed: () async {
+                                    await context.push('/categories');
+                                    ref.invalidate(categoriesListProvider);
+                                  },
+                                  icon: Icon(
+                                    Icons.category_outlined,
+                                    size: 18,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                  label: const Text('Manage categories'),
+                                ),
+                              ),
                             const SizedBox(height: 8),
                             Text(
-                              selectedCategory == null
-                                  ? '${categories.length} categories available. Choose the closest match for storefront grouping.'
-                                  : '${selectedCategory.name} · ${selectedCategory.productCount} products. Subcategories appear nested when available.',
+                              categoriesAsync.isLoading
+                                  ? 'Loading categories…'
+                                  : categoriesAsync.hasError
+                                      ? 'Fix the load error above or open Categories to continue.'
+                                      : categories.isEmpty
+                                          ? 'Create categories so shoppers can browse by group.'
+                                          : selectedCategory == null
+                                              ? '${categories.length} categories available. Choose the closest match for storefront grouping.'
+                                              : '${selectedCategory.name} · ${selectedCategory.productCount} products. Subcategories appear nested when available.',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant,
                                 height: 1.35,

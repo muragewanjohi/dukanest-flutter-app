@@ -678,6 +678,18 @@ dev_dependencies:
 
 **Create-shop API:** Prefer **`POST /api/v1/mobile/auth/register`** (same body as web `POST /api/tenants/register`, mobile `{ success, data }` envelope). Alternatives: call web **`POST /api/tenants/register`** directly. Always use **`GET /api/tenants/check-subdomain`** for live availability. Required fields include **`adminPhone`** / optional **`adminPhoneCountry`**. After **201**: if you open the web dashboard, use **`data.loginUrl`** (tenant **`/dashboard/login`**; see **`docs/API_MULTI_STORE_CHANGES.md`** — *Post-registration redirect*). For in-app API access, call **`POST /api/v1/mobile/auth/login`** with the same credentials (then MFA if required).
 
+**Tumizi merchant auto-provisioning on registration (async):**
+- Registration does **not** block on Tumizi API calls.
+- Queue flag is written in `tenant_tumizi_integrations.metadata` with:
+  - `autoProvision = true`
+  - `provisioning_status = "pending"`
+- The worker endpoint **`GET /api/admin/integrations/tumizi/provision-pending`** creates Tumizi merchants from queued tenants.
+- Required runtime env to enqueue provisioning:
+  - `TUMIZI_BASE_URL`
+  - `TUMIZI_PARTNER_API_KEY`
+- If these env vars are present, registration response includes:
+  - `tumiziProvisioningQueued: true`
+
 **Google Sign-In requirements (Shop Owner app)**:
 - Add Google Sign-In on both **Login** and **Register** flows (Android + iOS)
 - Reuse existing Supabase Google OAuth project configuration already used by web
@@ -1233,7 +1245,181 @@ Launch                                                   ███████�
 
 ## Appendix A: Existing API Routes Reference
 
-**Shop-owner mobile (Flutter MVP)** — use `/api/v1/mobile/*` with Bearer auth: `auth/login`, `auth/google`, `auth/register`, `auth/*`, `dashboard/overview`, `dashboard/orders`, `dashboard/products`, `dashboard/customers`, `dashboard/inventory`, `dashboard/sales`, `dashboard/analytics`, `dashboard/settings`, `notifications/*`, `media/upload`, `mpesa/*`. Detail: Postman `StoreFlow_API_Collection.json` and `docs/API_MULTI_STORE_CHANGES.md`.
+**Shop-owner mobile (Flutter MVP)** — use `/api/v1/mobile/*` with Bearer auth. Source of truth for test payloads and params: `postman/StoreFlow_API_Collection.json`.
+
+### A.1 Base URL + Headers
+
+- Base URL: `{{base_url}}` (local default: `http://localhost:3000`)
+- Protected endpoints: `Authorization: Bearer <accessToken>`
+- JSON requests: `Content-Type: application/json`
+- File upload: `multipart/form-data` (`file` field)
+
+### A.2 Response Contract (Mobile Envelope)
+
+Most mobile endpoints return:
+
+```json
+{
+  "success": true,
+  "data": {}
+}
+```
+
+Error envelope:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "SOME_CODE",
+    "message": "Human-readable message"
+  }
+}
+```
+
+### A.3 Authentication Flow (Recommended for Flutter)
+
+1. `POST /api/v1/mobile/auth/login` **or** `POST /api/v1/mobile/auth/google`
+2. If `data.requiresMfa === true`:
+   - `POST /api/v1/mobile/auth/mfa/status`
+   - `POST /api/v1/mobile/auth/mfa/send-code`
+   - `POST /api/v1/mobile/auth/mfa/verify` (promotes temp session to full tokens)
+3. Use `accessToken` for protected endpoints.
+4. Refresh using `POST /api/v1/mobile/auth/refresh`.
+5. Logout via `POST /api/v1/mobile/auth/logout`.
+
+### A.4 Endpoint Matrix (Shop Owner Mobile)
+
+#### Auth
+
+| Method | Endpoint | Auth | Purpose |
+|---|---|---|---|
+| `POST` | `/api/v1/mobile/auth/login` | No | Email/password login; may return MFA step |
+| `POST` | `/api/v1/mobile/auth/google` | No | Exchange Google `idToken` for mobile session |
+| `POST` | `/api/v1/mobile/auth/register` | No | Create store + admin account (mobile envelope) |
+| `POST` | `/api/v1/mobile/auth/refresh` | No | Rotate access/refresh tokens |
+| `POST` | `/api/v1/mobile/auth/forgot-password` | No | Trigger reset flow (anti-enumeration response) |
+| `POST` | `/api/v1/mobile/auth/mfa/status` | No | Check MFA state for user |
+| `POST` | `/api/v1/mobile/auth/mfa/send-code` | No | Send OTP for MFA |
+| `POST` | `/api/v1/mobile/auth/mfa/verify` | No | Verify OTP + finalize auth |
+| `POST` | `/api/v1/mobile/auth/logout` | No | Revoke session using refresh token |
+
+#### Dashboard (Bearer required)
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/mobile/dashboard/overview` | KPI metrics + recent orders |
+| `GET` | `/api/v1/mobile/dashboard/products` | Product list (`page`, `limit`, `search`, `status`) |
+| `DELETE` | `/api/v1/mobile/dashboard/products/demo` | Remove demo products |
+| `GET` | `/api/v1/mobile/dashboard/orders` | Orders list (`page`, `limit`, `status`) |
+| `GET` | `/api/v1/mobile/dashboard/customers` | Customers list (`page`, `limit`, `search`) |
+| `GET` | `/api/v1/mobile/dashboard/inventory` | Inventory list + stats (`threshold`, `low_stock_only`) |
+| `GET` | `/api/v1/mobile/dashboard/settings` | Core store settings |
+| `PATCH` | `/api/v1/mobile/dashboard/settings` | Partial update (e.g. nested `payment`: cash/M-Pesa/Tumizi, default method); see `docs/backend-context/tumizi/TUMIZI_MOBILE_AND_SETTINGS.md` |
+| `POST` | `/api/v1/mobile/dashboard/settings/delete-account` | Soft-delete store (tenant_admin) |
+| `GET` | `/api/v1/mobile/dashboard/sales` | Sales/promotions list |
+| `GET` | `/api/v1/mobile/dashboard/analytics` | Aggregate analytics (`days`) |
+| `GET` | `/api/v1/mobile/dashboard/analytics/pnl` | Profit & Loss (`start_date`, `end_date`) |
+| `GET` | `/api/v1/mobile/dashboard/expense-categories` | List expense categories |
+| `POST` | `/api/v1/mobile/dashboard/expense-categories` | Create expense category |
+| `PATCH` | `/api/v1/mobile/dashboard/expense-categories/:id` | Update expense category |
+| `DELETE` | `/api/v1/mobile/dashboard/expense-categories/:id` | Delete expense category |
+| `GET` | `/api/v1/mobile/dashboard/expenses` | List expenses (date/category filters) |
+| `POST` | `/api/v1/mobile/dashboard/expenses` | Create expense record |
+| `PATCH` | `/api/v1/mobile/dashboard/expenses/:id` | Update expense record |
+| `DELETE` | `/api/v1/mobile/dashboard/expenses/:id` | Delete expense record |
+
+#### Notifications / Media / Payments (Bearer required)
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/mobile/notifications/list` | In-app notifications feed |
+| `POST` | `/api/v1/mobile/notifications/register-device` | Register push token/device |
+| `GET` | `/api/v1/mobile/notifications/preferences?deviceId=...` | Fetch per-device toggles |
+| `PUT` | `/api/v1/mobile/notifications/preferences?deviceId=...` | Update per-device toggles |
+| `POST` | `/api/v1/mobile/media/upload` | Upload image (`file`) |
+| `POST` | `/api/v1/mobile/mpesa/initiate` | Start STK push |
+| `GET` | `/api/v1/mobile/mpesa/status?checkoutRequestId=...` | Poll STK status |
+
+### A.5 Request Examples (from Postman collection)
+
+**Mobile Login**
+
+```json
+{
+  "email": "{{mobile_email}}",
+  "password": "{{mobile_password}}"
+}
+```
+
+**Mobile Google Sign-In**
+
+```json
+{
+  "idToken": "{{google_id_token}}",
+  "accessToken": "{{google_access_token}}"
+}
+```
+
+**Mobile Register (Create Store)**
+
+```json
+{
+  "name": "Test Mobile Store",
+  "subdomain": "{{tenant_subdomain}}",
+  "adminEmail": "{{mobile_email}}",
+  "adminPassword": "{{mobile_password}}",
+  "adminPhone": "+254712345678",
+  "adminPhoneCountry": "KE",
+  "authProvider": "email"
+}
+```
+
+**MFA Verify**
+
+```json
+{
+  "userId": "{{mobile_user_id}}",
+  "code": "{{mobile_mfa_code}}",
+  "tempSession": {
+    "accessToken": "{{mobile_temp_access_token}}",
+    "refreshToken": "{{mobile_temp_refresh_token}}"
+  }
+}
+```
+
+**Register Push Device**
+
+```json
+{
+  "deviceId": "{{mobile_device_id}}",
+  "token": "{{mobile_push_token}}",
+  "platform": "android",
+  "appVersion": "1.0.0",
+  "deviceName": "Postman"
+}
+```
+
+**M-Pesa Initiate**
+
+```json
+{
+  "phoneNumber": "254712345678",
+  "amount": 10,
+  "reference": "POSTMAN-TEST",
+  "description": "DukaNest mobile payment test"
+}
+```
+
+### A.6 Flutter Integration Notes
+
+- Save `accessToken` + `refreshToken` in secure storage.
+- If login returns `requiresMfa`, treat the session as partial until `mfa/verify`.
+- Add a token refresh interceptor for `401` retry via `/auth/refresh`.
+- Keep `deviceId` stable per install (used by notification preferences endpoints).
+- Always check subdomain availability before register:
+  - `GET /api/tenants/check-subdomain?subdomain=...`
+- `POST /api/v1/mobile/auth/register` mirrors web registration logic, but returns mobile envelope.
 
 The following existing API routes contain business logic that should be reused (not duplicated) in the mobile API layer:
 

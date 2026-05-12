@@ -1,18 +1,20 @@
 class AppConfig {
   const AppConfig._();
 
-  // Override with:
-  // flutter run --dart-define=API_BASE_URL=https://your-api/api/v1/mobile
+  /// Production defaults so Play Store / CI builds never ship pointing at the
+  /// emulator loopback. Override for local backend:
+  /// `--dart-define=API_BASE_URL=http://10.0.2.2:3000/api/v1/mobile`
+  /// `--dart-define=PUBLIC_API_BASE_URL=http://10.0.2.2:3000`
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:3000/api/v1/mobile',
+    defaultValue: 'https://www.dukanest.com/api/v1/mobile',
   );
 
   // Base host used by public/non-mobile-envelope endpoints like
   // GET /api/tenants/check-subdomain and POST /api/tenants/register.
   static const String publicApiBaseUrl = String.fromEnvironment(
     'PUBLIC_API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:3000',
+    defaultValue: 'https://www.dukanest.com',
   );
 
   /// Google OAuth 2.0 **Web application** client ID (`*.apps.googleusercontent.com`).
@@ -26,6 +28,8 @@ class AppConfig {
   /// ```
   static const String googleServerClientId = String.fromEnvironment(
     'GOOGLE_SERVER_CLIENT_ID',
-    defaultValue: '',
+    // OAuth client IDs are public identifiers. Keep this as a fallback so
+    // release builds cannot accidentally ship without Google Sign-In enabled.
+    defaultValue: '772287815251-eb8r1f4bqpudek9pubvnrm36tnv9js05.apps.googleusercontent.com',
   );
 }
