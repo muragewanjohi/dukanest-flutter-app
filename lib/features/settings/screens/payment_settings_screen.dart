@@ -27,7 +27,7 @@ enum _DefaultPaymentMethod { cash, mpesa, tumizi }
 
 class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     with FormErrorHighlightMixin {
-  _PayTiming _timing = _PayTiming.afterDelivery;
+  _PayTiming _timing = _PayTiming.beforeDelivery;
   bool _cashEnabled = true;
   bool _mpesaEnabled = true;
   bool _tumiziEnabled = false;
@@ -110,7 +110,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     final s = raw.toLowerCase().replaceAll('-', '_');
     if (s.contains('before')) return _PayTiming.beforeDelivery;
     if (s.contains('either') || s.contains('choice') || s.contains('any')) return _PayTiming.either;
-    return _PayTiming.afterDelivery;
+    if (s.contains('after')) return _PayTiming.afterDelivery;
+    return _PayTiming.beforeDelivery;
   }
 
   static _MpesaMethod _parseMpesa(String raw) {
@@ -164,7 +165,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
   }
 
   Future<void> _save() async {
-    if (!_cashEnabled && !_mpesaEnabled) {
+    if (!_cashEnabled && !_mpesaEnabled && !_tumiziEnabled) {
       reportFieldError(
         fieldId: 'paymentMethods',
         message: 'Enable at least one payment method before saving.',
@@ -188,7 +189,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     if (_defaultMethod == _DefaultPaymentMethod.tumizi && !_tumiziEnabled) {
       reportFieldError(
         fieldId: 'defaultPaymentMethod',
-        message: 'Tumizi can be default only when Tumizi is enabled.',
+        message: 'Tumizi wallet can be default only when Tumizi wallet is enabled.',
       );
       return;
     }
@@ -441,43 +442,14 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                 _methodToggleRow(
                   theme,
                   icon: Icons.account_balance_wallet_rounded,
-                  title: 'Tumizi',
-                  subtitle: 'Enable M-Pesa via Tumizi checkout',
+                  title: 'Tumizi wallet',
+                  subtitle:
+                      'Customers pay with an M-Pesa STK prompt; payments confirm automatically when this is on.',
                   value: _tumiziEnabled,
                   onChanged: (v) => setState(() => _tumiziEnabled = v),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'Tumizi wallet & payouts (web)',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.primaryDark,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'General information, merchant edits, withdrawals, and refunds use the tenant web '
-                  'dashboard (session sign-in), not separate tabs here.',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    height: 1.45,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
                 const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () => context.push('/tumizi-dashboard'),
-                  icon: const Icon(Icons.open_in_new_rounded, size: 20),
-                  label: Text(
-                    'Open Tumizi dashboard',
-                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 46),
-                    alignment: Alignment.center,
-                  ),
-                ),
+                _mpesaSection(theme),
                 const SizedBox(height: 16),
                 Text(
                   'Default Payment Method',
@@ -492,8 +464,6 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                   key: keyFor('defaultPaymentMethod'),
                   child: _defaultMethodCard(theme),
                 ),
-                const SizedBox(height: 12),
-                _mpesaSection(theme),
               ],
             ),
           ),
@@ -599,7 +569,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
           ),
           tile(
             value: _DefaultPaymentMethod.tumizi,
-            label: 'Tumizi',
+            label: 'Tumizi wallet',
             enabled: _tumiziEnabled,
           ),
         ],

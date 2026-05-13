@@ -292,7 +292,7 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
                         decoration: InputDecoration(
                           hintText: 'Enter category name',
                           helperText:
-                              'Examples: Beverages, Snacks, Fresh produce, Electronics, Clothing & footwear.',
+                              'Examples: Size, Weight, Colour. Different attributes such as colours, sizes, and weights can be added in the Attributes section.',
                           helperMaxLines: 3,
                           helperStyle: GoogleFonts.inter(
                             fontSize: 12,

@@ -78,6 +78,24 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
       route: '/products/new',
     ),
     _TutorialStep(
+      key: 'first_category',
+      title: 'Create your first category',
+      description: 'Organize your catalog so products are easy to find.',
+      actionLabel: 'Add Category',
+      completed: false,
+      icon: Icons.category_outlined,
+      route: '/categories/new',
+    ),
+    _TutorialStep(
+      key: 'attributes',
+      title: 'Add product attributes',
+      description: 'Create options like Size, Weight, and Colour for products.',
+      actionLabel: 'Add attribute',
+      completed: false,
+      icon: Icons.tune_outlined,
+      route: '/attributes/new',
+    ),
+    _TutorialStep(
       key: 'shipping',
       title: 'Configure delivery & shipping',
       description: 'Set up flat rate or delivery zones for orders.',
@@ -88,7 +106,7 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
     ),
     _TutorialStep(
       key: 'payment',
-      title: 'Set up checkout preferences',
+      title: 'Set up payment preferences',
       description: 'Enable Cash, M-Pesa, or other payment methods.',
       actionLabel: 'Set up payments',
       completed: false,
@@ -133,6 +151,9 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
   IconData _iconForStep(String key, String title) {
     final k = key.toLowerCase();
     final t = title.toLowerCase();
+    if (k.contains('attribute') || t.contains('attribute')) {
+      return Icons.tune_outlined;
+    }
     if (k.contains('category') || t.contains('categor')) {
       return Icons.category_outlined;
     }
@@ -163,6 +184,10 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
       case 'categories':
       case 'first_category':
         return Icons.category_outlined;
+      case 'attribute':
+      case 'attributes':
+      case 'product_attributes':
+        return Icons.tune_outlined;
       default:
         return Icons.checklist_rtl;
     }
@@ -171,6 +196,7 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
   /// When the API omits a step id we still map common titles to deep links.
   String? _inferRouteFromTitle(String title) {
     final t = title.toLowerCase();
+    if (t.contains('attribute')) return '/attributes/new';
     if (t.contains('categor')) return '/categories/new';
     if (t.contains('product') &&
         (t.contains('first') ||
@@ -190,6 +216,13 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
     return null;
   }
 
+  String _displayTitleForStep(String title) {
+    return title.replaceAll(
+      RegExp('checkout preferences', caseSensitive: false),
+      'payment preferences',
+    );
+  }
+
   String _footerCtaLabel(_TutorialStep step) {
     if (_isShareStoreStep(step)) return 'Share link';
     if (_isPreviewStoreStep(step)) return 'Preview store';
@@ -197,6 +230,9 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
     final k = step.key.toLowerCase();
     final t = step.title.toLowerCase();
     if (k.contains('category') || t.contains('categor')) return 'Add Category';
+    if (k.contains('attribute') || t.contains('attribute')) {
+      return 'Add attribute';
+    }
     if (k.contains('product') ||
         k.contains('catalog') ||
         (t.contains('product') && !t.contains('demo'))) {
@@ -255,6 +291,10 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
       case 'first_category':
       case 'catalog_category':
         return '/categories/new';
+      case 'attribute':
+      case 'attributes':
+      case 'product_attributes':
+        return '/attributes/new';
       case 'shipping':
       case 'delivery':
         return '/shipping-delivery';
@@ -285,7 +325,7 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
   List<_TutorialStep> _stepsFromGettingStarted(Map<String, dynamic>? gsData) {
     final items = gsData?['items'] ?? gsData?['steps'];
     if (items is! List || items.isEmpty) {
-      return _orderTutorialStepsPreviewShareLast(List<_TutorialStep>.of(_fallbackSteps));
+      return _orderTutorialSteps(List<_TutorialStep>.of(_fallbackSteps));
     }
 
     final out = <_TutorialStep>[];
@@ -305,7 +345,7 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
       out.add(
         _TutorialStep(
           key: normalizedKey,
-          title: title,
+          title: _displayTitleForStep(title),
           description: desc.isEmpty ? 'Complete this setup step to keep your store ready.' : desc,
           actionLabel: cta.isEmpty ? 'Continue' : cta,
           completed: completed,
@@ -315,14 +355,43 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
       );
     }
     if (out.isEmpty) {
-      return _orderTutorialStepsPreviewShareLast(List<_TutorialStep>.of(_fallbackSteps));
+      return _orderTutorialSteps(List<_TutorialStep>.of(_fallbackSteps));
     }
-    return _orderTutorialStepsPreviewShareLast(out);
+    return _orderTutorialSteps(_ensureAttributesStep(out));
   }
 
-  /// Preview and share steps always appear last (preview second-to-last, share last).
-  List<_TutorialStep> _orderTutorialStepsPreviewShareLast(List<_TutorialStep> steps) {
-    final head = <_TutorialStep>[];
+  _TutorialStep _defaultAttributesStep({bool completed = false}) {
+    return _TutorialStep(
+      key: 'attributes',
+      title: 'Add product attributes',
+      description: 'Create options like Size, Weight, and Colour for products.',
+      actionLabel: 'Add attribute',
+      completed: completed,
+      icon: Icons.tune_outlined,
+      route: '/attributes/new',
+    );
+  }
+
+  List<_TutorialStep> _ensureAttributesStep(List<_TutorialStep> steps) {
+    if (steps.any(_isAttributesStep)) return steps;
+    final next = List<_TutorialStep>.of(steps);
+    final categoryIndex = next.indexWhere(_isCategoryStep);
+    final productIndex = next.indexWhere(_isProductStep);
+    final insertAt = categoryIndex >= 0
+        ? categoryIndex + 1
+        : productIndex >= 0
+            ? productIndex + 1
+            : next.length;
+    next.insert(insertAt, _defaultAttributesStep());
+    return next;
+  }
+
+  /// Product is first, attributes follow category, preview/share stay last.
+  List<_TutorialStep> _orderTutorialSteps(List<_TutorialStep> steps) {
+    final products = <_TutorialStep>[];
+    final categories = <_TutorialStep>[];
+    final attributes = <_TutorialStep>[];
+    final middle = <_TutorialStep>[];
     final previews = <_TutorialStep>[];
     final shares = <_TutorialStep>[];
     for (final s in steps) {
@@ -330,11 +399,17 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
         shares.add(s);
       } else if (_isPreviewStoreStep(s)) {
         previews.add(s);
+      } else if (_isProductStep(s)) {
+        products.add(s);
+      } else if (_isCategoryStep(s)) {
+        categories.add(s);
+      } else if (_isAttributesStep(s)) {
+        attributes.add(s);
       } else {
-        head.add(s);
+        middle.add(s);
       }
     }
-    return [...head, ...previews, ...shares];
+    return [...products, ...categories, ...attributes, ...middle, ...previews, ...shares];
   }
 
   Future<void> _completeTutorial() async {
@@ -399,10 +474,34 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
         (title.contains('demo') && title.contains('product'));
   }
 
+  bool _isProductStep(_TutorialStep step) {
+    final key = step.key.toLowerCase();
+    final title = step.title.toLowerCase();
+    return key == 'product' ||
+        key == 'first_product' ||
+        key == 'catalog' ||
+        (title.contains('product') &&
+            title.contains('first') &&
+            !title.contains('demo'));
+  }
+
+  bool _isCategoryStep(_TutorialStep step) {
+    final key = step.key.toLowerCase();
+    final title = step.title.toLowerCase();
+    return key.contains('category') || title.contains('categor');
+  }
+
+  bool _isAttributesStep(_TutorialStep step) {
+    final key = step.key.toLowerCase();
+    final title = step.title.toLowerCase();
+    return key.contains('attribute') || title.contains('attribute');
+  }
+
   _TutorialIllustrKind _illustrationKind(_TutorialStep step) {
     if (_isRemoveDemoProductsStep(step)) return _TutorialIllustrKind.demo;
     if (_isShareStoreStep(step)) return _TutorialIllustrKind.share;
     if (_isPreviewStoreStep(step)) return _TutorialIllustrKind.preview;
+    if (_isAttributesStep(step)) return _TutorialIllustrKind.attributes;
     final k = step.key.toLowerCase();
     final t = step.title.toLowerCase();
     if (k.contains('category') || t.contains('categor')) {
@@ -897,6 +996,7 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
 
 enum _TutorialIllustrKind {
   category,
+  attributes,
   product,
   shipping,
   payment,
@@ -949,6 +1049,8 @@ class _TutorialIllustration extends StatelessWidget {
                     child: switch (kind) {
                       _TutorialIllustrKind.category =>
                         const _CategoryIllustrationBody(),
+                      _TutorialIllustrKind.attributes =>
+                        const _AttributesIllustrationBody(),
                       _TutorialIllustrKind.product =>
                         const _ProductIllustrationBody(),
                       _TutorialIllustrKind.shipping =>
@@ -1150,6 +1252,145 @@ class _CategoryIllustrationBody extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AttributesIllustrationBody extends StatelessWidget {
+  const _AttributesIllustrationBody();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _IllustrCaption(text: 'Options you’ll reuse'),
+        const SizedBox(height: 10),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: theme.colorScheme.shadow.withValues(alpha: 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.tune_rounded,
+                        color: theme.colorScheme.primary,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Product attributes',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.primaryDark,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _AttributesIllustrationBody._attributeChip(
+                      theme,
+                      Icons.straighten_rounded,
+                      'Size',
+                      'S, M, L',
+                    ),
+                    _AttributesIllustrationBody._attributeChip(
+                      theme,
+                      Icons.scale_rounded,
+                      'Weight',
+                      '250g, 500g',
+                    ),
+                    _AttributesIllustrationBody._attributeChip(
+                      theme,
+                      Icons.palette_outlined,
+                      'Colour',
+                      'Black, Blue',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static Widget _attributeChip(
+    ThemeData theme,
+    IconData icon,
+    String label,
+    String value,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 7),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

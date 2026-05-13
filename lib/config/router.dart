@@ -70,7 +70,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             location == '/shipping-zones' ||
             location == '/shipping-zone-editor' ||
             location.startsWith('/products') ||
-            location.startsWith('/categories');
+            location.startsWith('/categories') ||
+            location.startsWith('/attributes');
       }
 
       final tutorialBypass = state.uri.queryParameters['tutorial'] == '1';
@@ -226,6 +227,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/tumizi-dashboard',
         builder: (context, state) => const TumiziWebDashboardScreen(),
+      ),
+      GoRoute(
+        path: '/tumizi-dashboard/general',
+        builder: (context, state) => const TumiziGeneralInformationScreen(),
+      ),
+      GoRoute(
+        path: '/tumizi-dashboard/edit-merchant',
+        builder: (context, state) => const TumiziEditMerchantScreen(),
+      ),
+      GoRoute(
+        path: '/tumizi-dashboard/refunds',
+        builder: (context, state) => const TumiziRefundsScreen(),
+      ),
+      GoRoute(
+        path: '/tumizi-dashboard/withdrawals',
+        builder: (context, state) => const TumiziMpesaWithdrawalScreen(),
       ),
       GoRoute(
         path: '/shipping-delivery',

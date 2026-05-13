@@ -87,9 +87,23 @@ String _normalizeGettingStartedServerId(String id) {
       return 'sms';
     case 'delivery':
       return 'shipping';
+    case 'categories':
+    case 'first_category':
+    case 'catalog_category':
+      return 'category';
+    case 'attribute':
+    case 'product_attributes':
+      return 'attributes';
     default:
       return id.toLowerCase().trim();
   }
+}
+
+String _displayTitleForOnboardingStep(String title) {
+  return title.replaceAll(
+    RegExp('checkout preferences', caseSensitive: false),
+    'payment preferences',
+  );
 }
 
 List<_OnboardingStepUi> _mergeGettingStartedItems(
@@ -135,6 +149,29 @@ bool _onboardingStepUiIsPreview(_OnboardingStepUi s) {
       (title.contains('preview') && title.contains('store'));
 }
 
+bool _onboardingStepUiIsProduct(_OnboardingStepUi s) {
+  final key = (s.stepKey ?? '').toLowerCase();
+  final title = s.title.toLowerCase();
+  return key == 'product' ||
+      key == 'first_product' ||
+      key == 'catalog' ||
+      (title.contains('product') &&
+          title.contains('first') &&
+          !title.contains('demo'));
+}
+
+bool _onboardingStepUiIsCategory(_OnboardingStepUi s) {
+  final key = (s.stepKey ?? '').toLowerCase();
+  final title = s.title.toLowerCase();
+  return key.contains('category') || title.contains('categor');
+}
+
+bool _onboardingStepUiIsAttributes(_OnboardingStepUi s) {
+  final key = (s.stepKey ?? '').toLowerCase();
+  final title = s.title.toLowerCase();
+  return key.contains('attribute') || title.contains('attribute');
+}
+
 bool _onboardingStepUiIsShare(_OnboardingStepUi s) {
   final key = (s.stepKey ?? '').toLowerCase();
   final title = s.title.toLowerCase();
@@ -144,9 +181,11 @@ bool _onboardingStepUiIsShare(_OnboardingStepUi s) {
       title.contains('store link');
 }
 
-List<_OnboardingStepUi> _orderOnboardingStepsPreviewShareLast(
-    List<_OnboardingStepUi> steps) {
-  final head = <_OnboardingStepUi>[];
+List<_OnboardingStepUi> _orderOnboardingSteps(List<_OnboardingStepUi> steps) {
+  final products = <_OnboardingStepUi>[];
+  final categories = <_OnboardingStepUi>[];
+  final attributes = <_OnboardingStepUi>[];
+  final middle = <_OnboardingStepUi>[];
   final previews = <_OnboardingStepUi>[];
   final shares = <_OnboardingStepUi>[];
   for (final s in steps) {
@@ -154,11 +193,17 @@ List<_OnboardingStepUi> _orderOnboardingStepsPreviewShareLast(
       shares.add(s);
     } else if (_onboardingStepUiIsPreview(s)) {
       previews.add(s);
+    } else if (_onboardingStepUiIsProduct(s)) {
+      products.add(s);
+    } else if (_onboardingStepUiIsCategory(s)) {
+      categories.add(s);
+    } else if (_onboardingStepUiIsAttributes(s)) {
+      attributes.add(s);
     } else {
-      head.add(s);
+      middle.add(s);
     }
   }
-  return [...head, ...previews, ...shares];
+  return [...products, ...categories, ...attributes, ...middle, ...previews, ...shares];
 }
 
 void _postGettingStartedPreview(WidgetRef ref) {
@@ -313,7 +358,7 @@ List<_OnboardingStepUi> _parseOnboardingStepsFromOverview(
         .trim();
     out.add(_OnboardingStepUi(
       completed: completed,
-      title: title,
+      title: _displayTitleForOnboardingStep(title),
       actionLabel: actionLabel.isEmpty ? 'Open' : actionLabel,
       description: descRaw.isEmpty ? null : descRaw,
       durationHint: durRaw.isEmpty ? null : durRaw,
@@ -321,12 +366,10 @@ List<_OnboardingStepUi> _parseOnboardingStepsFromOverview(
       onAction: null,
     ));
   }
-  return out.isEmpty
-      ? defaultSteps
-      : _orderOnboardingStepsPreviewShareLast(out);
+  return out.isEmpty ? defaultSteps : _orderOnboardingSteps(out);
 }
 
-/// Matches web dashboard onboarding: 7 steps; only SMS alerts complete right after registration.
+/// Matches web dashboard onboarding; only SMS alerts complete right after registration.
 /// Preview and share are always last (preview second-to-last, share last).
 List<_OnboardingStepUi> _defaultOnboardingStepsAfterRegistration() {
   return const [
@@ -339,6 +382,22 @@ List<_OnboardingStepUi> _defaultOnboardingStepsAfterRegistration() {
       stepKey: 'product',
     ),
     _OnboardingStepUi(
+      completed: false,
+      title: 'Create your first category',
+      description: 'Organize your catalog so products are easy to find.',
+      durationHint: 'Takes 1 minute',
+      actionLabel: 'Add Category',
+      stepKey: 'category',
+    ),
+    _OnboardingStepUi(
+      completed: false,
+      title: 'Add product attributes',
+      description: 'Create options like Size, Weight, and Colour for products.',
+      durationHint: 'Takes 2 minutes',
+      actionLabel: 'Add attribute',
+      stepKey: 'attributes',
+    ),
+    _OnboardingStepUi(
       completed: true,
       title: 'Get order alerts via SMS',
       description: 'Add your phone number so you never miss a customer order.',
@@ -347,7 +406,7 @@ List<_OnboardingStepUi> _defaultOnboardingStepsAfterRegistration() {
     ),
     _OnboardingStepUi(
       completed: false,
-      title: 'Set up checkout preferences',
+      title: 'Set up payment preferences',
       description: 'Enable Cash, M-Pesa, or other payment methods.',
       actionLabel: 'Set up payments',
       stepKey: 'payment',
@@ -503,6 +562,15 @@ class DashboardScreen extends ConsumerWidget {
         onAction = () => context.push('/settings');
       } else if (k == 'product' || k == 'first_product' || k == 'catalog') {
         onAction = () => context.push('/products/new');
+      } else if (k == 'category' ||
+          k == 'categories' ||
+          k == 'first_category' ||
+          k == 'catalog_category') {
+        onAction = () => context.push('/categories/new');
+      } else if (k == 'attribute' ||
+          k == 'attributes' ||
+          k == 'product_attributes') {
+        onAction = () => context.push('/attributes/new');
       } else if (k == 'preview_store' || k == 'preview') {
         if (url != null && url.isNotEmpty) {
           onAction = () {
@@ -558,6 +626,10 @@ class DashboardScreen extends ConsumerWidget {
           onAction = () => context.push('/settings');
         } else if (t.contains('product') && t.contains('first')) {
           onAction = () => context.push('/products/new');
+        } else if (t.contains('categor')) {
+          onAction = () => context.push('/categories/new');
+        } else if (t.contains('attribute')) {
+          onAction = () => context.push('/attributes/new');
         } else if (t.contains('preview')) {
           if (url != null && url.isNotEmpty) {
             onAction = () {

@@ -329,6 +329,43 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
+  Future<ApiResponse<dynamic>> getTumiziMerchant({Uri? apiUri}) async {
+    final response = await _dio.get(apiUri?.toString() ?? '/tumizi/merchant');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> patchTumiziMerchant(
+    Map<String, dynamic> body, {
+    Uri? apiUri,
+  }) async {
+    final response = await _dio.patch(
+      apiUri?.toString() ?? '/tumizi/merchant',
+      data: body,
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getTumiziWallet({Uri? apiUri}) async {
+    final response = await _dio.get(apiUri?.toString() ?? '/tumizi/wallet');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> postTumiziWalletWithdrawal(
+    Map<String, dynamic> body, {
+    Uri? apiUri,
+  }) async {
+    final response = await _dio.post(
+      apiUri?.toString() ?? '/tumizi/wallet',
+      data: body,
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getTumiziRefunds({Uri? apiUri}) async {
+    final response = await _dio.get(apiUri?.toString() ?? '/tumizi/refunds');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
   Future<ApiResponse<dynamic>> getDeliveryZones() async {
     final response = await _dio.get('/dashboard/delivery-zones');
     return ApiResponse.fromJson(response.data, (json) => json);
