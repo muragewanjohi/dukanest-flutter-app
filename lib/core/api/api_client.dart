@@ -329,40 +329,42 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> getTumiziMerchant({Uri? apiUri}) async {
-    final response = await _dio.get(apiUri?.toString() ?? '/tumizi/merchant');
+  Future<ApiResponse<dynamic>> getTumiziSettings() async {
+    final response = await _dio.get('/dashboard/tumizi/settings');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> postTumiziSettings(
+      Map<String, dynamic> body) async {
+    final response = await _dio.post('/dashboard/tumizi/settings', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getTumiziMerchant() async {
+    final response = await _dio.get('/dashboard/tumizi/merchant');
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
   Future<ApiResponse<dynamic>> patchTumiziMerchant(
-    Map<String, dynamic> body, {
-    Uri? apiUri,
-  }) async {
-    final response = await _dio.patch(
-      apiUri?.toString() ?? '/tumizi/merchant',
-      data: body,
-    );
+      Map<String, dynamic> body) async {
+    final response = await _dio.patch('/dashboard/tumizi/merchant', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> getTumiziWallet({Uri? apiUri}) async {
-    final response = await _dio.get(apiUri?.toString() ?? '/tumizi/wallet');
+  Future<ApiResponse<dynamic>> getTumiziWallet() async {
+    final response = await _dio.get('/dashboard/tumizi/wallet');
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
   Future<ApiResponse<dynamic>> postTumiziWalletWithdrawal(
-    Map<String, dynamic> body, {
-    Uri? apiUri,
-  }) async {
-    final response = await _dio.post(
-      apiUri?.toString() ?? '/tumizi/wallet',
-      data: body,
-    );
+      Map<String, dynamic> body) async {
+    final response =
+        await _dio.post('/dashboard/tumizi/wallet/withdrawals', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
-  Future<ApiResponse<dynamic>> getTumiziRefunds({Uri? apiUri}) async {
-    final response = await _dio.get(apiUri?.toString() ?? '/tumizi/refunds');
+  Future<ApiResponse<dynamic>> getTumiziRefunds() async {
+    final response = await _dio.get('/dashboard/tumizi/refunds');
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 

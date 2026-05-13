@@ -1,29 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:dio/dio.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
-import '../../../core/providers/store_identity_provider.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
-import '../providers/dashboard_settings_provider.dart';
-import '../tumizi_dashboard_url.dart';
 
 final _tumiziMerchantProvider =
     FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
   final api = ref.watch(apiClientProvider);
-  final apiUri = await _tumiziApiUri(ref, '/api/tumizi/merchant');
   try {
-    final response = await api.getTumiziMerchant(apiUri: apiUri);
+    final response = await api.getTumiziMerchant();
     if (!response.success || response.data == null) {
       throw StateError(
         response.error?.message ?? 'Failed to load Tumizi merchant details',
       );
     }
     return _asMap(response.data);
-  } catch (e) {
+  } on DioException catch (e) {
     throw StateError(_tumiziApiErrorMessage(e, 'merchant details'));
   }
 });
@@ -31,15 +27,14 @@ final _tumiziMerchantProvider =
 final _tumiziWalletProvider =
     FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
   final api = ref.watch(apiClientProvider);
-  final apiUri = await _tumiziApiUri(ref, '/api/tumizi/wallet');
   try {
-    final response = await api.getTumiziWallet(apiUri: apiUri);
+    final response = await api.getTumiziWallet();
     if (!response.success || response.data == null) {
       throw StateError(
           response.error?.message ?? 'Failed to load Tumizi wallet');
     }
     return _asMap(response.data);
-  } catch (e) {
+  } on DioException catch (e) {
     throw StateError(_tumiziApiErrorMessage(e, 'wallet'));
   }
 });
@@ -47,9 +42,8 @@ final _tumiziWalletProvider =
 final _tumiziRefundsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final api = ref.watch(apiClientProvider);
-  final apiUri = await _tumiziApiUri(ref, '/api/tumizi/refunds');
   try {
-    final response = await api.getTumiziRefunds(apiUri: apiUri);
+    final response = await api.getTumiziRefunds();
     if (!response.success || response.data == null) {
       throw StateError(response.error?.message ?? 'Failed to load refunds');
     }
@@ -61,38 +55,20 @@ final _tumiziRefundsProvider =
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
-  } catch (e) {
+  } on DioException catch (e) {
     throw StateError(_tumiziApiErrorMessage(e, 'refunds'));
   }
 });
-
-Future<Uri> _tumiziApiUri(Ref ref, String path) async {
-  final identity = await ref.watch(storeIdentityProvider.future);
-  return _tumiziApiUriForIdentity(identity, path);
-}
-
-Uri _tumiziApiUriForIdentity(StoreIdentity identity, String path) {
-  final uri = buildTumiziApiUri(
-    path: path,
-    storeUrl: identity.storeUrl,
-    subdomain: identity.subdomain,
-  );
-  if (uri == null) {
-    throw StateError(
-        'Store URL is not available. Set your store domain first.');
-  }
-  return uri;
-}
 
 String _tumiziApiErrorMessage(Object error, String section) {
   if (error is DioException) {
     final code = error.response?.statusCode;
     if (code == 404) {
-      return 'Could not find the Tumizi $section endpoint on your store host. '
-          'This usually means the tenant Tumizi web routes are not deployed for this store yet.';
+      return 'Could not find the mobile Tumizi $section endpoint. '
+          'Confirm /api/v1/mobile/dashboard/tumizi routes are deployed.';
     }
     if (code == 401 || code == 403) {
-      return 'Tumizi $section requires web dashboard access. Please sign in again or confirm your account has permission.';
+      return 'Tumizi $section requires mobile dashboard access. Please sign in again or confirm your account has permission.';
     }
     return 'Could not load Tumizi $section${code == null ? '' : ' (HTTP $code)'}.';
   }
@@ -156,7 +132,7 @@ class TumiziWebDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final settings = ref.watch(dashboardSettingsProvider);
+    final wallet = ref.watch(_tumiziWalletProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
@@ -170,7 +146,7 @@ class TumiziWebDashboardScreen extends ConsumerWidget {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 340),
               child: _TumiziWithdrawalCta(
-                onPressed: () => _openTumiziDashboard(context, ref),
+                onPressed: () => context.push('/tumizi-dashboard/withdrawals'),
               ),
             ),
           ),
@@ -192,7 +168,7 @@ class TumiziWebDashboardScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
-          _TumiziWalletSummaryCard(settings: settings),
+          _TumiziWalletSummaryCard(wallet: wallet),
           const SizedBox(height: 24),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -213,7 +189,7 @@ class TumiziWebDashboardScreen extends ConsumerWidget {
             iconBackground: const Color(0xFFE0F2FE),
             title: 'General information',
             subtitle: 'View your merchant account details',
-            onTap: () => _openTumiziDashboard(context, ref),
+            onTap: () => context.push('/tumizi-dashboard/general'),
           ),
           const SizedBox(height: 8),
           _TumiziManageCard(
@@ -222,7 +198,7 @@ class TumiziWebDashboardScreen extends ConsumerWidget {
             iconBackground: const Color(0xFFE9FCCD),
             title: 'Edit merchant',
             subtitle: 'Update your business information',
-            onTap: () => _openTumiziDashboard(context, ref),
+            onTap: () => context.push('/tumizi-dashboard/edit-merchant'),
           ),
           const SizedBox(height: 8),
           _TumiziManageCard(
@@ -231,41 +207,11 @@ class TumiziWebDashboardScreen extends ConsumerWidget {
             iconBackground: const Color(0xFFFFF7E6),
             title: 'Refunds',
             subtitle: 'Manage your refund policy',
-            onTap: () => _openTumiziDashboard(context, ref),
+            onTap: () => context.push('/tumizi-dashboard/refunds'),
           ),
         ],
       ),
     );
-  }
-
-  Future<void> _openTumiziDashboard(BuildContext context, WidgetRef ref) async {
-    try {
-      final identity = await ref.read(storeIdentityProvider.future);
-      if (!context.mounted) return;
-      final uri = buildTumiziWebDashboardUri(
-        storeUrl: identity.storeUrl,
-        subdomain: identity.subdomain,
-      );
-      if (uri == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Store URL is not available yet.')),
-        );
-        return;
-      }
-      final launched = await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-      );
-      if (!context.mounted || launched) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open Tumizi dashboard.')),
-      );
-    } catch (_) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open Tumizi dashboard.')),
-      );
-    }
   }
 }
 
@@ -349,13 +295,13 @@ class _TumiziManageCard extends StatelessWidget {
 }
 
 class _TumiziWalletSummaryCard extends StatelessWidget {
-  const _TumiziWalletSummaryCard({required this.settings});
+  const _TumiziWalletSummaryCard({required this.wallet});
 
-  final AsyncValue<Map<String, dynamic>?> settings;
+  final AsyncValue<Map<String, dynamic>> wallet;
 
   @override
   Widget build(BuildContext context) {
-    return settings.when(
+    return wallet.when(
       loading: () => const _TumiziWalletSummaryShell(
         balance: 'KES 0.00',
         status: 'Loading',
@@ -366,15 +312,22 @@ class _TumiziWalletSummaryCard extends StatelessWidget {
         status: 'Unavailable',
       ),
       data: (root) {
-        final payment = settingsSection(root, 'payment') ?? const {};
-        final tumiziEnabled = settingsPickBool(
-          payment,
-          ['tumizi_enabled', 'tumiziEnabled', 'payment_tumizi_enabled'],
+        final wallet = _section(root, ['wallet', 'data']);
+        final source = wallet.isEmpty ? root : wallet;
+        final balance = _walletBalance(source, root);
+        final currency = _pick(
+          [source, root],
+          ['currency', 'walletCurrency', 'wallet_currency'],
+        );
+        final status = _pick(
+          [source, root],
+          ['accountStatus', 'account_status', 'status', 'enabled', 'active'],
         );
 
         return _TumiziWalletSummaryShell(
-          balance: 'KES 0.00',
-          status: tumiziEnabled ? 'Active' : 'Inactive',
+          balance:
+              '${currency == '-' ? 'KES' : currency} ${balance.toStringAsFixed(2)}',
+          status: status == '-' ? 'Active' : status,
         );
       },
     );
@@ -834,11 +787,8 @@ class _TumiziEditMerchantScreenState
           'status': _merchantStatus,
         },
       };
-      final identity = await ref.read(storeIdentityProvider.future);
-      final apiUri = _tumiziApiUriForIdentity(identity, '/api/tumizi/merchant');
-      final response = await ref
-          .read(apiClientProvider)
-          .patchTumiziMerchant(body, apiUri: apiUri);
+      final response =
+          await ref.read(apiClientProvider).patchTumiziMerchant(body);
       if (!mounted) return;
       if (!response.success) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1756,20 +1706,14 @@ class _TumiziMpesaWithdrawalScreenState
     }
     setState(() => _submitting = true);
     try {
-      final identity = await ref.read(storeIdentityProvider.future);
-      final apiUri = _tumiziApiUriForIdentity(identity, '/api/tumizi/wallet');
       final response =
           await ref.read(apiClientProvider).postTumiziWalletWithdrawal(
         {
           'amount': amount,
           'phoneNumber': phone,
-          'phone_number': phone,
-          'mpesaPhoneNumber': phone,
-          'mpesa_phone_number': phone,
           if (_narration.text.trim().isNotEmpty)
             'narration': _narration.text.trim(),
         },
-        apiUri: apiUri,
       );
       if (!mounted) return;
       if (!response.success) {

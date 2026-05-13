@@ -14,7 +14,7 @@
 ### 🔌 **API & Integration**
 - **[API_DOCUMENTATION.md](./API_DOCUMENTATION.md)** - Complete API reference and endpoints
 - **[MOBILE_PROJECT_CONTEXT.md](./MOBILE_PROJECT_CONTEXT.md)** - Flutter merchant admin scope (dashboard, settings, no in-app customer checkout)
-- **[TUMIZI_MOBILE_AND_SETTINGS.md](./tumizi/TUMIZI_MOBILE_AND_SETTINGS.md)** - Tumizi: mobile **settings PATCH** parity, storefront readiness, web `/dashboard/tumizi` vs native app boundaries
+- **[TUMIZI_MOBILE_AND_SETTINGS.md](./tumizi/TUMIZI_MOBILE_AND_SETTINGS.md)** - Tumizi: mobile settings parity, native Bearer proxy routes, storefront readiness, and no in-app customer payment initiation
 - **[postman/](./postman/)** - `StoreFlow_API_Collection.json` (keep mobile `PATCH …/dashboard/settings` payment examples aligned with Flutter `PaymentSettingsScreen`)
 
 ### 🚀 **Deployment & Operations**

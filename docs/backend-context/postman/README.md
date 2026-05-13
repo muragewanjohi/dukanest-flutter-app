@@ -7,6 +7,7 @@
 ## 📦 Files
 
 - **`StoreFlow_API_Collection.json`** — Main Postman collection (import this file)
+- **`StoreFlow_Mobile_Tumizi_Collection.json`** — Focused native mobile Tumizi test collection
 - **`StoreFlow_Environment.json`** — Environment variables for different environments
 - **`README.md`** — This file
 
@@ -66,6 +67,11 @@ Update these variables in the environment:
 - **`mobile_push_token`** - FCM/APNs registration token for **Mobile Register Device**
 - **`mobile_mpesa_checkout_request_id`** - Set automatically by **Mobile M-Pesa Initiate** for **Mobile M-Pesa Status**
 - **`tumizi_provisioning_queued`** - Captures registration response flag indicating async Tumizi merchant provisioning was queued
+- **`tumizi_merchant_external_id`** - Set automatically by mobile Tumizi settings/merchant responses
+- **`tumizi_withdrawal_phone`** - Kenya M-Pesa phone used by the mobile Tumizi withdrawal test
+- **`tumizi_withdrawal_amount`** - Withdrawal test amount; keep low in live environments
+- **`tumizi_withdrawal_narration`** - Narration sent with withdrawal test
+- **`tumizi_withdrawal_external_reference`** - Set automatically after mobile Tumizi withdrawal request
 
 ---
 
@@ -131,9 +137,7 @@ The merchant is created asynchronously by the provision-pending cron worker, not
 - **Mobile Dashboard Orders** - Mobile order list with filters/pagination
 - **Mobile Dashboard Customers** - Mobile customer list with filters/pagination
 - **Mobile Dashboard Inventory** - Mobile inventory list with stock metrics
-- **Mobile Dashboard Settings** - Core store settings for mobile app (`GET`; includes `payment` with Tumizi parity fields when backend exposes them)
-- **Mobile Dashboard Settings (PATCH payment)** - Update payment block (cash / M-Pesa / Tumizi toggles, default method, timing, and M-Pesa sub-fields: send-money phone, till, paybill + account, pochi). **Camel + snake_case** keys mirror Flutter `PaymentSettingsScreen`. **Configuration only** — no customer payment or Tumizi STK from this endpoint. Requires `Authorization: Bearer {{mobile_access_token}}` after Mobile Login. See [TUMIZI_MOBILE_AND_SETTINGS.md](../tumizi/TUMIZI_MOBILE_AND_SETTINGS.md).
-- **Flutter merchant app (not in Postman):** wallet, withdrawals, refunds, and merchant profile edits for Tumizi use the **tenant web** session at `https://{store host}/dashboard/tumizi` (opened from the app’s Tumizi web dashboard screen / Payments link). Partner Gateway (`/api/partner/v1`) remains **server-side** reference only.
+- **Mobile Dashboard Settings** - Core store settings for mobile app
 - **Mobile Dashboard Sales** - Sales/promotions list with pagination
 - **Mobile Dashboard Analytics** - Revenue/trends/top products (`days` query)
 - **Mobile Dashboard P&L** - Profit & loss summary (`start_date`, `end_date`)
@@ -141,6 +145,7 @@ The merchant is created asynchronously by the provision-pending cron worker, not
 - **Mobile Dashboard Expenses (List/Create/Update/Delete)** - Tenant expense ledger for P&L
 - **Mobile Media Upload** - Multipart image upload (`file` field)
 - **Mobile M-Pesa Initiate** / **Mobile M-Pesa Status** - STK push + poll (`checkoutRequestId`)
+- **Mobile Tumizi Settings/Merchant/Wallet/Refunds** - Import `StoreFlow_Mobile_Tumizi_Collection.json` for focused native mobile Tumizi route tests.
 - **Mobile Notifications List** - Derived in-app notifications feed
 - **Mobile Register Device** - Upsert push token + device metadata
 - **Mobile Notification Preferences (GET/PUT)** - Per-device notification toggles
@@ -445,7 +450,7 @@ After each day, verify:
 ## 📝 Notes
 
 - **Collection:** `StoreFlow_API_Collection.json` — keep in sync when adding or changing API routes.
-- **Last documentation pass:** May 2026 (Tumizi mobile PATCH field parity with Flutter; Tumizi web dashboard scope note).
+- **Last documentation pass:** March 2026 (mobile dashboard extensions + onboarding starter-pack requests).
 
 ---
 

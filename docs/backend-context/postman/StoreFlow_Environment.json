@@ -187,6 +187,36 @@
 			"value": "",
 			"type": "default",
 			"enabled": true
+		},
+		{
+			"key": "tumizi_merchant_external_id",
+			"value": "",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "tumizi_withdrawal_phone",
+			"value": "254700000001",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "tumizi_withdrawal_amount",
+			"value": "10",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "tumizi_withdrawal_narration",
+			"value": "Mobile Postman withdrawal test",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "tumizi_withdrawal_external_reference",
+			"value": "",
+			"type": "default",
+			"enabled": true
 		}
 	],
 	"_postman_variable_scope": "environment",

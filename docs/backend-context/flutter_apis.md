@@ -20,9 +20,10 @@ Companion docs: [API_MULTI_STORE_CHANGES.md](./API_MULTI_STORE_CHANGES.md) (pagi
 
 1. **Base URL** — Use one host for all calls (e.g. `https://www.dukanest.com`). Mobile routes live under **`/api/v1/mobile/...`**. Public registration helpers use **`/api/tenants/...`** (see [API_MULTI_STORE_CHANGES.md](./API_MULTI_STORE_CHANGES.md)).
 2. **Responses** — Parse **`success` + `data`** (and **`pagination`** on list endpoints). On errors use **`error.code`** / **`error.message`**.
-3. **New store has no products** — Registration must send **`includeDemoContent: true`**, **`businessType`**, **`selling`**, etc. Same rule for **`POST /api/v1/mobile/auth/register`** and **`POST /api/tenants/register`** (see starter-content checklist in API_MULTI_STORE_CHANGES).
+3. **New store has no products** — Expected after registration: the server uses a **clean catalog** (no demo seeding). Send **`businessType`** / **`selling`** if you want better theme defaults; add products later from the dashboard or other APIs. Same behavior for **`POST /api/v1/mobile/auth/register`** and **`POST /api/tenants/register`** (see `docs/API_MULTI_STORE_CHANGES.md`).
 4. **Cold start** — Call **`GET /auth/me`** with the access token to restore **`user`** + **`tenant`** context; use **`POST /auth/refresh`** when the access token expires.
 5. **After store registration** — On **`201`** from **`POST /auth/register`**, read **`data.loginUrl`** (see [API_MULTI_STORE_CHANGES.md](./API_MULTI_STORE_CHANGES.md) § *Post-registration redirect*). Open it in a browser or in-app WebView when you want the merchant to use the web dashboard login on the tenant host. For an in-app API-only session, ignore **`loginUrl`** and call **`POST /auth/login`** with the same email/password as usual.
+6. **If the merchant chooses Tumizi during mobile onboarding** — First complete registration, then login and use the returned `accessToken`. Call **`POST /api/v1/mobile/dashboard/tumizi/settings`** with `{ "enabled": true, "createMerchantIfMissing": true }`, then optionally call **`PATCH /api/v1/mobile/dashboard/settings`** to set `payment.tumiziEnabled: true` and `payment.paymentMethod: "tumizi"`.
 
 ---
 
@@ -93,7 +94,7 @@ These paths are relative to **`/api/v1/mobile`** (full URL example: `https://www
 | GET | `/dashboard/expense-categories` | List tenant expense categories |
 | POST | `/dashboard/expense-categories` | Create tenant expense category (`name`, optional `slug`, `description`) |
 | GET | `/dashboard/expense-categories/:id` | Get expense category |
-| PATCH | `/dashboard/expense-categories/:id` | Update expense category |
+| PUT/PATCH | `/dashboard/expense-categories/:id` | Update expense category |
 | DELETE | `/dashboard/expense-categories/:id` | Delete expense category if unused |
 | GET | `/dashboard/expenses` | Paginated expense ledger list |
 | POST | `/dashboard/expenses` | Create expense (`category_id` or existing category slug) |
@@ -108,6 +109,13 @@ These paths are relative to **`/api/v1/mobile`** (full URL example: `https://www
 | GET | `/dashboard/settings` | Read store identity, currency, shipping, payment, tax snapshot (`tenant_admin` + `tenant_staff`) |
 | PATCH | `/dashboard/settings` | Partial update; body mirrors GET `data` shape (nested `store`, `currency`, `shipping`, `payment`, `tax`); **`tenant_admin` only** |
 | POST | `/dashboard/settings/delete-account` | Account deletion |
+| GET | `/dashboard/tumizi/settings` | Tumizi integration config snapshot |
+| POST | `/dashboard/tumizi/settings` | Enable/disable Tumizi; can create merchant if missing; **`tenant_admin` only** |
+| GET | `/dashboard/tumizi/merchant` | Tumizi merchant + wallet snapshot (`tenant_admin` + `tenant_staff`) |
+| PATCH | `/dashboard/tumizi/merchant` | Update Tumizi merchant/owner/wallet fields; **`tenant_admin` only** |
+| GET | `/dashboard/tumizi/wallet` | Wallet balance, withdrawal limits/charges, recent withdrawals |
+| POST | `/dashboard/tumizi/wallet/withdrawals` | Request wallet withdrawal to Kenya M-Pesa; **`tenant_admin` only** |
+| GET | `/dashboard/tumizi/refunds` | Tumizi refund log |
 | GET | `/notifications/list` | In-app notifications |
 | POST | `/notifications/register-device` | FCM token |
 | GET | `/notifications/preferences` | |
@@ -128,6 +136,394 @@ These paths are relative to **`/api/v1/mobile`** (full URL example: `https://www
 
 **Settings write parity:** `PATCH /dashboard/settings` updates `static_options` + `tenants` (`name`, `contact_email`, `data.business_type` / `data.selling`) for fields the mobile GET exposes. At least one of cash or M-Pesa must remain enabled if the client sends `payment` fields.
 
+**Tumizi (M-Pesa via Tumizi) — web vs mobile:** Web exposes Tumizi under **Settings → Payments** (`payment_tumizi_enabled`, default method `tumizi`) and **Settings → Tumizi** (`/api/tumizi/settings`, `/api/tumizi/merchant`, wallet, refunds). Mobile `GET/PATCH /dashboard/settings` includes Tumizi payment parity fields (`payment.tumiziEnabled`, `payment.paymentMethod`, and `payment.defaultMethod` supports `tumizi`). Native mobile Tumizi screens should use the Bearer-token routes under `/api/v1/mobile/dashboard/tumizi/*`; Flutter must never store or send the Tumizi partner API key. The Flutter merchant app does not initiate customer payments. For a full parity map (checkout `payment_tumizi_ready` and native route contract), see **[TUMIZI_MOBILE_AND_SETTINGS.md](./tumizi/TUMIZI_MOBILE_AND_SETTINGS.md)**.
+
+### Mobile registration + Tumizi onboarding flow
+
+If the merchant selects Tumizi during the mobile registration/onboarding flow:
+
+1. Register the store with **`POST /api/v1/mobile/auth/register`**.
+2. Login with **`POST /api/v1/mobile/auth/login`** and store `data.accessToken`.
+3. Enable/provision Tumizi with **`POST /api/v1/mobile/dashboard/tumizi/settings`**:
+
+```json
+{
+  "enabled": true,
+  "createMerchantIfMissing": true
+}
+```
+
+4. Set Tumizi as an offered/default payment method with **`PATCH /api/v1/mobile/dashboard/settings`**:
+
+```json
+{
+  "payment": {
+    "cashEnabled": true,
+    "mpesaEnabled": false,
+    "tumiziEnabled": true,
+    "paymentMethod": "tumizi"
+  }
+}
+```
+
+Use this only when the merchant explicitly wants Tumizi. If they choose Cash or direct M-Pesa only, skip the Tumizi settings call and configure those payment methods through `/dashboard/settings`.
+
+### Mobile settings JSON examples (Flutter)
+
+`Authorization: Bearer <accessToken>` is required for both calls.
+
+**GET** `/api/v1/mobile/dashboard/settings` (example success payload excerpt)
+
+```json
+{
+  "success": true,
+  "data": {
+    "store": {
+      "id": "tenant_123",
+      "name": "Acme Store",
+      "subdomain": "acme",
+      "domain": "acme.dukanest.com"
+    },
+    "payment": {
+      "cashEnabled": true,
+      "mpesaEnabled": true,
+      "tumiziEnabled": true,
+      "mpesaOption": "buy_goods",
+      "paymentMethod": "tumizi",
+      "defaultMethod": "tumizi"
+    }
+  }
+}
+```
+
+**PATCH** `/api/v1/mobile/dashboard/settings` (Tumizi-aware payment update)
+
+```json
+{
+  "payment": {
+    "cashEnabled": true,
+    "mpesaEnabled": false,
+    "tumiziEnabled": true,
+    "paymentMethod": "tumizi"
+  }
+}
+```
+
+Server validation mirrors web:
+
+- At least one of `cashEnabled`, `mpesaEnabled`, or `tumiziEnabled` must remain enabled.
+- `paymentMethod` / `defaultMethod` cannot point to a disabled method.
+- `defaultMethod` is accepted for backward compatibility; prefer `paymentMethod` in new mobile clients.
+
+### Dart DTO snippet (copy/paste)
+
+```dart
+enum PaymentMethod { cash, mpesa, tumizi }
+
+PaymentMethod paymentMethodFromJson(String? value) {
+  switch (value) {
+    case 'mpesa':
+      return PaymentMethod.mpesa;
+    case 'tumizi':
+      return PaymentMethod.tumizi;
+    case 'cash':
+    default:
+      return PaymentMethod.cash;
+  }
+}
+
+String paymentMethodToJson(PaymentMethod value) {
+  switch (value) {
+    case PaymentMethod.mpesa:
+      return 'mpesa';
+    case PaymentMethod.tumizi:
+      return 'tumizi';
+    case PaymentMethod.cash:
+      return 'cash';
+  }
+}
+
+class SettingsPaymentDto {
+  final bool cashEnabled;
+  final bool mpesaEnabled;
+  final bool tumiziEnabled;
+  final String? mpesaOption;
+  final PaymentMethod paymentMethod;
+  final PaymentMethod defaultMethod;
+
+  const SettingsPaymentDto({
+    required this.cashEnabled,
+    required this.mpesaEnabled,
+    required this.tumiziEnabled,
+    required this.mpesaOption,
+    required this.paymentMethod,
+    required this.defaultMethod,
+  });
+
+  factory SettingsPaymentDto.fromJson(Map<String, dynamic> json) {
+    return SettingsPaymentDto(
+      cashEnabled: json['cashEnabled'] == true,
+      mpesaEnabled: json['mpesaEnabled'] == true,
+      tumiziEnabled: json['tumiziEnabled'] == true,
+      mpesaOption: json['mpesaOption'] as String?,
+      paymentMethod: paymentMethodFromJson(json['paymentMethod'] as String?),
+      // Backward-compat: server still returns defaultMethod.
+      defaultMethod: paymentMethodFromJson(json['defaultMethod'] as String?),
+    );
+  }
+
+  Map<String, dynamic> toPatchJson() {
+    return {
+      'cashEnabled': cashEnabled,
+      'mpesaEnabled': mpesaEnabled,
+      'tumiziEnabled': tumiziEnabled,
+      // Prefer paymentMethod for new clients.
+      'paymentMethod': paymentMethodToJson(paymentMethod),
+    };
+  }
+}
+```
+
+### Full settings DTO (store/currency/shipping/payment/tax)
+
+```dart
+double? asNullableDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  return double.tryParse(value.toString());
+}
+
+class SettingsAddressDto {
+  final String? line1;
+  final String? city;
+  final String? state;
+  final String? country;
+  final String? postalCode;
+
+  const SettingsAddressDto({
+    required this.line1,
+    required this.city,
+    required this.state,
+    required this.country,
+    required this.postalCode,
+  });
+
+  factory SettingsAddressDto.fromJson(Map<String, dynamic>? json) {
+    final m = json ?? const <String, dynamic>{};
+    return SettingsAddressDto(
+      line1: m['line1'] as String?,
+      city: m['city'] as String?,
+      state: m['state'] as String?,
+      country: m['country'] as String?,
+      postalCode: m['postalCode'] as String?,
+    );
+  }
+}
+
+class SettingsStoreDto {
+  final String id;
+  final String name;
+  final String subdomain;
+  final String domain;
+  final String? contactEmail;
+  final String? description;
+  final String? phone;
+  final String? phone2;
+  final String? phone3;
+  final SettingsAddressDto address;
+  final String? businessType;
+  final String? selling;
+
+  const SettingsStoreDto({
+    required this.id,
+    required this.name,
+    required this.subdomain,
+    required this.domain,
+    required this.contactEmail,
+    required this.description,
+    required this.phone,
+    required this.phone2,
+    required this.phone3,
+    required this.address,
+    required this.businessType,
+    required this.selling,
+  });
+
+  factory SettingsStoreDto.fromJson(Map<String, dynamic> json) {
+    return SettingsStoreDto(
+      id: (json['id'] ?? '').toString(),
+      name: (json['name'] ?? '').toString(),
+      subdomain: (json['subdomain'] ?? '').toString(),
+      domain: (json['domain'] ?? '').toString(),
+      contactEmail: json['contactEmail'] as String?,
+      description: json['description'] as String?,
+      phone: json['phone'] as String?,
+      phone2: json['phone2'] as String?,
+      phone3: json['phone3'] as String?,
+      address: SettingsAddressDto.fromJson(json['address'] as Map<String, dynamic>?),
+      businessType: json['businessType'] as String?,
+      selling: json['selling'] as String?,
+    );
+  }
+}
+
+class SettingsCurrencyDto {
+  final String code;
+  final String symbol;
+  final String symbolPosition; // left | right
+
+  const SettingsCurrencyDto({
+    required this.code,
+    required this.symbol,
+    required this.symbolPosition,
+  });
+
+  factory SettingsCurrencyDto.fromJson(Map<String, dynamic> json) {
+    return SettingsCurrencyDto(
+      code: (json['code'] ?? 'USD').toString(),
+      symbol: (json['symbol'] ?? r'$').toString(),
+      symbolPosition: (json['symbolPosition'] ?? 'left').toString(),
+    );
+  }
+}
+
+class SettingsShippingDto {
+  final bool enabled;
+  final bool freeShippingEnabled;
+  final double? freeShippingThreshold;
+
+  const SettingsShippingDto({
+    required this.enabled,
+    required this.freeShippingEnabled,
+    required this.freeShippingThreshold,
+  });
+
+  factory SettingsShippingDto.fromJson(Map<String, dynamic> json) {
+    return SettingsShippingDto(
+      enabled: json['enabled'] == true,
+      freeShippingEnabled: json['freeShippingEnabled'] == true,
+      freeShippingThreshold: asNullableDouble(json['freeShippingThreshold']),
+    );
+  }
+}
+
+class SettingsTaxDto {
+  final bool enabled;
+  final double? defaultRate;
+  final String calculationBasedOn;
+
+  const SettingsTaxDto({
+    required this.enabled,
+    required this.defaultRate,
+    required this.calculationBasedOn,
+  });
+
+  factory SettingsTaxDto.fromJson(Map<String, dynamic> json) {
+    return SettingsTaxDto(
+      enabled: json['enabled'] == true,
+      defaultRate: asNullableDouble(json['defaultRate']),
+      calculationBasedOn: (json['calculationBasedOn'] ?? 'billing_address').toString(),
+    );
+  }
+}
+
+class MobileSettingsDto {
+  final SettingsStoreDto store;
+  final SettingsCurrencyDto currency;
+  final SettingsShippingDto shipping;
+  final SettingsPaymentDto payment;
+  final SettingsTaxDto tax;
+
+  const MobileSettingsDto({
+    required this.store,
+    required this.currency,
+    required this.shipping,
+    required this.payment,
+    required this.tax,
+  });
+
+  factory MobileSettingsDto.fromJson(Map<String, dynamic> json) {
+    return MobileSettingsDto(
+      store: SettingsStoreDto.fromJson((json['store'] as Map<String, dynamic>?) ?? const {}),
+      currency: SettingsCurrencyDto.fromJson(
+        (json['currency'] as Map<String, dynamic>?) ?? const {},
+      ),
+      shipping: SettingsShippingDto.fromJson(
+        (json['shipping'] as Map<String, dynamic>?) ?? const {},
+      ),
+      payment: SettingsPaymentDto.fromJson(
+        (json['payment'] as Map<String, dynamic>?) ?? const {},
+      ),
+      tax: SettingsTaxDto.fromJson((json['tax'] as Map<String, dynamic>?) ?? const {}),
+    );
+  }
+}
+```
+
+Minimal PATCH body builder example:
+
+```dart
+Map<String, dynamic> buildSettingsPatch({
+  SettingsStoreDto? store,
+  SettingsCurrencyDto? currency,
+  SettingsShippingDto? shipping,
+  SettingsPaymentDto? payment,
+  SettingsTaxDto? tax,
+}) {
+  final patch = <String, dynamic>{};
+
+  if (store != null) {
+    patch['store'] = {
+      'name': store.name,
+      'contactEmail': store.contactEmail,
+      'description': store.description,
+      'phone': store.phone,
+      'phone2': store.phone2,
+      'phone3': store.phone3,
+      'businessType': store.businessType,
+      'selling': store.selling,
+      'address': {
+        'line1': store.address.line1,
+        'city': store.address.city,
+        'state': store.address.state,
+        'country': store.address.country,
+        'postalCode': store.address.postalCode,
+      },
+    };
+  }
+
+  if (currency != null) {
+    patch['currency'] = {
+      'code': currency.code,
+      'symbol': currency.symbol,
+      'symbolPosition': currency.symbolPosition,
+    };
+  }
+
+  if (shipping != null) {
+    patch['shipping'] = {
+      'enabled': shipping.enabled,
+      'freeShippingEnabled': shipping.freeShippingEnabled,
+      'freeShippingThreshold': shipping.freeShippingThreshold,
+    };
+  }
+
+  if (payment != null) {
+    patch['payment'] = payment.toPatchJson();
+  }
+
+  if (tax != null) {
+    patch['tax'] = {
+      'enabled': tax.enabled,
+      'defaultRate': tax.defaultRate,
+      'calculationBasedOn': tax.calculationBasedOn,
+    };
+  }
+
+  return patch;
+}
+```
+
 ---
 
 ## Progress steps (Getting Started checklist)
@@ -140,6 +536,7 @@ StoreFlow does **not** use a separate “onboarding table”. Completion is comp
 
 | Step id (API) | Becomes `completed: true` when |
 |---------------|--------------------------------|
+| `category` | At least one row in **`categories`** for the tenant. |
 | `product` | At least one **active** product with `created_by` set (matches web count query). |
 | `preview` | `static_options.getting_started_previewed_store === 'true'` — set via **`POST .../dashboard/getting-started`** with `{ "action": "preview_done" }`. |
 | `share` | `static_options.getting_started_shared_link === 'true'` — **`POST`** with `{ "action": "share_done" }`. |
@@ -147,12 +544,13 @@ StoreFlow does **not** use a separate “onboarding table”. Completion is comp
 | `payment` | Cash enabled and/or M-Pesa enabled **with** a configured M-Pesa number/till/paybill (see same lib). |
 | `delivery` | `shipping_enabled` and either delivery zones exist **or** flat rate amount set. |
 | `logo` | `store_logo` static option set (e.g. via media + web settings; extend mobile settings if needed). |
+| `demo_products` | *(Only in API response when sample products exist.)* Shown as incomplete cleanup — remove via web **DELETE `/api/products/demo`** or Products UI. |
 
 **Flutter:** Call **`GET /api/v1/mobile/dashboard/getting-started`** for the checklist (mobile envelope). After the user previews the storefront or shares the link, call **`POST`** on the same path with the actions above so **web and app stay in sync**.
 
 **Legacy app behavior:** If the client still reads checklist only from **`GET .../dashboard/overview`**, note that the **mobile overview route does not embed steps yet** — switch to **`GET .../getting-started`** or merge both responses in the app.
 
-**Optional client keys:** If your Flutter code uses `preview_store` / `share_store` / `sms`, map them to server ids **`preview`** / **`share`** / **`contact_phone`**.
+**Optional client keys:** If your Flutter code uses `preview_store` / `share_store` / `sms`, map them to server ids **`preview`** / **`share`** / **`contact_phone`**. Use server id **`category`** for a first-category step (not `catalog_category` unless you map it client-side).
 
 ### Canonical step keys
 
@@ -160,6 +558,7 @@ Align server keys with the app’s `DashboardOnboardingStepKeys` (Flutter: `lib/
 
 | Key | Meaning |
 |-----|---------|
+| `category` | First product category created |
 | `product` | First product added / catalog ready |
 | `preview_store` | Storefront previewed (or infer from analytics/events) |
 | `share_store` | Store link shared/copied (or infer) |
@@ -308,7 +707,7 @@ Use the mobile base URL `/api/v1/mobile`.
 | GET | `/dashboard/expense-categories` | List default + custom tenant expense categories |
 | POST | `/dashboard/expense-categories` | Create custom expense category |
 | GET | `/dashboard/expense-categories/:id` | Get one expense category |
-| PATCH | `/dashboard/expense-categories/:id` | Update category name/slug/description |
+| PUT/PATCH | `/dashboard/expense-categories/:id` | Update category name/slug/description |
 | DELETE | `/dashboard/expense-categories/:id` | Delete category if unused |
 
 #### Suggested Flutter files
@@ -317,12 +716,14 @@ Add or update these files in the Flutter app:
 
 | File | Change |
 |------|--------|
-| `lib/core/api/api_client.dart` | Add expense category CRUD methods and send `category_id` on expenses |
-| `lib/features/analytics/screens/expenses_screen.dart` | Replace fixed category list with API-loaded categories |
-| `lib/features/analytics/models/expense_category.dart` | Add `ExpenseCategory` model if the screen is split into typed models |
-| `lib/features/analytics/models/expense.dart` | Add `categoryId` and `categoryDetails` if expenses are typed |
-| `lib/features/analytics/widgets/expense_category_picker.dart` | Optional reusable picker backed by API data |
-| `lib/features/analytics/screens/expense_categories_screen.dart` | Optional management screen for custom categories |
+| `lib/features/expenses/models/expense_category.dart` | Add `ExpenseCategory` model |
+| `lib/features/expenses/models/expense.dart` | Add `categoryId` and `categoryDetails` |
+| `lib/features/expenses/data/expense_api.dart` | Add expense category CRUD methods |
+| `lib/features/expenses/repositories/expense_repository.dart` | Expose category list/create/update/delete |
+| `lib/features/expenses/widgets/expense_category_picker.dart` | Dropdown/search picker backed by API data |
+| `lib/features/expenses/screens/create_expense_screen.dart` | Send `category_id` |
+| `lib/features/expenses/screens/edit_expense_screen.dart` | Allow category update via `category_id` |
+| `lib/features/expenses/screens/expense_categories_screen.dart` | Optional management screen for custom categories |
 
 #### ExpenseCategory model shape
 
@@ -548,7 +949,7 @@ class RemoveDemoProductsResult {
   "label": "Remove demo products",
   "description": "Clear sample products once your real catalog is ready",
   "completed": false,
-  "href": "/products",
+  "href": "/dashboard/products",
   "cta": "Remove demo products",
   "priority": 8
 }

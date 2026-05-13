@@ -1,0 +1,555 @@
+{
+  "info": {
+    "_postman_id": "storeflow-mobile-tumizi-collection",
+    "name": "StoreFlow Mobile Tumizi API",
+    "description": "Focused test collection for native Flutter Tumizi endpoints under /api/v1/mobile/dashboard/tumizi/*. Import StoreFlow_Environment.json first, set mobile_email/mobile_password, run Mobile Login, then run the Tumizi requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{mobile_access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.environment.get('base_url')) {",
+          "  pm.environment.set('base_url', 'http://localhost:3000');",
+          "}",
+          "if (!pm.environment.get('tumizi_withdrawal_phone')) {",
+          "  pm.environment.set('tumizi_withdrawal_phone', '254700000001');",
+          "}",
+          "if (!pm.environment.get('tumizi_withdrawal_amount')) {",
+          "  pm.environment.set('tumizi_withdrawal_amount', '10');",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Mobile Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Mobile login succeeds', function () {",
+                  "  pm.expect(jsonData.success).to.eql(true);",
+                  "});",
+                  "",
+                  "if (jsonData.success && jsonData.data) {",
+                  "  var requiresMfa = jsonData.data.requiresMfa === true;",
+                  "  pm.environment.set('mobile_requires_mfa', requiresMfa ? 'true' : 'false');",
+                  "  if (jsonData.data.user && jsonData.data.user.tenantId) {",
+                  "    pm.environment.set('tenant_id', jsonData.data.user.tenantId);",
+                  "  }",
+                  "  if (requiresMfa && jsonData.data.tempSession) {",
+                  "    pm.environment.set('mobile_temp_access_token', jsonData.data.tempSession.accessToken || '');",
+                  "    pm.environment.set('mobile_temp_refresh_token', jsonData.data.tempSession.refreshToken || '');",
+                  "    pm.environment.unset('mobile_access_token');",
+                  "  } else {",
+                  "    pm.environment.set('mobile_access_token', jsonData.data.accessToken);",
+                  "    pm.environment.set('mobile_refresh_token', jsonData.data.refreshToken);",
+                  "    pm.environment.set('auth_token', jsonData.data.accessToken);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{mobile_email}}\",\n  \"password\": \"{{mobile_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/mobile/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "mobile",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Run first. If the account requires MFA, complete MFA using the main StoreFlow collection, then rerun Tumizi requests with mobile_access_token set."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Tumizi Settings",
+      "item": [
+        {
+          "name": "Get Tumizi Settings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Mobile envelope succeeds', function () { pm.expect(jsonData.success).to.eql(true); });",
+                  "if (jsonData.success && jsonData.data && jsonData.data.merchantExternalId) {",
+                  "  pm.environment.set('tumizi_merchant_external_id', jsonData.data.merchantExternalId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/mobile/dashboard/tumizi/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "mobile",
+                "dashboard",
+                "tumizi",
+                "settings"
+              ]
+            },
+            "description": "Reads the tenant Tumizi integration config using the mobile Bearer token."
+          },
+          "response": []
+        },
+        {
+          "name": "Enable Tumizi Settings (Create Merchant If Missing)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Tumizi settings saved', function () { pm.expect(jsonData.success).to.eql(true); });",
+                  "if (jsonData.success && jsonData.data && jsonData.data.merchantExternalId) {",
+                  "  pm.environment.set('tumizi_merchant_external_id', jsonData.data.merchantExternalId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"createMerchantIfMissing\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/mobile/dashboard/tumizi/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "mobile",
+                "dashboard",
+                "tumizi",
+                "settings"
+              ]
+            },
+            "description": "Admin only. Creates/links Tumizi merchant if missing and flips payment_tumizi_enabled when live."
+          },
+          "response": []
+        },
+        {
+          "name": "Disable Tumizi Settings",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/mobile/dashboard/tumizi/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "mobile",
+                "dashboard",
+                "tumizi",
+                "settings"
+              ]
+            },
+            "description": "Admin only. Useful cleanup request; do not run if you want Tumizi left enabled."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Payment Settings Parity",
+      "item": [
+        {
+          "name": "Enable Tumizi Payment Method In Mobile Settings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Settings response succeeds', function () { pm.expect(jsonData.success).to.eql(true); });",
+                  "pm.test('Tumizi payment method is selected', function () {",
+                  "  pm.expect(jsonData.data.payment.tumiziEnabled).to.eql(true);",
+                  "  pm.expect(jsonData.data.payment.paymentMethod).to.eql('tumizi');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payment\": {\n    \"cashEnabled\": true,\n    \"mpesaEnabled\": false,\n    \"tumiziEnabled\": true,\n    \"paymentMethod\": \"tumizi\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/mobile/dashboard/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "mobile",
+                "dashboard",
+                "settings"
+              ]
+            },
+            "description": "Admin only. Tests mobile settings parity for payment.tumiziEnabled and payment.paymentMethod."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Merchant",
+      "item": [
+        {
+          "name": "Get Tumizi Merchant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Merchant response succeeds', function () { pm.expect(jsonData.success).to.eql(true); });",
+                  "if (jsonData.success && jsonData.data && jsonData.data.merchantExternalId) {",
+                  "  pm.environment.set('tumizi_merchant_external_id', jsonData.data.merchantExternalId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/mobile/dashboard/tumizi/merchant",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "mobile",
+                "dashboard",
+                "tumizi",
+                "merchant"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Patch Tumizi Merchant",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant\": {\n    \"description\": \"Updated from mobile Postman test\"\n  },\n  \"owner\": {\n    \"name\": \"Mobile Test Owner\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/mobile/dashboard/tumizi/merchant",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "mobile",
+                "dashboard",
+                "tumizi",
+                "merchant"
+              ]
+            },
+            "description": "Admin only. Adjust body before running against production data."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Wallet",
+      "item": [
+        {
+          "name": "Get Tumizi Wallet",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Wallet response succeeds', function () { pm.expect(jsonData.success).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/mobile/dashboard/tumizi/wallet",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "mobile",
+                "dashboard",
+                "tumizi",
+                "wallet"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Tumizi Wallet Withdrawal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Withdrawal response succeeds', function () { pm.expect(jsonData.success).to.eql(true); });",
+                  "if (jsonData.success && jsonData.data) {",
+                  "  pm.environment.set('tumizi_withdrawal_external_reference', jsonData.data.externalReference || '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{tumizi_withdrawal_phone}}\",\n  \"amount\": {{tumizi_withdrawal_amount}},\n  \"narration\": \"{{tumizi_withdrawal_narration}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/mobile/dashboard/tumizi/wallet/withdrawals",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "mobile",
+                "dashboard",
+                "tumizi",
+                "wallet",
+                "withdrawals"
+              ]
+            },
+            "description": "Admin only. This can trigger a real Tumizi withdrawal request if the merchant wallet is live. Use a safe test amount/phone."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. Refunds",
+      "item": [
+        {
+          "name": "Get Tumizi Refunds",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Refund list succeeds', function () { pm.expect(jsonData.success).to.eql(true); });",
+                  "pm.test('Refund items array exists', function () { pm.expect(jsonData.data.items).to.be.an('array'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/mobile/dashboard/tumizi/refunds",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "mobile",
+                "dashboard",
+                "tumizi",
+                "refunds"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "mobile_access_token",
+      "value": ""
+    },
+    {
+      "key": "mobile_email",
+      "value": ""
+    },
+    {
+      "key": "mobile_password",
+      "value": ""
+    },
+    {
+      "key": "tumizi_withdrawal_phone",
+      "value": "254700000001"
+    },
+    {
+      "key": "tumizi_withdrawal_amount",
+      "value": "10"
+    },
+    {
+      "key": "tumizi_withdrawal_narration",
+      "value": "Mobile Postman withdrawal test"
+    }
+  ]
+}
