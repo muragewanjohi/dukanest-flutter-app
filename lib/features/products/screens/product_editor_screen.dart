@@ -45,6 +45,11 @@ enum _ProductEditorTab {
   final String label;
 }
 
+/// Shown under labels so merchants know what to enter (placeholder hints use shorter text).
+const _kProductNameExample = 'Fresh Maize Flour 2kg – Grade 1';
+const _kProductDescriptionExample =
+    'Grade 1 maize flour in a 2 kg bag. Milled locally. Store in a cool, dry place.';
+
 /// One sellable variant (option combination + SKU + stock).
 class _VariantLine {
   _VariantLine({
@@ -160,6 +165,36 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         duration: const Duration(milliseconds: 350),
         curve: Curves.easeOutCubic,
         alignment: 0.2,
+      );
+    });
+  }
+
+  /// Explains what's missing before variants can be added (snackbar + variants section scroll).
+  void _showVariantSetupRequired(String message) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 5),
+      ),
+    );
+    _scrollVariantsSectionIntoView();
+  }
+
+  void _scrollVariantsSectionIntoView() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _keyFor('section_variants').currentContext;
+      if (ctx == null || !ctx.mounted) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+        alignment: 0.12,
       );
     });
   }
@@ -515,12 +550,39 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
 
   Future<void> _openAddVariantSheet() async {
     final rootContext = context;
-    final attrs = ref.read(dashboardAttributesProvider).valueOrNull ?? [];
+    final attrsAsync = ref.read(dashboardAttributesProvider);
+    final all = attrsAsync.valueOrNull ?? [];
+    final attrs =
+        all.where((a) => a.values.isNotEmpty).toList(growable: false);
     if (attrs.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Create attributes first (Manage Attributes).')),
-      );
+      if (!mounted) return;
+      if (attrsAsync.hasError) {
+        _showVariantSetupRequired(
+          'Could not load product attributes: ${attrsAsync.error}',
+        );
+        return;
+      }
+      if (attrsAsync.isLoading) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+              'Still loading attributes. Wait a moment, then tap Add variant again.',
+            ),
+          ),
+        );
+        _scrollVariantsSectionIntoView();
+        return;
+      }
+      if (all.isEmpty) {
+        _showVariantSetupRequired(
+          'Add at least one product attribute — for example Size or Color — before you add variants. Open Attributes from the catalog or settings.',
+        );
+      } else {
+        _showVariantSetupRequired(
+          'Each attribute needs option values — for example Small, Medium, Large for Size. Open Manage attributes, edit the attribute, and add options.',
+        );
+      }
       return;
     }
     final selected = <String, String>{}; // attribute name -> chosen value label
@@ -532,6 +594,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     final imageUrlCtrl = TextEditingController(
       text: _remoteImageUrls.isNotEmpty ? _remoteImageUrls.first : '',
     );
+
+    final variantSheetError = <String?>[null];
 
     final added = await showModalBottomSheet<bool>(
       context: context,
@@ -546,12 +610,51 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
               EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
           child: StatefulBuilder(
             builder: (context, setModal) {
+              void reportVariantSheetError(String fieldId, String message) {
+                variantSheetError[0] = fieldId;
+                setModal(() {});
+                final cs = Theme.of(rootContext).colorScheme;
+                ScaffoldMessenger.of(rootContext)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(
+                      content: Text(message),
+                      behavior: SnackBarBehavior.floating,
+                      backgroundColor: cs.error,
+                      duration: const Duration(seconds: 4),
+                    ),
+                  );
+              }
+
+              void clearVariantSheetError([String? only]) {
+                final e = variantSheetError[0];
+                if (e == null) return;
+                if (only == null || e == only) {
+                  variantSheetError[0] = null;
+                  setModal(() {});
+                }
+              }
+
+              void clearVariantPricingErrors() {
+                final e = variantSheetError[0];
+                if (e != 'variantPrice' && e != 'variantSale') return;
+                variantSheetError[0] = null;
+                setModal(() {});
+              }
+
               return DraggableScrollableSheet(
                 initialChildSize: 0.75,
                 minChildSize: 0.45,
                 maxChildSize: 0.95,
                 expand: false,
                 builder: (context, scrollController) {
+                  final sheetErr = variantSheetError[0];
+                  final attrsInvalid = sheetErr == 'variantAttributes';
+                  final priceInvalid = sheetErr == 'variantPrice';
+                  final saleInvalid = sheetErr == 'variantSale';
+                  final costInvalid = sheetErr == 'variantCost';
+                  final stockInvalid = sheetErr == 'variantStock';
+
                   return ListView(
                     controller: scrollController,
                     padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
@@ -580,65 +683,97 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      ...attrs.map((a) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                a.name,
-                                style: GoogleFonts.inter(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                  color: AppTheme.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Wrap(
-                                spacing: 10,
-                                runSpacing: 10,
-                                children: a.values.map((raw) {
-                                  final label = _valueLabel(a, raw);
-                                  final isSelected = selected[a.name] == label;
-                                  return ChoiceChip(
-                                    label: Text(label),
-                                    selected: isSelected,
-                                    showCheckmark: false,
-                                    selectedColor: AppTheme.primary,
-                                    backgroundColor: Theme.of(
-                                      context,
-                                    ).colorScheme.surfaceContainerLow,
-                                    labelStyle: GoogleFonts.inter(
-                                      fontWeight: FontWeight.w600,
-                                      color: isSelected
-                                          ? Colors.white
-                                          : AppTheme.onSurfaceVariant,
-                                    ),
-                                    side: BorderSide(
-                                      color: isSelected
-                                          ? Colors.transparent
-                                          : Theme.of(context)
-                                              .colorScheme
-                                              .outlineVariant
-                                              .withValues(alpha: 0.5),
-                                    ),
-                                    onSelected: (_) {
-                                      setModal(() {
-                                        if (isSelected) {
-                                          selected.remove(a.name);
-                                        } else {
-                                          selected[a.name] = label;
-                                        }
-                                      });
-                                    },
-                                  );
-                                }).toList(),
-                              ),
-                            ],
+                      Container(
+                        padding: attrsInvalid
+                            ? const EdgeInsets.all(10)
+                            : EdgeInsets.zero,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            width: attrsInvalid ? 1.5 : 0,
+                            color: attrsInvalid
+                                ? Theme.of(context).colorScheme.error
+                                : Colors.transparent,
                           ),
-                        );
-                      }),
+                          color: attrsInvalid
+                              ? Theme.of(context)
+                                  .colorScheme
+                                  .error
+                                  .withValues(alpha: 0.05)
+                              : null,
+                        ),
+                        child: Column(
+                          children: attrs
+                              .map((a) {
+                                return Padding(
+                                  padding:
+                                      const EdgeInsets.only(bottom: 14),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        a.name,
+                                        style: GoogleFonts.inter(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                          color: AppTheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Wrap(
+                                        spacing: 10,
+                                        runSpacing: 10,
+                                        children:
+                                            a.values.map((raw) {
+                                          final label =
+                                              _valueLabel(a, raw);
+                                          final isSelected =
+                                              selected[a.name] == label;
+                                          return ChoiceChip(
+                                            label: Text(label),
+                                            selected: isSelected,
+                                            showCheckmark: false,
+                                            selectedColor: AppTheme.primary,
+                                            backgroundColor: Theme.of(
+                                              context,
+                                            ).colorScheme.surfaceContainerLow,
+                                            labelStyle: GoogleFonts.inter(
+                                              fontWeight: FontWeight.w600,
+                                              color: isSelected
+                                                  ? Colors.white
+                                                  : AppTheme.onSurfaceVariant,
+                                            ),
+                                            side: BorderSide(
+                                              color: isSelected
+                                                  ? Colors.transparent
+                                                  : Theme.of(context)
+                                                      .colorScheme
+                                                      .outlineVariant
+                                                      .withValues(
+                                                          alpha: 0.5),
+                                            ),
+                                            onSelected: (_) {
+                                              setModal(() {
+                                                if (isSelected) {
+                                                  selected.remove(a.name);
+                                                } else {
+                                                  selected[a.name] = label;
+                                                }
+                                              });
+                                              clearVariantSheetError(
+                                                  'variantAttributes');
+                                            },
+                                          );
+                                        }).toList(),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              })
+                              .toList(),
+                        ),
+                      ),
                       const SizedBox(height: 6),
                       Text(
                         'Variant price & image',
@@ -652,64 +787,50 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                       TextField(
                         controller: regularPriceCtrl,
                         keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
+                        onChanged: (_) => clearVariantPricingErrors(),
+                        decoration: _variantPricingInputDecoration(
+                          Theme.of(context),
                           labelText: 'Regular price',
                           prefixText: 'KES ',
-                          filled: true,
-                          fillColor:
-                              Theme.of(context).colorScheme.surfaceContainerLow,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
+                          isInvalid: priceInvalid,
                         ),
                       ),
                       const SizedBox(height: 10),
                       TextField(
                         controller: salePriceCtrl,
                         keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
+                        onChanged: (_) => clearVariantPricingErrors(),
+                        decoration: _variantPricingInputDecoration(
+                          Theme.of(context),
                           labelText: 'Sale price (optional)',
                           prefixText: 'KES ',
-                          filled: true,
-                          fillColor:
-                              Theme.of(context).colorScheme.surfaceContainerLow,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
+                          isInvalid: saleInvalid,
                         ),
                       ),
                       const SizedBox(height: 10),
                       TextField(
                         controller: costPriceCtrl,
                         keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
+                        onChanged: (_) =>
+                            clearVariantSheetError('variantCost'),
+                        decoration: _variantPricingInputDecoration(
+                          Theme.of(context),
                           labelText: 'Cost of goods (optional)',
                           helperText: 'Used for profit reporting only.',
                           prefixText: 'KES ',
-                          filled: true,
-                          fillColor:
-                              Theme.of(context).colorScheme.surfaceContainerLow,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
+                          isInvalid: costInvalid,
                         ),
                       ),
                       const SizedBox(height: 10),
                       TextField(
                         controller: stockQtyCtrl,
                         keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
+                        onChanged: (_) =>
+                            clearVariantSheetError('variantStock'),
+                        decoration: _variantPricingInputDecoration(
+                          Theme.of(context),
                           labelText: 'Stock quantity',
-                          filled: true,
-                          fillColor:
-                              Theme.of(context).colorScheme.surfaceContainerLow,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
+                          isInvalid: stockInvalid,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -720,6 +841,13 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                           color:
                               Theme.of(context).colorScheme.surfaceContainerLow,
                           borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .outlineVariant
+                                .withValues(alpha: 0.55),
+                            width: 1,
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -804,84 +932,75 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                       const SizedBox(height: 8),
                       FilledButton(
                         onPressed: () {
-                          if (selected.isEmpty) {
-                            ScaffoldMessenger.of(rootContext).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Select at least one attribute value for this variant.',
-                                ),
-                              ),
-                            );
-                            return;
+                          for (final a in attrs) {
+                            final sel = selected[a.name]?.trim();
+                            if (sel == null || sel.isEmpty) {
+                              reportVariantSheetError(
+                                'variantAttributes',
+                                'Select a value for ${a.name}.',
+                              );
+                              return;
+                            }
                           }
                           final variantRegular =
                               _toDouble(regularPriceCtrl.text);
                           final variantSale = _toDouble(salePriceCtrl.text);
-                          final variantCost = _toDouble(costPriceCtrl.text);
+                          final variantCost =
+                              _toDouble(costPriceCtrl.text);
                           final variantPrimaryPrice =
-                              variantRegular > 0 ? variantRegular : variantSale;
+                              variantRegular > 0
+                                  ? variantRegular
+                                  : variantSale;
                           if (variantPrimaryPrice <= 0) {
-                            ScaffoldMessenger.of(rootContext).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Add a price for this variant (regular or sale).',
-                                ),
-                              ),
+                            reportVariantSheetError(
+                              'variantPrice',
+                              'Enter a regular or sale price for this variant (KES).',
                             );
                             return;
                           }
                           if (variantRegular > 0 &&
                               variantSale > variantRegular) {
-                            ScaffoldMessenger.of(rootContext).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Variant sale price cannot be greater than regular price.',
-                                ),
-                              ),
+                            reportVariantSheetError(
+                              'variantSale',
+                              'Variant sale price cannot be greater than regular price.',
                             );
                             return;
                           }
                           if (costPriceCtrl.text.trim().isNotEmpty &&
                               variantCost <= 0) {
-                            ScaffoldMessenger.of(rootContext).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Variant cost of goods must be greater than 0 when provided.',
-                                ),
-                              ),
+                            reportVariantSheetError(
+                              'variantCost',
+                              'Variant cost of goods must be greater than 0 when provided.',
                             );
                             return;
                           }
-                          final variantStockRaw = stockQtyCtrl.text.trim();
+                          final variantStockRaw =
+                              stockQtyCtrl.text.trim();
                           if (variantStockRaw.isEmpty) {
-                            ScaffoldMessenger.of(rootContext).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                    'Stock quantity is required for each variant.'),
-                              ),
+                            reportVariantSheetError(
+                              'variantStock',
+                              'Stock quantity is required — enter how many units you have.',
                             );
                             return;
                           }
-                          final variantStock = int.tryParse(variantStockRaw);
+                          final variantStock =
+                              int.tryParse(variantStockRaw);
                           if (variantStock == null) {
-                            ScaffoldMessenger.of(rootContext).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                    'Stock quantity must be a whole number.'),
-                              ),
+                            reportVariantSheetError(
+                              'variantStock',
+                              'Stock quantity must be a whole number.',
                             );
                             return;
                           }
                           if (variantStock < 0) {
-                            ScaffoldMessenger.of(rootContext).showSnackBar(
-                              const SnackBar(
-                                content:
-                                    Text('Stock quantity cannot be negative.'),
-                              ),
+                            reportVariantSheetError(
+                              'variantStock',
+                              'Stock quantity cannot be negative.',
                             );
                             return;
                           }
-                          final combo = Map<String, String>.from(selected);
+                          final combo =
+                              Map<String, String>.from(selected);
                           if (_variantLines
                               .any((l) => _optionsEqual(l.options, combo))) {
                             Navigator.pop(ctx, false);
@@ -941,6 +1060,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   }
 
   Future<void> _openEditVariantSheet(_VariantLine line) async {
+    final sheetRootContext = context;
     final attrs = ref.read(dashboardAttributesProvider).valueOrNull ?? [];
     final selected = Map<String, String>.from(line.options);
     final regularCtrl = TextEditingController(text: line.regularPrice.text);
@@ -948,6 +1068,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     final costCtrl = TextEditingController(text: line.costPrice.text);
     final stockCtrl = TextEditingController(text: line.stock.text);
     final imageCtrl = TextEditingController(text: line.imageUrl.text);
+    final editVariantSheetErr = <String?>[null];
 
     await showModalBottomSheet<void>(
       context: context,
@@ -962,13 +1083,54 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
               EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
           child: StatefulBuilder(
             builder: (context, setModal) {
-              final theme = Theme.of(context);
+              void reportEv(String fieldId, String message) {
+                editVariantSheetErr[0] = fieldId;
+                setModal(() {});
+                final cs = Theme.of(sheetRootContext).colorScheme;
+                ScaffoldMessenger.of(sheetRootContext)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(
+                      content: Text(message),
+                      behavior: SnackBarBehavior.floating,
+                      backgroundColor: cs.error,
+                      duration: const Duration(seconds: 4),
+                    ),
+                  );
+              }
+
+              void clearEv([String? only]) {
+                final e = editVariantSheetErr[0];
+                if (e == null) return;
+                if (only == null || e == only) {
+                  editVariantSheetErr[0] = null;
+                  setModal(() {});
+                }
+              }
+
+              void clearEvPricing() {
+                final e = editVariantSheetErr[0];
+                if (e != 'variantPrice' && e != 'variantSale') return;
+                editVariantSheetErr[0] = null;
+                setModal(() {});
+              }
+
               return DraggableScrollableSheet(
                 initialChildSize: 0.8,
                 minChildSize: 0.5,
                 maxChildSize: 0.95,
                 expand: false,
                 builder: (context, scrollController) {
+                  final theme = Theme.of(context);
+                  final usableAttrs =
+                      attrs.where((a) => a.values.isNotEmpty).toList();
+                  final sheetErr = editVariantSheetErr[0];
+                  final attrsInvalid = sheetErr == 'variantAttributes';
+                  final priceInvalid = sheetErr == 'variantPrice';
+                  final saleInvalid = sheetErr == 'variantSale';
+                  final costInvalid = sheetErr == 'variantCost';
+                  final stockInvalid = sheetErr == 'variantStock';
+
                   return ListView(
                     controller: scrollController,
                     padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
@@ -991,122 +1153,150 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      if (attrs.isEmpty)
+                      if (usableAttrs.isEmpty)
                         Text(
-                          'No attributes available for editing.',
+                          attrs.isEmpty
+                              ? 'No attributes available for editing.'
+                              : 'Attributes have no option values. Add values under Manage attributes first.',
                           style: theme.textTheme.bodySmall,
                         )
                       else
-                        ...attrs.map((a) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 14),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  a.name,
-                                  style: GoogleFonts.inter(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                    color: AppTheme.onSurfaceVariant,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Wrap(
-                                  spacing: 10,
-                                  runSpacing: 10,
-                                  children: a.values.map((raw) {
-                                    final label = _valueLabel(a, raw);
-                                    final isSelected =
-                                        selected[a.name] == label;
-                                    return ChoiceChip(
-                                      label: Text(label),
-                                      selected: isSelected,
-                                      showCheckmark: false,
-                                      selectedColor: AppTheme.primary,
-                                      backgroundColor:
-                                          theme.colorScheme.surfaceContainerLow,
-                                      labelStyle: GoogleFonts.inter(
-                                        fontWeight: FontWeight.w600,
-                                        color: isSelected
-                                            ? Colors.white
-                                            : AppTheme.onSurfaceVariant,
-                                      ),
-                                      side: BorderSide(
-                                        color: isSelected
-                                            ? Colors.transparent
-                                            : theme.colorScheme.outlineVariant
-                                                .withValues(alpha: 0.5),
-                                      ),
-                                      onSelected: (_) {
-                                        setModal(
-                                            () => selected[a.name] = label);
-                                      },
-                                    );
-                                  }).toList(),
-                                ),
-                              ],
+                        Container(
+                          padding: attrsInvalid
+                              ? const EdgeInsets.all(10)
+                              : EdgeInsets.zero,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              width: attrsInvalid ? 1.5 : 0,
+                              color: attrsInvalid
+                                  ? theme.colorScheme.error
+                                  : Colors.transparent,
                             ),
-                          );
-                        }),
+                            color: attrsInvalid
+                                ? theme.colorScheme.error
+                                    .withValues(alpha: 0.05)
+                                : null,
+                          ),
+                          child: Column(
+                            children: usableAttrs
+                                .map((a) {
+                                  return Padding(
+                                    padding:
+                                        const EdgeInsets.only(bottom: 14),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          a.name,
+                                          style: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 13,
+                                            color: AppTheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Wrap(
+                                          spacing: 10,
+                                          runSpacing: 10,
+                                          children:
+                                              a.values.map((raw) {
+                                            final label =
+                                                _valueLabel(a, raw);
+                                            final isSelected =
+                                                selected[a.name] == label;
+                                            return ChoiceChip(
+                                              label: Text(label),
+                                              selected: isSelected,
+                                              showCheckmark: false,
+                                              selectedColor: AppTheme.primary,
+                                              backgroundColor: theme
+                                                  .colorScheme
+                                                  .surfaceContainerLow,
+                                              labelStyle: GoogleFonts.inter(
+                                                fontWeight: FontWeight.w600,
+                                                color: isSelected
+                                                    ? Colors.white
+                                                    : AppTheme
+                                                        .onSurfaceVariant,
+                                              ),
+                                              side: BorderSide(
+                                                color: isSelected
+                                                    ? Colors.transparent
+                                                    : theme.colorScheme
+                                                        .outlineVariant
+                                                        .withValues(
+                                                            alpha: 0.5),
+                                              ),
+                                              onSelected: (_) {
+                                                setModal(() {
+                                                  if (isSelected) {
+                                                    selected.remove(a.name);
+                                                  } else {
+                                                    selected[a.name] =
+                                                        label;
+                                                  }
+                                                });
+                                                clearEv(
+                                                    'variantAttributes');
+                                              },
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                })
+                                .toList(),
+                          ),
+                        ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: regularCtrl,
                         keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
+                        onChanged: (_) => clearEvPricing(),
+                        decoration: _variantPricingInputDecoration(
+                          theme,
                           labelText: 'Regular price',
                           prefixText: 'KES ',
-                          filled: true,
-                          fillColor: theme.colorScheme.surfaceContainerLow,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
+                          isInvalid: priceInvalid,
                         ),
                       ),
                       const SizedBox(height: 10),
                       TextField(
                         controller: saleCtrl,
                         keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
+                        onChanged: (_) => clearEvPricing(),
+                        decoration: _variantPricingInputDecoration(
+                          theme,
                           labelText: 'Sale price (optional)',
                           prefixText: 'KES ',
-                          filled: true,
-                          fillColor: theme.colorScheme.surfaceContainerLow,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
+                          isInvalid: saleInvalid,
                         ),
                       ),
                       const SizedBox(height: 10),
                       TextField(
                         controller: costCtrl,
                         keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
+                        onChanged: (_) => clearEv('variantCost'),
+                        decoration: _variantPricingInputDecoration(
+                          theme,
                           labelText: 'Cost of goods (optional)',
                           helperText: 'Used for profit reporting only.',
                           prefixText: 'KES ',
-                          filled: true,
-                          fillColor: theme.colorScheme.surfaceContainerLow,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
+                          isInvalid: costInvalid,
                         ),
                       ),
                       const SizedBox(height: 10),
                       TextField(
                         controller: stockCtrl,
                         keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
+                        onChanged: (_) => clearEv('variantStock'),
+                        decoration: _variantPricingInputDecoration(
+                          theme,
                           labelText: 'Stock quantity',
-                          filled: true,
-                          fillColor: theme.colorScheme.surfaceContainerLow,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
+                          isInvalid: stockInvalid,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -1116,6 +1306,11 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                         decoration: BoxDecoration(
                           color: theme.colorScheme.surfaceContainerLow,
                           borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: theme.colorScheme.outlineVariant
+                                .withValues(alpha: 0.55),
+                            width: 1,
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1189,69 +1384,71 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                       const SizedBox(height: 16),
                       FilledButton(
                         onPressed: () {
-                          final variantRegular = _toDouble(regularCtrl.text);
+                          if (usableAttrs.isNotEmpty) {
+                            for (final a in usableAttrs) {
+                              final sel = selected[a.name]?.trim();
+                              if (sel == null || sel.isEmpty) {
+                                reportEv(
+                                  'variantAttributes',
+                                  'Select a value for ${a.name}.',
+                                );
+                                return;
+                              }
+                            }
+                          }
+                          final variantRegular =
+                              _toDouble(regularCtrl.text);
                           final variantSale = _toDouble(saleCtrl.text);
                           final variantCost = _toDouble(costCtrl.text);
                           final variantPrimaryPrice =
-                              variantRegular > 0 ? variantRegular : variantSale;
+                              variantRegular > 0
+                                  ? variantRegular
+                                  : variantSale;
                           if (variantPrimaryPrice <= 0) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Add a price for this variant (regular or sale).',
-                                ),
-                              ),
+                            reportEv(
+                              'variantPrice',
+                              'Enter a regular or sale price for this variant (KES).',
                             );
                             return;
                           }
                           if (variantRegular > 0 &&
                               variantSale > variantRegular) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Variant sale price cannot be greater than regular price.',
-                                ),
-                              ),
+                            reportEv(
+                              'variantSale',
+                              'Variant sale price cannot be greater than regular price.',
                             );
                             return;
                           }
                           if (costCtrl.text.trim().isNotEmpty &&
                               variantCost <= 0) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Variant cost of goods must be greater than 0 when provided.',
-                                ),
-                              ),
+                            reportEv(
+                              'variantCost',
+                              'Variant cost of goods must be greater than 0 when provided.',
                             );
                             return;
                           }
-                          final variantStockRaw = stockCtrl.text.trim();
+                          final variantStockRaw =
+                              stockCtrl.text.trim();
                           if (variantStockRaw.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                    'Stock quantity is required for each variant.'),
-                              ),
+                            reportEv(
+                              'variantStock',
+                              'Stock quantity is required — enter how many units you have.',
                             );
                             return;
                           }
-                          final variantStock = int.tryParse(variantStockRaw);
+                          final variantStock =
+                              int.tryParse(variantStockRaw);
                           if (variantStock == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                    'Stock quantity must be a whole number.'),
-                              ),
+                            reportEv(
+                              'variantStock',
+                              'Stock quantity must be a whole number.',
                             );
                             return;
                           }
                           if (variantStock < 0) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content:
-                                    Text('Stock quantity cannot be negative.'),
-                              ),
+                            reportEv(
+                              'variantStock',
+                              'Stock quantity cannot be negative.',
                             );
                             return;
                           }
@@ -2489,6 +2686,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                               key: _keyFor('name'),
                               child: _LabeledField(
                                 label: 'Product Name',
+                                example: _kProductNameExample,
                                 child: TextField(
                                   controller: _name,
                                   onChanged: (_) => _clearErrorFor('name'),
@@ -2496,7 +2694,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                       ?.copyWith(fontWeight: FontWeight.w600),
                                   decoration: _fieldDeco(
                                     theme,
-                                    hint: 'Enter product name',
+                                    hint: 'e.g. Maize Flour 2kg',
                                     isInvalid: _isInvalid('name'),
                                   ),
                                 ),
@@ -2508,6 +2706,15 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                               style: theme.textTheme.labelLarge?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant,
                                 fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Example: $_kProductDescriptionExample',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                height: 1.35,
+                                fontStyle: FontStyle.italic,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -2562,9 +2769,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                         ?.copyWith(height: 1.45),
                                     decoration: InputDecoration(
                                       hintText:
-                                          'Tell customers about your product...',
+                                          'e.g. Grade 1 maize flour, 2 kg bag. Milled locally…',
                                       hintStyle: TextStyle(
-                                          color: theme.colorScheme.outline),
+                                        color: theme.colorScheme.onSurfaceVariant
+                                            .withValues(alpha: 0.75),
+                                        height: 1.35,
+                                      ),
                                       border: InputBorder.none,
                                       contentPadding: const EdgeInsets.all(14),
                                     ),
@@ -3083,9 +3293,50 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                     }),
                                   const SizedBox(height: 8),
                                   FilledButton.icon(
-                                    onPressed: value.isEmpty
-                                        ? null
-                                        : _openAddVariantSheet,
+                                    onPressed: () {
+                                      final async =
+                                          ref.read(dashboardAttributesProvider);
+                                      final all =
+                                          async.valueOrNull ?? [];
+
+                                      if (async.isLoading) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                            behavior:
+                                                SnackBarBehavior.floating,
+                                            content: Text(
+                                              'Still loading attributes. Wait a moment, then tap Add variant again.',
+                                            ),
+                                          ),
+                                        );
+                                        _scrollVariantsSectionIntoView();
+                                        return;
+                                      }
+                                      if (async.hasError) {
+                                        _showVariantSetupRequired(
+                                          'Could not load product attributes: ${async.error}',
+                                        );
+                                        return;
+                                      }
+                                      if (all.isEmpty) {
+                                        _showVariantSetupRequired(
+                                          'Add at least one product attribute — for example Size or Color — before you add variants. Open Attributes from the catalog or settings.',
+                                        );
+                                        return;
+                                      }
+                                      final usable = all
+                                          .where((a) =>
+                                              a.values.isNotEmpty)
+                                          .toList();
+                                      if (usable.isEmpty) {
+                                        _showVariantSetupRequired(
+                                          'Each attribute needs option values — for example Small, Medium, Large for Size. Open Manage attributes, edit the attribute, and add options.',
+                                        );
+                                        return;
+                                      }
+                                      _openAddVariantSheet();
+                                    },
                                     icon: const Icon(Icons.add, size: 20),
                                     label: Text(
                                       'Add variant',
@@ -3237,14 +3488,62 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     );
   }
 
+  InputDecoration _variantPricingInputDecoration(
+    ThemeData theme, {
+    required String labelText,
+    String? helperText,
+    String? prefixText,
+    bool isInvalid = false,
+  }) {
+    final cs = theme.colorScheme;
+    final errorColor = cs.error;
+    final idleOutline = cs.outlineVariant.withValues(alpha: 0.55);
+    final enabled = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(
+        color: isInvalid ? errorColor : idleOutline,
+        width: isInvalid ? 1.5 : 1,
+      ),
+    );
+    final focused = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(
+        color: isInvalid ? errorColor : cs.primary,
+        width: 1.5,
+      ),
+    );
+    return InputDecoration(
+      labelText: labelText,
+      helperText: helperText,
+      prefixText: prefixText,
+      filled: true,
+      fillColor: isInvalid
+          ? errorColor.withValues(alpha: 0.06)
+          : cs.surfaceContainerLow,
+      border: enabled,
+      enabledBorder: enabled,
+      focusedBorder: focused,
+      disabledBorder: enabled,
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: errorColor, width: 1.5),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: errorColor, width: 1.5),
+      ),
+    );
+  }
+
   InputDecoration _fieldDeco(ThemeData theme,
       {String? hint, bool isInvalid = false}) {
     final errorColor = theme.colorScheme.error;
-    final border = OutlineInputBorder(
+    final idleOutline = theme.colorScheme.outlineVariant.withValues(alpha: 0.55);
+    final enabledBorder = OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
       borderSide: isInvalid
           ? BorderSide(color: errorColor, width: 1.5)
-          : BorderSide.none,
+          : BorderSide(color: idleOutline, width: 1),
     );
     return InputDecoration(
       hintText: hint,
@@ -3252,8 +3551,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       fillColor: isInvalid
           ? errorColor.withValues(alpha: 0.06)
           : theme.colorScheme.surfaceContainerLow,
-      border: border,
-      enabledBorder: border,
+      border: enabledBorder,
+      enabledBorder: enabledBorder,
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide(
@@ -3568,10 +3867,15 @@ class _CardShell extends StatelessWidget {
 }
 
 class _LabeledField extends StatelessWidget {
-  const _LabeledField({required this.label, required this.child});
+  const _LabeledField({
+    required this.label,
+    required this.child,
+    this.example,
+  });
 
   final String label;
   final Widget child;
+  final String? example;
 
   @override
   Widget build(BuildContext context) {
@@ -3586,6 +3890,17 @@ class _LabeledField extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
+        if (example != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Example: $example',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.35,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
         child,
       ],

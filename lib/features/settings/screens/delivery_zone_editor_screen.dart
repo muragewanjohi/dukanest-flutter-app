@@ -6,8 +6,11 @@ import 'package:dio/dio.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/api_validation_errors.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
+import '../../dashboard/providers/dashboard_getting_started_provider.dart';
+import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../providers/dashboard_settings_provider.dart';
 import '../providers/delivery_zones_provider.dart';
 
@@ -55,6 +58,7 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
   late List<String> _areas;
   late bool _isDefault;
   bool _saving = false;
+  String? _areasInlineError;
 
   @override
   void initState() {
@@ -82,106 +86,101 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
   String get _appBarTitle => _isEditing ? 'Edit delivery zone' : 'Add delivery zone';
 
   Map<String, dynamic> _buildZoneBody() {
+    final name = _name.text.trim();
     final fee = num.tryParse(_fee.text.trim()) ?? 0;
     final freeOver = num.tryParse(_freeOver.text.trim()) ?? 0;
     final days = int.tryParse(_handlingDays.text.trim()) ?? 1;
     return {
-      'name': _name.text.trim(),
+      'name': name,
       'areas': _areas,
+      'locations': _areas,
+      'coveredAreas': _areas,
+      'covered_areas': _areas,
+      'regions': _areas,
       'fee': fee,
+      'deliveryFee': fee,
+      'delivery_fee': fee,
+      'amount': fee,
       'freeShippingThreshold': freeOver,
+      'free_shipping_threshold': freeOver,
+      'freeOver': freeOver,
       'estimatedDays': days,
+      'estimated_days': days,
+      'handlingDays': days,
+      'handling_days': days,
+      'deliveryDays': days,
       'isDefault': _isDefault,
+      'is_default': _isDefault,
     };
   }
 
-  ({String fieldId, String message})? _mapServerValidationToField(dynamic raw) {
-    Map<String, dynamic>? asMap(dynamic v) {
-      if (v is Map<String, dynamic>) return v;
-      if (v is Map) return Map<String, dynamic>.from(v);
-      return null;
+  String _mapApiFieldToFieldId(String apiFieldKey) {
+    final k = apiFieldKey.toLowerCase();
+    if (k.contains('area') ||
+        k.contains('coverage') ||
+        k.contains('location') ||
+        k.contains('region')) {
+      return 'areas';
     }
-
-    final body = asMap(raw);
-    if (body == null) return null;
-
-    String? firstMessageFor(dynamic value) {
-      if (value is String && value.trim().isNotEmpty) return value.trim();
-      if (value is List) {
-        for (final item in value) {
-          if (item is String && item.trim().isNotEmpty) return item.trim();
-          if (item is Map) {
-            final m = Map<String, dynamic>.from(item);
-            final nested = firstMessageFor(
-              m['message'] ?? m['msg'] ?? m['error'] ?? m['detail'],
-            );
-            if (nested != null) return nested;
-          }
-        }
-      }
-      if (value is Map) {
-        final m = Map<String, dynamic>.from(value);
-        return firstMessageFor(
-          m['message'] ?? m['msg'] ?? m['error'] ?? m['detail'],
-        );
-      }
-      return null;
+    if (k.contains('free') || k.contains('threshold')) return 'freeOver';
+    if (k.contains('day') || k.contains('handling') || k.contains('estimate')) {
+      return 'handlingDays';
     }
-
-    String mapFieldId(String key) {
-      final k = key.toLowerCase();
-      if (k.contains('name')) return 'name';
-      if (k.contains('area') || k.contains('coverage')) return 'areas';
-      if (k.contains('free') || k.contains('threshold')) return 'freeOver';
-      if (k.contains('day') || k.contains('handling') || k.contains('estimate')) {
-        return 'handlingDays';
-      }
-      if (k.contains('fee') || k.contains('rate') || k.contains('price')) return 'fee';
-      return 'name';
+    if (k.contains('fee') || k.contains('rate') || k.contains('price') || k.contains('amount')) {
+      return 'fee';
     }
+    if (k.contains('name')) return 'name';
+    if (k.contains('default')) return 'isDefault';
+    return 'name';
+  }
 
-    for (final key in ['errors', 'fieldErrors', 'validation', 'details']) {
-      final segment = body[key];
-      if (segment is Map) {
-        final map = Map<String, dynamic>.from(segment);
-        for (final entry in map.entries) {
-          final msg = firstMessageFor(entry.value);
-          if (msg != null) {
-            return (fieldId: mapFieldId(entry.key), message: msg);
-          }
-        }
-      }
-      if (segment is List) {
-        for (final item in segment) {
-          if (item is Map) {
-            final m = Map<String, dynamic>.from(item);
-            final keyName = (m['field'] ?? m['path'] ?? m['key'] ?? '').toString();
-            final msg = firstMessageFor(
-              m['message'] ?? m['msg'] ?? m['error'] ?? m['detail'],
-            );
-            if (keyName.isNotEmpty && msg != null) {
-              return (fieldId: mapFieldId(keyName), message: msg);
-            }
-          }
-        }
-      }
+  void _reportZoneFieldError({
+    required String fieldId,
+    required String message,
+  }) {
+    if (fieldId == 'areas') {
+      setState(() => _areasInlineError = message);
     }
+    reportFieldError(fieldId: fieldId, message: message);
+  }
 
-    for (final entry in body.entries) {
-      if (entry.value is String || entry.value is List) {
-        final msg = firstMessageFor(entry.value);
-        if (msg != null) {
-          return (fieldId: mapFieldId(entry.key), message: msg);
-        }
-      }
+  @override
+  void clearFieldError(String fieldId) {
+    if (fieldId == 'areas' && _areasInlineError != null) {
+      setState(() => _areasInlineError = null);
     }
-    return null;
+    super.clearFieldError(fieldId);
+  }
+
+  @override
+  void clearAllFieldErrors() {
+    if (_areasInlineError != null) {
+      setState(() => _areasInlineError = null);
+    }
+    super.clearAllFieldErrors();
+  }
+
+  void _reportApiValidation(dynamic raw) {
+    final mapped = mapFirstApiValidationIssue(raw, _mapApiFieldToFieldId);
+    if (mapped != null) {
+      _reportZoneFieldError(fieldId: mapped.fieldId, message: mapped.message);
+      return;
+    }
+    final summary = formatApiValidationSummary(raw) ?? readApiErrorMessage(raw);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(summary ?? 'Could not save zone'),
+        backgroundColor: Theme.of(context).colorScheme.error,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 6),
+      ),
+    );
   }
 
   Future<void> _save() async {
     final name = _name.text.trim();
     if (name.isEmpty) {
-      reportFieldError(
+      _reportZoneFieldError(
         fieldId: 'name',
         message: 'Enter a zone name.',
       );
@@ -190,7 +189,7 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
     final feeRaw = _fee.text.trim();
     final fee = num.tryParse(feeRaw);
     if (feeRaw.isEmpty || fee == null || fee < 0) {
-      reportFieldError(
+      _reportZoneFieldError(
         fieldId: 'fee',
         message: 'Enter a valid delivery fee (0 or more).',
       );
@@ -198,7 +197,7 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
     }
     final freeRaw = _freeOver.text.trim();
     if (freeRaw.isNotEmpty && (num.tryParse(freeRaw) ?? -1) < 0) {
-      reportFieldError(
+      _reportZoneFieldError(
         fieldId: 'freeOver',
         message: 'Free-shipping threshold must be 0 or more.',
       );
@@ -207,9 +206,16 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
     final daysRaw = _handlingDays.text.trim();
     final days = int.tryParse(daysRaw);
     if (daysRaw.isEmpty || days == null || days < 0) {
-      reportFieldError(
+      _reportZoneFieldError(
         fieldId: 'handlingDays',
         message: 'Enter handling time in whole days (0 or more).',
+      );
+      return;
+    }
+    if (_areas.isEmpty) {
+      _reportZoneFieldError(
+        fieldId: 'areas',
+        message: 'Add at least one area this zone covers.',
       );
       return;
     }
@@ -226,18 +232,20 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
           : await api.createDeliveryZone(body);
       if (!mounted) return;
       if (!response.success) {
-        final mapped = _mapServerValidationToField(response.error?.details);
-        if (mapped != null) {
-          reportFieldError(fieldId: mapped.fieldId, message: mapped.message);
-          return;
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response.error?.message ?? 'Could not save zone')),
-        );
+        _reportApiValidation({
+          'error': {
+            'message': response.error?.message,
+            'details': response.error?.details,
+          },
+        });
         return;
       }
       ref.invalidate(deliveryZonesListProvider);
       ref.invalidate(dashboardSettingsProvider);
+      ref.invalidate(dashboardGettingStartedProvider);
+      ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(
+            DashboardOnboardingStepKeys.shipping,
+          );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(editing ? 'Zone updated' : 'Zone created')),
       );
@@ -248,26 +256,7 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
       }
     } on DioException catch (e) {
       if (!mounted) return;
-      String message = 'Could not save zone';
-      final body = e.response?.data;
-      if (body is Map<String, dynamic>) {
-        final mapped = _mapServerValidationToField(body);
-        if (mapped != null) {
-          reportFieldError(fieldId: mapped.fieldId, message: mapped.message);
-          return;
-        }
-        if (body['message'] is String && (body['message'] as String).isNotEmpty) {
-          message = body['message'] as String;
-        } else if (body['error'] is Map &&
-            (body['error'] as Map)['message'] is String) {
-          message = (body['error'] as Map)['message'] as String;
-        }
-      } else if ((e.message ?? '').isNotEmpty) {
-        message = e.message!;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      _reportApiValidation(e.response?.data);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -293,12 +282,7 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: InputDecoration(
-              hintText: 'County, city, or sub-area',
-              filled: true,
-              fillColor: theme.colorScheme.surfaceContainerLow,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-            ),
+            decoration: _fieldDeco(theme, hint: 'County, city, or sub-area'),
             textCapitalization: TextCapitalization.words,
           ),
           actions: [
@@ -306,7 +290,10 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
             FilledButton(
               onPressed: () {
                 final t = controller.text.trim();
-                if (t.isNotEmpty) setState(() => _areas = [..._areas, t]);
+                if (t.isNotEmpty) {
+                  setState(() => _areas = [..._areas, t]);
+                  clearFieldError('areas');
+                }
                 Navigator.pop(ctx);
               },
               child: const Text('Add'),
@@ -324,11 +311,12 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
     bool isInvalid = false,
   }) {
     final errorColor = theme.colorScheme.error;
-    final border = OutlineInputBorder(
+    final idleOutline = theme.colorScheme.outlineVariant.withValues(alpha: 0.55);
+    final enabledBorder = OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
       borderSide: isInvalid
           ? BorderSide(color: errorColor, width: 1.5)
-          : BorderSide.none,
+          : BorderSide(color: idleOutline, width: 1),
     );
     return InputDecoration(
       hintText: hint,
@@ -336,8 +324,8 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
       fillColor: isInvalid
           ? errorColor.withValues(alpha: 0.06)
           : theme.colorScheme.surfaceContainerLow,
-      border: border,
-      enabledBorder: border,
+      border: enabledBorder,
+      enabledBorder: enabledBorder,
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(
@@ -493,7 +481,19 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                   title: 'Coverage',
                   child: KeyedSubtree(
                     key: keyFor('areas'),
-                    child: Column(
+                    child: Builder(builder: (context) {
+                      final areasInvalid = isFieldInvalid('areas');
+                      final errorColor = theme.colorScheme.error;
+                      return Container(
+                        padding: areasInvalid ? const EdgeInsets.all(12) : EdgeInsets.zero,
+                        decoration: areasInvalid
+                            ? BoxDecoration(
+                                color: errorColor.withValues(alpha: 0.04),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: errorColor, width: 1.5),
+                              )
+                            : null,
+                        child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
@@ -501,9 +501,33 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.onSurfaceVariant,
+                          color: areasInvalid
+                              ? errorColor
+                              : theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
+                      if (areasInvalid) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.error_outline, size: 16, color: errorColor),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _areasInlineError ??
+                                    'Add at least one area this zone covers.',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: errorColor,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       if (_areas.isEmpty)
                         Text(
@@ -529,7 +553,10 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                         ),
                       const SizedBox(height: 14),
                       OutlinedButton.icon(
-                        onPressed: _addAreaPrompt,
+                        onPressed: () {
+                          clearFieldError('areas');
+                          _addAreaPrompt();
+                        },
                         icon: Icon(Icons.add_rounded, size: 20, color: AppTheme.primaryDark),
                         label: Text(
                           'Add area',
@@ -543,7 +570,9 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                         ),
                       ),
                     ],
-                    ),
+                        ),
+                      );
+                    }),
                   ),
                 ),
                 const SizedBox(height: 16),

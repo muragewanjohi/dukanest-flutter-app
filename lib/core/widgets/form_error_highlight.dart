@@ -18,6 +18,17 @@ import 'package:flutter/material.dart';
 ///    }
 ///    ```
 ///    where `validate()` returns `({String fieldId, String message})?`.
+///
+/// **App-wide UX:** After a failed validation, always give both (1) a short
+/// readable message and (2) visible focus on the problem control. Prefer this
+/// mixin on full-screen editors. For **modal bottom sheets** or local state that
+/// cannot share `keyFor`, mirror the same UX: a **floating** `SnackBar` with
+/// `backgroundColor: Theme.of(context).colorScheme.error` plus **error border /
+/// fill** on the specific field until `onChanged` clears the error.
+///
+/// Editors already using this mixin include payment settings, tax, store
+/// identity, shipping & delivery, delivery zones, product category/attribute
+/// editors, sales editor, and CMS hero/blog editors.
 mixin FormErrorHighlightMixin<T extends StatefulWidget> on State<T> {
   String? _errorFieldId;
   final Map<String, GlobalKey> _fieldKeys = <String, GlobalKey>{};

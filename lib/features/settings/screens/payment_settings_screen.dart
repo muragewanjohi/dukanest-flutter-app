@@ -11,6 +11,7 @@ import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../providers/dashboard_settings_provider.dart';
+import '../tumizi_integration_sync.dart';
 
 /// Merchant admin: storefront payment options (cash / M-Pesa / Tumizi, defaults). Does not initiate customer payments. Stitch: Payment Settings (d63f85c750fe4eb09247834fad7ca49f).
 class PaymentSettingsScreen extends ConsumerStatefulWidget {
@@ -283,6 +284,17 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
         },
       };
       final api = ref.read(apiClientProvider);
+      final tumiziSyncError = await syncTumiziIntegration(
+        api,
+        enabled: _tumiziEnabled,
+      );
+      if (!mounted) return;
+      if (tumiziSyncError != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tumiziSyncError)),
+        );
+        return;
+      }
       final r = await api.patchDashboardSettings(body);
       if (!mounted) return;
       if (!r.success) {
@@ -436,6 +448,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                   title: 'Cash',
                   subtitle: 'Enable cash on delivery payments',
                   value: _cashEnabled,
+                  isPreferred:
+                      _defaultMethod == _DefaultPaymentMethod.cash && _cashEnabled,
                   onChanged: (v) => setState(() => _cashEnabled = v),
                 ),
                 const SizedBox(height: 12),
@@ -446,7 +460,20 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                   subtitle:
                       'Customers pay with an M-Pesa STK prompt; payments confirm automatically when this is on.',
                   value: _tumiziEnabled,
-                  onChanged: (v) => setState(() => _tumiziEnabled = v),
+                  isPreferred:
+                      _defaultMethod == _DefaultPaymentMethod.tumizi && _tumiziEnabled,
+                  onChanged: (v) => setState(() {
+                    _tumiziEnabled = v;
+                    if (v) {
+                      _defaultMethod = _DefaultPaymentMethod.tumizi;
+                    } else if (_defaultMethod == _DefaultPaymentMethod.tumizi) {
+                      if (_cashEnabled) {
+                        _defaultMethod = _DefaultPaymentMethod.cash;
+                      } else if (_mpesaEnabled) {
+                        _defaultMethod = _DefaultPaymentMethod.mpesa;
+                      }
+                    }
+                  }),
                 ),
                 const SizedBox(height: 12),
                 _mpesaSection(theme),
@@ -535,7 +562,9 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                       color: theme.colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w600,
                     ),
-                  ),
+                  )
+                else if (selected)
+                  _preferredBadge(theme),
               ],
             ),
           ),
@@ -636,19 +665,50 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     );
   }
 
+  Widget _preferredBadge(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
+        ),
+      ),
+      child: Text(
+        'Preferred',
+        style: GoogleFonts.inter(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: AppTheme.primaryDark,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+
   Widget _methodToggleRow(
     ThemeData theme, {
     required IconData icon,
     required String title,
     required String subtitle,
     required bool value,
+    bool isPreferred = false,
     required ValueChanged<bool> onChanged,
   }) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
+        color: isPreferred
+            ? theme.colorScheme.surfaceContainerLowest
+            : theme.colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(14),
+        border: isPreferred
+            ? Border.all(
+                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
+                width: 2,
+              )
+            : null,
       ),
       child: Row(
         children: [
@@ -666,13 +726,23 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurface,
-                  ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    if (isPreferred) ...[
+                      const SizedBox(width: 8),
+                      _preferredBadge(theme),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -694,10 +764,20 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
   }
 
   Widget _mpesaSection(ThemeData theme) {
+    final isPreferred =
+        _defaultMethod == _DefaultPaymentMethod.mpesa && _mpesaEnabled;
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
+        color: isPreferred
+            ? theme.colorScheme.surfaceContainerLowest
+            : theme.colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(14),
+        border: isPreferred
+            ? Border.all(
+                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
+                width: 2,
+              )
+            : null,
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -721,13 +801,24 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'M-Pesa',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.onSurface,
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'M-Pesa',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                          if (_defaultMethod == _DefaultPaymentMethod.mpesa &&
+                              _mpesaEnabled) ...[
+                            const SizedBox(width: 8),
+                            _preferredBadge(theme),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -739,7 +830,16 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                 ),
                 Switch(
                   value: _mpesaEnabled,
-                  onChanged: (v) => setState(() => _mpesaEnabled = v),
+                  onChanged: (v) => setState(() {
+                    _mpesaEnabled = v;
+                    if (!v && _defaultMethod == _DefaultPaymentMethod.mpesa) {
+                      if (_cashEnabled) {
+                        _defaultMethod = _DefaultPaymentMethod.cash;
+                      } else if (_tumiziEnabled) {
+                        _defaultMethod = _DefaultPaymentMethod.tumizi;
+                      }
+                    }
+                  }),
                   activeTrackColor: theme.colorScheme.primaryContainer,
                   activeThumbColor: Colors.white,
                 ),

@@ -9,6 +9,8 @@ import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
+import '../../dashboard/providers/dashboard_getting_started_provider.dart';
+import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../../settings/providers/dashboard_settings_provider.dart';
 import '../data/attribute_value_format.dart';
 import '../data/attributes_repository.dart';
@@ -50,7 +52,6 @@ class _DraftPlainRow {
 class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
     with FormErrorHighlightMixin {
   final _nameController = TextEditingController();
-  final _descController = TextEditingController();
 
   AttributeDisplayType _displayType = AttributeDisplayType.text;
   List<_DraftColorRow> _colorRows = [];
@@ -89,7 +90,6 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
         ..addAll(_collectValueIds(detail));
       setState(() {
         _nameController.text = pa.name;
-        _descController.text = pa.description;
         _displayType = pa.displayType;
         _hydrateRowsFromStorage(pa.values);
       });
@@ -176,7 +176,6 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
   @override
   void dispose() {
     _nameController.dispose();
-    _descController.dispose();
     _disposeColorRows();
     _disposePlainRows();
     super.dispose();
@@ -323,7 +322,6 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
           'name': name,
           'type': apiTypeFromDisplay(_displayType),
           'slug': safeSlug,
-          if (_descController.text.trim().isNotEmpty) 'description': _descController.text.trim(),
         });
         if (!cr.success) throw StateError(cr.error?.message ?? 'Create failed');
         final root = unwrapSettingsData(cr.data) ?? cr.data;
@@ -341,7 +339,6 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
         final ur = await api.updateDashboardAttribute(id, {
           'name': name,
           'type': apiTypeFromDisplay(_displayType),
-          if (_descController.text.trim().isNotEmpty) 'description': _descController.text.trim(),
         });
         if (!ur.success) throw StateError(ur.error?.message ?? 'Update failed');
         for (final vid in _remoteValueIds) {
@@ -354,9 +351,24 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
         }
       }
       ref.invalidate(dashboardAttributesProvider);
+      ref.invalidate(dashboardGettingStartedProvider);
+      if (widget.isNew) {
+        ref
+            .read(dashboardLocalStepCompletionsProvider.notifier)
+            .markComplete(DashboardOnboardingStepKeys.attributes);
+      }
       if (mounted) {
+        final valueCount = values.length;
+        final valueLabel = valueCount == 1 ? 'value' : 'values';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Attribute saved')),
+          SnackBar(
+            content: Text(
+              widget.isNew
+                  ? '“$name” created with $valueCount $valueLabel. Getting started updated.'
+                  : '“$name” saved with $valueCount $valueLabel.',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
         context.pop();
       }
@@ -476,12 +488,6 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
                 isInvalid: isFieldInvalid('name'),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _descController,
-            maxLines: 2,
-            decoration: _deco('Description', 'Optional — internal note'),
           ),
           const SizedBox(height: 20),
           Text(
@@ -794,10 +800,12 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
             ),
           ),
           const SizedBox(height: 10),
-          _exampleLine('Size', 'Small, Medium, Large, XL'),
-          _exampleLine('Color', 'Red (#FF0000), Blue (#0000FF), Green (#00FF00)'),
-          _exampleLine('Weight', '200g, 500g, 1kg'),
-          _exampleLine('Material', 'Cotton, Polyester, Silk'),
+          _exampleAttribute(name: 'Size', values: const ['Small', 'Medium', 'Large']),
+          _exampleAttribute(
+            name: 'Colour',
+            values: const ['Red (#FF0000)', 'Blue (#0000FF)', 'Green (#00FF00)'],
+          ),
+          _exampleAttribute(name: 'Weight', values: const ['200g', '500g', '1kg']),
           const SizedBox(height: 12),
           Text(
             'Attributes are reusable across products. Once created, you can use them when creating product variants.',
@@ -812,27 +820,56 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
     );
   }
 
-  Widget _exampleLine(String title, String values) {
+  Widget _exampleAttribute({
+    required String name,
+    required List<String> values,
+  }) {
+    TextStyle labelStyle() => GoogleFonts.inter(
+          fontSize: 12,
+          color: AppTheme.onSurfaceVariant,
+          height: 1.35,
+        );
+    TextStyle valueStyle() => GoogleFonts.inter(
+          fontSize: 12,
+          color: AppTheme.secondary,
+          height: 1.35,
+        );
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('• ', style: GoogleFonts.inter(fontSize: 13, color: AppTheme.secondary)),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: GoogleFonts.inter(fontSize: 13, color: AppTheme.secondary, height: 1.35),
-                children: [
-                  TextSpan(
-                    text: '$title: ',
-                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.secondary),
+          RichText(
+            text: TextSpan(
+              style: labelStyle(),
+              children: [
+                const TextSpan(text: 'Name: '),
+                TextSpan(
+                  text: name,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.primaryDark,
+                    height: 1.35,
                   ),
-                  TextSpan(text: values),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
+          for (var i = 0; i < values.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: RichText(
+                text: TextSpan(
+                  style: labelStyle(),
+                  children: [
+                    TextSpan(text: 'Value ${i + 1}: '),
+                    TextSpan(text: values[i], style: valueStyle()),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );

@@ -11,6 +11,7 @@ import '../../../core/auth/token_storage.dart';
 import '../../../core/providers/first_run_tutorial_seen_provider.dart';
 import '../../../core/providers/store_identity_provider.dart';
 import '../../dashboard/providers/dashboard_getting_started_provider.dart';
+import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 
 class _TutorialStep {
   const _TutorialStep({
@@ -80,7 +81,8 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
     _TutorialStep(
       key: 'first_category',
       title: 'Create your first category',
-      description: 'Organize your catalog so products are easy to find.',
+      description:
+          'Group products into catalog sections like Footwear or Groceries so shoppers can browse.',
       actionLabel: 'Add Category',
       completed: false,
       icon: Icons.category_outlined,
@@ -664,9 +666,20 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
     final cardPadding = compact ? 16.0 : 20.0;
     final checklistHeight = compact ? 108.0 : 130.0;
     final gsData = ref.watch(dashboardGettingStartedProvider).valueOrNull;
+    final syncedCompletions =
+        ref.watch(dashboardLocalStepCompletionsProvider);
     final stepsBase = _stepsFromGettingStarted(gsData);
     final steps = stepsBase
-        .map((s) => s.copyWith(completed: s.completed || _localCompleted.contains(s.key)))
+        .map((s) {
+          final canonical = canonicalDashboardOnboardingStepKey(s.key);
+          final synced =
+              canonical.isNotEmpty && syncedCompletions.contains(canonical);
+          return s.copyWith(
+            completed: s.completed ||
+                _localCompleted.contains(s.key) ||
+                synced,
+          );
+        })
         .toList();
     final total = steps.isEmpty ? 1 : steps.length;
     final safeIndex = _index.clamp(0, total - 1);
@@ -1169,7 +1182,7 @@ class _CategoryIllustrationBody extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _IllustrCaption(text: 'What you’ll organize'),
+        const _IllustrCaption(text: 'Catalog sections shoppers browse'),
         const SizedBox(height: 10),
         DecoratedBox(
           decoration: BoxDecoration(
@@ -1218,7 +1231,7 @@ class _CategoryIllustrationBody extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Groups similar products for browsing',
+                            'Each product is assigned one category',
                             style: GoogleFonts.inter(
                               fontSize: 11,
                               height: 1.3,
@@ -1233,19 +1246,19 @@ class _CategoryIllustrationBody extends StatelessWidget {
                 const SizedBox(height: 12),
                 Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
                 const _IllustrSpecRow(
-                  icon: Icons.straighten_rounded,
-                  label: 'Size',
-                  value: '36 — 45 EU',
+                  icon: Icons.folder_outlined,
+                  label: 'Groceries',
+                  value: 'Flour, rice, oil',
                 ),
                 const _IllustrSpecRow(
-                  icon: Icons.scale_rounded,
-                  label: 'Weight',
-                  value: '180 g — 1.2 kg',
+                  icon: Icons.folder_outlined,
+                  label: 'Beverages',
+                  value: 'Juice, water, soda',
                 ),
                 const _IllustrSpecRow(
-                  icon: Icons.palette_outlined,
-                  label: 'Colorways',
-                  value: 'Navy, Sand, Olive',
+                  icon: Icons.folder_outlined,
+                  label: 'Electronics',
+                  value: 'Phones, chargers',
                 ),
               ],
             ),
@@ -1266,7 +1279,7 @@ class _AttributesIllustrationBody extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _IllustrCaption(text: 'Options you’ll reuse'),
+        const _IllustrCaption(text: 'Variant options on products'),
         const SizedBox(height: 10),
         DecoratedBox(
           decoration: BoxDecoration(

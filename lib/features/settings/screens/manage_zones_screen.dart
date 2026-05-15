@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../providers/dashboard_settings_provider.dart';
 import '../providers/delivery_zones_provider.dart';
 import 'delivery_zone_editor_screen.dart';
@@ -96,6 +97,14 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
         ),
       ),
       data: (zones) {
+        if (zones.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(
+                  DashboardOnboardingStepKeys.shipping,
+                );
+          });
+        }
         final filtered = q.isEmpty
             ? zones
             : zones

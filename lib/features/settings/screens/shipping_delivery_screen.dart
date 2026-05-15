@@ -7,8 +7,10 @@ import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
+import '../../dashboard/providers/dashboard_getting_started_provider.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../providers/dashboard_settings_provider.dart';
+import '../providers/delivery_zones_provider.dart';
 
 /// Shipping & delivery — Stitch: Shipping & Delivery (Mobile) (b1de30ad39f34a3ba10883af6a0de581).
 class ShippingDeliveryScreen extends ConsumerStatefulWidget {
@@ -18,15 +20,17 @@ class ShippingDeliveryScreen extends ConsumerStatefulWidget {
   ConsumerState<ShippingDeliveryScreen> createState() => _ShippingDeliveryScreenState();
 }
 
+enum _ShippingRateMode { zones, flatRate }
+
 class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     with FormErrorHighlightMixin {
-  bool _localDelivery = true;
-  bool _nationwide = true;
+  bool _allowDelivery = false;
   bool _storePickup = false;
+  _ShippingRateMode _rateMode = _ShippingRateMode.zones;
 
   final _flatRate = TextEditingController(text: '250');
   final _freeOver = TextEditingController(text: '5000');
-  final _handlingDays = TextEditingController(text: '1');
+  int _handlingDays = 1;
   bool _hydrated = false;
   bool _saving = false;
 
@@ -34,74 +38,139 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
   void dispose() {
     _flatRate.dispose();
     _freeOver.dispose();
-    _handlingDays.dispose();
     super.dispose();
   }
 
   void _hydrateFrom(Map<String, dynamic>? root) {
     final s = settingsSection(root, 'shipping') ?? {};
-    _localDelivery = settingsPickBool(s, ['local_delivery', 'localDelivery'], fallback: true);
-    _nationwide = settingsPickBool(s, ['nationwide_shipping', 'nationwide', 'nationwideShipping'], fallback: true);
-    _storePickup = settingsPickBool(s, ['store_pickup', 'storePickup', 'pickup_enabled'], fallback: false);
-    _flatRate.text = settingsPick(s, ['flat_rate', 'flatRate', 'standard_flat_rate', 'default_shipping_fee'], fallback: '0');
-    _freeOver.text = settingsPick(s, [
-      'free_shipping_threshold',
-      'freeShippingThreshold',
-      'free_over',
-      'freeOver',
-    ], fallback: '0');
-    _handlingDays.text = settingsPick(s, [
-      'handling_days',
-      'handlingDays',
-      'estimated_days',
-      'estimatedDays',
-    ], fallback: '1');
+    _allowDelivery = settingsPickBool(
+      s,
+      ['local_delivery', 'localDelivery'],
+      fallback: false,
+    );
+    _storePickup = settingsPickBool(
+      s,
+      ['store_pickup', 'storePickup', 'pickup_enabled'],
+      fallback: false,
+    );
+
+    final modeRaw = settingsPick(
+      s,
+      ['shipping_mode', 'shippingMode', 'rate_mode', 'rateMode', 'delivery_rate_mode'],
+    ).toLowerCase();
+    final useFlat = settingsPickBool(
+      s,
+      ['use_flat_rate', 'useFlatRate', 'flat_rate_enabled', 'flatRateEnabled'],
+      fallback: false,
+    );
+    final useZones = settingsPickBool(
+      s,
+      ['use_delivery_zones', 'useDeliveryZones', 'zones_enabled', 'zonesEnabled'],
+      fallback: false,
+    );
+    if (modeRaw.contains('flat')) {
+      _rateMode = _ShippingRateMode.flatRate;
+    } else if (useFlat && !useZones) {
+      _rateMode = _ShippingRateMode.flatRate;
+    } else {
+      _rateMode = _ShippingRateMode.zones;
+    }
+
+    _flatRate.text = settingsPick(
+      s,
+      ['flat_rate', 'flatRate', 'standard_flat_rate', 'default_shipping_fee'],
+      fallback: '0',
+    );
+    _freeOver.text = settingsPick(
+      s,
+      [
+        'free_shipping_threshold',
+        'freeShippingThreshold',
+        'free_over',
+        'freeOver',
+      ],
+      fallback: '0',
+    );
+    final daysRaw = settingsPick(
+      s,
+      ['handling_days', 'handlingDays', 'estimated_days', 'estimatedDays'],
+      fallback: '1',
+    );
+    _handlingDays = int.tryParse(daysRaw)?.clamp(0, 90) ?? 1;
   }
 
   Future<void> _save() async {
     if (_saving) return;
-    final flatRaw = _flatRate.text.trim();
-    final flatParsed = num.tryParse(flatRaw);
-    if (flatRaw.isEmpty || flatParsed == null || flatParsed < 0) {
-      reportFieldError(
-        fieldId: 'flatRate',
-        message: 'Enter a flat shipping rate (0 or more).',
-      );
-      return;
+
+    if (_allowDelivery) {
+      if (_rateMode == _ShippingRateMode.zones) {
+        ref.invalidate(deliveryZonesListProvider);
+        try {
+          final zones = await ref.read(deliveryZonesListProvider.future);
+          if (!mounted) return;
+          if (zones.isEmpty) {
+            reportFieldError(
+              fieldId: 'deliveryZones',
+              message:
+                  'Add at least one delivery zone, or switch to flat rate under “How do you charge for delivery?”',
+            );
+            return;
+          }
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not verify delivery zones: $e')),
+          );
+          return;
+        }
+      } else if (_rateMode == _ShippingRateMode.flatRate) {
+        final flatRaw = _flatRate.text.trim();
+        final flatParsed = num.tryParse(flatRaw);
+        if (flatRaw.isEmpty || flatParsed == null || flatParsed < 0) {
+          reportFieldError(
+            fieldId: 'flatRate',
+            message: 'Enter a flat shipping rate (0 or more).',
+          );
+          return;
+        }
+        final freeRaw = _freeOver.text.trim();
+        if (freeRaw.isNotEmpty && (num.tryParse(freeRaw) ?? -1) < 0) {
+          reportFieldError(
+            fieldId: 'freeOver',
+            message: 'Free-shipping threshold must be 0 or more.',
+          );
+          return;
+        }
+      }
     }
-    final freeRaw = _freeOver.text.trim();
-    if (freeRaw.isNotEmpty && (num.tryParse(freeRaw) ?? -1) < 0) {
-      reportFieldError(
-        fieldId: 'freeOver',
-        message: 'Free-shipping threshold must be 0 or more.',
-      );
-      return;
-    }
-    final daysRaw = _handlingDays.text.trim();
-    final daysParsed = int.tryParse(daysRaw);
-    if (daysRaw.isEmpty || daysParsed == null || daysParsed < 0) {
-      reportFieldError(
-        fieldId: 'handlingDays',
-        message: 'Enter handling time in whole days (0 or more).',
-      );
-      return;
-    }
+
     clearAllFieldErrors();
     setState(() => _saving = true);
     try {
       final flat = num.tryParse(_flatRate.text.trim()) ?? 0;
       final free = num.tryParse(_freeOver.text.trim()) ?? 0;
-      final days = int.tryParse(_handlingDays.text.trim()) ?? 1;
-      final anyCoverage = _localDelivery || _nationwide || _storePickup;
+      final useZones = _allowDelivery && _rateMode == _ShippingRateMode.zones;
+      final useFlat = _allowDelivery && _rateMode == _ShippingRateMode.flatRate;
       final body = <String, dynamic>{
         'shipping': {
-          'localDelivery': _localDelivery,
-          'nationwideShipping': _nationwide,
+          'localDelivery': _allowDelivery,
+          'local_delivery': _allowDelivery,
           'storePickup': _storePickup,
-          'shippingEnabled': anyCoverage,
-          'flatRate': flat,
-          'freeShippingThreshold': free,
-          'handlingDays': days,
+          'store_pickup': _storePickup,
+          'shippingEnabled': _allowDelivery || _storePickup,
+          'shipping_enabled': _allowDelivery || _storePickup,
+          'shippingMode': useZones ? 'zones' : (useFlat ? 'flat_rate' : 'none'),
+          'shipping_mode': useZones ? 'zones' : (useFlat ? 'flat_rate' : 'none'),
+          'useDeliveryZones': useZones,
+          'use_delivery_zones': useZones,
+          'useFlatRate': useFlat,
+          'use_flat_rate': useFlat,
+          'flatRate': useFlat ? flat : 0,
+          'flat_rate': useFlat ? flat : 0,
+          'freeShippingThreshold': useFlat ? free : 0,
+          'free_shipping_threshold': useFlat ? free : 0,
+          'handlingDays': _handlingDays,
+          'handling_days': _handlingDays,
         },
       };
       final api = ref.read(apiClientProvider);
@@ -114,6 +183,7 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
         return;
       }
       ref.invalidate(dashboardSettingsProvider);
+      ref.invalidate(dashboardGettingStartedProvider);
       ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(DashboardOnboardingStepKeys.shipping);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Shipping settings saved')),
@@ -137,11 +207,12 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     bool isInvalid = false,
   }) {
     final errorColor = theme.colorScheme.error;
-    final border = OutlineInputBorder(
+    final idleOutline = theme.colorScheme.outlineVariant.withValues(alpha: 0.55);
+    final enabledBorder = OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
       borderSide: isInvalid
           ? BorderSide(color: errorColor, width: 1.5)
-          : BorderSide.none,
+          : BorderSide(color: idleOutline, width: 1),
     );
     return InputDecoration(
       hintText: hint,
@@ -149,8 +220,8 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
       fillColor: isInvalid
           ? errorColor.withValues(alpha: 0.06)
           : theme.colorScheme.surfaceContainerLow,
-      border: border,
-      enabledBorder: border,
+      border: enabledBorder,
+      enabledBorder: enabledBorder,
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(
@@ -209,6 +280,9 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
   }
 
   Widget _buildScaffold(ThemeData theme) {
+    final showZonesUi = _allowDelivery && _rateMode == _ShippingRateMode.zones;
+    final showFlatRateUi = _allowDelivery && _rateMode == _ShippingRateMode.flatRate;
+
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: const DashboardAppBar(title: 'Shipping & Delivery'),
@@ -229,7 +303,7 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Define how customers receive orders: zones, fees, estimated timelines, and pickup options.',
+                  'Define how customers receive orders: delivery zones or a flat fee, handling time, and pickup.',
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     height: 1.45,
@@ -246,27 +320,49 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                       _switchRow(
                         theme,
                         title: 'Allow delivery',
-                        subtitle: 'Deliver within your city or metro area',
-                        value: _localDelivery,
+                        subtitle: 'Deliver to customers in your service areas',
+                        value: _allowDelivery,
                         onChanged: (v) => setState(() {
-                          _localDelivery = v;
-                          if (!v) {
-                            _nationwide = false;
+                          _allowDelivery = v;
+                          if (v) {
+                            _rateMode = _ShippingRateMode.zones;
                           }
+                          clearFieldError('deliveryZones');
                         }),
                       ),
-                      const Divider(height: 24),
-                      _switchRow(
-                        theme,
-                        title: 'Nationwide shipping',
-                        subtitle: 'Courier or partner delivery across the country',
-                        value: _nationwide,
-                        onChanged: (v) {
-                          if (!_localDelivery && v) return;
-                          setState(() => _nationwide = v);
-                        },
-                      ),
-                      const Divider(height: 24),
+                      if (_allowDelivery) ...[
+                        const SizedBox(height: 20),
+                        Text(
+                          'How do you charge for delivery?',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        _rateModeTile(
+                          theme,
+                          mode: _ShippingRateMode.zones,
+                          title: 'Manage zones',
+                          subtitle: 'Set fees per area (recommended)',
+                        ),
+                        const SizedBox(height: 8),
+                        _rateModeTile(
+                          theme,
+                          mode: _ShippingRateMode.flatRate,
+                          title: 'Flat rate',
+                          subtitle: 'One delivery fee for all orders',
+                        ),
+                        if (showZonesUi) ...[
+                          const SizedBox(height: 16),
+                          KeyedSubtree(
+                            key: keyFor('deliveryZones'),
+                            child: _manageZonesRow(context, theme),
+                          ),
+                        ],
+                      ],
+                      const Divider(height: 28),
                       _switchRow(
                         theme,
                         title: 'Store pickup',
@@ -274,74 +370,80 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                         value: _storePickup,
                         onChanged: (v) => setState(() => _storePickup = v),
                       ),
-                      const Divider(height: 28),
-                      _manageZonesRow(context, theme),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                _section(
-                  theme,
-                  icon: Icons.local_shipping_outlined,
-                  title: 'Rates & free shipping',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Standard flat rate (KES)',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.onSurfaceVariant,
+                if (showFlatRateUi) ...[
+                  const SizedBox(height: 16),
+                  _section(
+                    theme,
+                    icon: Icons.local_shipping_outlined,
+                    title: 'Rates & free shipping',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Standard flat rate (KES)',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      KeyedSubtree(
-                        key: keyFor('flatRate'),
-                        child: TextField(
-                          controller: _flatRate,
-                          keyboardType: TextInputType.number,
-                          onChanged: (_) => clearFieldError('flatRate'),
-                          decoration: _fieldDeco(
-                            theme,
-                            hint: 'e.g. 250',
-                            isInvalid: isFieldInvalid('flatRate'),
-                            prefixIcon: Padding(
-                              padding: const EdgeInsets.only(left: 12, right: 4),
-                              child: Center(
-                                widthFactor: 1,
-                                child: Text('KES', style: GoogleFonts.inter(color: theme.colorScheme.outline, fontSize: 14)),
+                        const SizedBox(height: 8),
+                        KeyedSubtree(
+                          key: keyFor('flatRate'),
+                          child: TextField(
+                            controller: _flatRate,
+                            keyboardType: TextInputType.number,
+                            onChanged: (_) => clearFieldError('flatRate'),
+                            decoration: _fieldDeco(
+                              theme,
+                              hint: 'e.g. 250',
+                              isInvalid: isFieldInvalid('flatRate'),
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.only(left: 12, right: 4),
+                                child: Center(
+                                  widthFactor: 1,
+                                  child: Text(
+                                    'KES',
+                                    style: GoogleFonts.inter(
+                                      color: theme.colorScheme.outline,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 18),
-                      Text(
-                        'Free shipping on orders over (KES)',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      KeyedSubtree(
-                        key: keyFor('freeOver'),
-                        child: TextField(
-                          controller: _freeOver,
-                          keyboardType: TextInputType.number,
-                          onChanged: (_) => clearFieldError('freeOver'),
-                          decoration: _fieldDeco(
-                            theme,
-                            hint: 'e.g. 5000 (0 to disable)',
-                            isInvalid: isFieldInvalid('freeOver'),
+                        const SizedBox(height: 18),
+                        Text(
+                          'Free shipping on orders over (KES)',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        KeyedSubtree(
+                          key: keyFor('freeOver'),
+                          child: TextField(
+                            controller: _freeOver,
+                            keyboardType: TextInputType.number,
+                            onChanged: (_) => clearFieldError('freeOver'),
+                            decoration: _fieldDeco(
+                              theme,
+                              hint: 'e.g. 5000 (0 to disable)',
+                              isInvalid: isFieldInvalid('freeOver'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                ],
                 const SizedBox(height: 16),
                 _section(
                   theme,
@@ -358,19 +460,10 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       KeyedSubtree(
                         key: keyFor('handlingDays'),
-                        child: TextField(
-                          controller: _handlingDays,
-                          keyboardType: TextInputType.number,
-                          onChanged: (_) => clearFieldError('handlingDays'),
-                          decoration: _fieldDeco(
-                            theme,
-                            hint: 'e.g. 1',
-                            isInvalid: isFieldInvalid('handlingDays'),
-                          ),
-                        ),
+                        child: _handlingDaysStepper(theme),
                       ),
                     ],
                   ),
@@ -381,7 +474,9 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                   decoration: BoxDecoration(
                     color: theme.colorScheme.primaryContainer.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: theme.colorScheme.primaryContainer.withValues(alpha: 0.25)),
+                    border: Border.all(
+                      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.25),
+                    ),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,7 +485,7 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Shipping rules shown here apply to your storefront checkout. Carrier integrations can be connected from your dashboard in a future release.',
+                          'Delivery zones set fees by area; flat rate uses one fee for every order. Rules apply at storefront checkout.',
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             height: 1.45,
@@ -453,6 +548,170 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     );
   }
 
+  Widget _handlingDaysStepper(ThemeData theme) {
+    final invalid = isFieldInvalid('handlingDays');
+    final errorColor = theme.colorScheme.error;
+    final label = _handlingDays == 1 ? 'day' : 'days';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: invalid
+            ? errorColor.withValues(alpha: 0.06)
+            : theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: invalid
+              ? errorColor
+              : theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+          width: invalid ? 1.5 : 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton.filledTonal(
+            onPressed: _handlingDays > 0
+                ? () => setState(() {
+                      _handlingDays--;
+                      clearFieldError('handlingDays');
+                    })
+                : null,
+            icon: const Icon(Icons.remove_rounded),
+            style: IconButton.styleFrom(
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              foregroundColor: AppTheme.primaryDark,
+            ),
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                Text(
+                  '$_handlingDays',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.primaryDark,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton.filledTonal(
+            onPressed: _handlingDays < 90
+                ? () => setState(() {
+                      _handlingDays++;
+                      clearFieldError('handlingDays');
+                    })
+                : null,
+            icon: const Icon(Icons.add_rounded),
+            style: IconButton.styleFrom(
+              backgroundColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
+              foregroundColor: AppTheme.primaryDark,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rateModeTile(
+    ThemeData theme, {
+    required _ShippingRateMode mode,
+    required String title,
+    required String subtitle,
+  }) {
+    final selected = _rateMode == mode;
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: () => setState(() {
+          _rateMode = mode;
+          clearFieldError('deliveryZones');
+          clearFieldError('flatRate');
+          clearFieldError('freeOver');
+        }),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              width: 2,
+              color: selected
+                  ? theme.colorScheme.primaryContainer.withValues(alpha: 0.45)
+                  : Colors.transparent,
+            ),
+            color: selected ? theme.colorScheme.surfaceContainerLowest : null,
+          ),
+          child: Row(
+            children: [
+              _radioDot(theme, selected: selected),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.inter(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _radioDot(ThemeData theme, {required bool selected}) {
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: selected ? AppTheme.primaryDark : theme.colorScheme.outlineVariant,
+          width: 2,
+        ),
+        color: selected ? AppTheme.primaryDark.withValues(alpha: 0.12) : Colors.transparent,
+      ),
+      child: selected
+          ? Center(
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(
+                  color: AppTheme.primaryDark,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            )
+          : null,
+    );
+  }
+
   Widget _section(ThemeData theme, {required IconData icon, required String title, required Widget child}) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -508,10 +767,17 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
             children: [
               Text(
                 title,
-                style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface),
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
               ),
               const SizedBox(height: 4),
-              Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
+              Text(
+                subtitle,
+                style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+              ),
             ],
           ),
         ),
@@ -528,22 +794,32 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
   Widget _manageZonesRow(BuildContext context, ThemeData theme) {
     final inTutorialFlow =
         GoRouterState.of(context).uri.queryParameters['tutorial'] == '1';
+    final invalid = isFieldInvalid('deliveryZones');
+    final errorColor = theme.colorScheme.error;
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => context.push(
-          inTutorialFlow ? '/shipping-zones?tutorial=1' : '/shipping-zones',
-        ),
+        onTap: () {
+          clearFieldError('deliveryZones');
+          context.push(
+            inTutorialFlow ? '/shipping-zones?tutorial=1' : '/shipping-zones',
+          );
+        },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Container(
             padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
             decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.06),
+              color: invalid
+                  ? errorColor.withValues(alpha: 0.06)
+                  : theme.colorScheme.primary.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: theme.colorScheme.primary.withValues(alpha: 0.18),
+                color: invalid
+                    ? errorColor
+                    : theme.colorScheme.primary.withValues(alpha: 0.18),
+                width: invalid ? 1.5 : 1,
               ),
             ),
             child: Row(
@@ -571,7 +847,7 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Zone A: UpperHill, Town CBD, Delivery Cost: Ksh 250',
+                        'Zone A: UpperHill, Town CBD — KES 250',
                         style: GoogleFonts.inter(
                           fontSize: 11.5,
                           color: theme.colorScheme.onSurfaceVariant,
@@ -579,7 +855,7 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Zone B: Westlands, HighRidge, Delivery Cost: Ksh 350',
+                        'Zone B: Westlands, Highridge — KES 350',
                         style: GoogleFonts.inter(
                           fontSize: 11.5,
                           color: theme.colorScheme.onSurfaceVariant,

@@ -45,22 +45,30 @@ import '../core/providers/first_run_tutorial_seen_provider.dart';
 import '../core/providers/onboarding_seen_provider.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
-GoRouter? _previousRouter;
+
+/// Re-run [GoRouter.redirect] when auth/onboarding changes without recreating the router
+/// (recreating it duplicates Navigator page keys and crashes the shell).
+class _RouterRefreshListenable extends ChangeNotifier {
+  _RouterRefreshListenable(Ref ref) {
+    ref.listen(authProvider, (_, __) => notifyListeners());
+    ref.listen(onboardingSeenProvider, (_, __) => notifyListeners());
+    ref.listen(firstRunTutorialSeenProvider, (_, __) => notifyListeners());
+  }
+}
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
-  final onboardingSeenState = ref.watch(onboardingSeenProvider);
-  final firstRunTutorialSeenState = ref.watch(firstRunTutorialSeenProvider);
-  final previousRouter = _previousRouter;
+  ref.keepAlive();
+  final refresh = _RouterRefreshListenable(ref);
+  ref.onDispose(refresh.dispose);
 
-  final router = GoRouter(
+  return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    // Keep current location when Riverpod rebuilds the router due to auth/onboarding updates.
-    // This prevents briefly resetting to `/splash` during sign-in transitions.
-    initialLocation:
-        previousRouter?.routerDelegate.currentConfiguration.uri.toString() ??
-            '/splash',
+    initialLocation: '/splash',
+    refreshListenable: refresh,
     redirect: (context, state) {
+      final authState = ref.read(authProvider);
+      final onboardingSeenState = ref.read(onboardingSeenProvider);
+      final firstRunTutorialSeenState = ref.read(firstRunTutorialSeenProvider);
       bool isFirstRunSetupRoute(String location) {
         return location == '/settings' ||
             location == '/store-identity' ||
@@ -309,14 +317,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/categories',
+        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const CategoriesManagementScreen(),
         routes: [
           GoRoute(
             path: 'new',
+            parentNavigatorKey: _rootNavigatorKey,
             builder: (context, state) => const CategoryEditorScreen(),
           ),
           GoRoute(
             path: 'edit/:id',
+            parentNavigatorKey: _rootNavigatorKey,
             builder: (context, state) {
               final id = Uri.decodeComponent(state.pathParameters['id']!);
               return CategoryEditorScreen(categoryId: id);
@@ -326,14 +337,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/attributes',
+        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const AttributesManagementScreen(),
         routes: [
           GoRoute(
             path: 'new',
+            parentNavigatorKey: _rootNavigatorKey,
             builder: (context, state) => const AttributeEditorScreen(),
           ),
           GoRoute(
             path: 'edit/:id',
+            parentNavigatorKey: _rootNavigatorKey,
             builder: (context, state) {
               final id = Uri.decodeComponent(state.pathParameters['id']!);
               return AttributeEditorScreen(attributeId: id);
@@ -380,10 +394,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                 routes: [
                   GoRoute(
                     path: 'new',
+                    parentNavigatorKey: _rootNavigatorKey,
                     builder: (context, state) => const ProductEditorScreen(),
                   ),
                   GoRoute(
                     path: 'edit/:sku',
+                    parentNavigatorKey: _rootNavigatorKey,
                     builder: (context, state) {
                       final sku =
                           Uri.decodeComponent(state.pathParameters['sku']!);
@@ -420,7 +436,4 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
-
-  _previousRouter = router;
-  return router;
 });

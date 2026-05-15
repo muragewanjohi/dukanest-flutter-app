@@ -61,7 +61,8 @@ List<_OnboardingStepUi> _mergeLocalStepCompletion(
 ) {
   if (localKeys.isEmpty) return steps;
   return steps.map((s) {
-    final key = (s.stepKey ?? '').toLowerCase();
+    final key =
+        canonicalDashboardOnboardingStepKey(s.stepKey ?? '');
     if (key.isEmpty || !localKeys.contains(key) || s.completed) return s;
     return _OnboardingStepUi(
       completed: true,
@@ -75,29 +76,8 @@ List<_OnboardingStepUi> _mergeLocalStepCompletion(
   }).toList();
 }
 
-String _normalizeGettingStartedServerId(String id) {
-  switch (id.toLowerCase().trim()) {
-    case 'preview':
-      return 'preview_store';
-    case 'share':
-      return 'share_store';
-    case 'contact_phone':
-    case 'sms_alerts':
-    case 'order_alerts_sms':
-      return 'sms';
-    case 'delivery':
-      return 'shipping';
-    case 'categories':
-    case 'first_category':
-    case 'catalog_category':
-      return 'category';
-    case 'attribute':
-    case 'product_attributes':
-      return 'attributes';
-    default:
-      return id.toLowerCase().trim();
-  }
-}
+String _normalizeGettingStartedServerId(String id) =>
+    canonicalDashboardOnboardingStepKey(id);
 
 String _displayTitleForOnboardingStep(String title) {
   return title.replaceAll(
@@ -384,7 +364,8 @@ List<_OnboardingStepUi> _defaultOnboardingStepsAfterRegistration() {
     _OnboardingStepUi(
       completed: false,
       title: 'Create your first category',
-      description: 'Organize your catalog so products are easy to find.',
+      description:
+          'Group products into sections like Footwear or Groceries so shoppers can browse.',
       durationHint: 'Takes 1 minute',
       actionLabel: 'Add Category',
       stepKey: 'category',

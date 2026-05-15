@@ -290,9 +290,9 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
                         },
                         style: GoogleFonts.inter(fontSize: 15),
                         decoration: InputDecoration(
-                          hintText: 'Enter category name',
+                          hintText: 'e.g. Footwear, Groceries',
                           helperText:
-                              'Examples: Size, Weight, Colour. Different attributes such as colours, sizes, and weights can be added in the Attributes section.',
+                              'Examples: Footwear, Groceries, Electronics. For Size, Colour, or Weight options on products, use Attributes instead.',
                           helperMaxLines: 3,
                           helperStyle: GoogleFonts.inter(
                             fontSize: 12,

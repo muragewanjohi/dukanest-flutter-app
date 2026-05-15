@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../data/attribute_value_format.dart';
 import '../data/attributes_repository.dart';
 import '../providers/attributes_list_provider.dart';
@@ -126,6 +127,14 @@ class _AttributesManagementScreenState extends ConsumerState<AttributesManagemen
           ),
         ),
         data: (attributes) {
+          if (attributes.isNotEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              ref
+                  .read(dashboardLocalStepCompletionsProvider.notifier)
+                  .markComplete(DashboardOnboardingStepKeys.attributes);
+            });
+          }
           final filtered = _filter(attributes);
           return CustomScrollView(
             slivers: [

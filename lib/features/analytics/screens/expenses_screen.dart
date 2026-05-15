@@ -825,6 +825,8 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
   late String _category;
   late String _paymentMethod;
   late DateTime _date;
+  /// When set ('amount'), that field shows error styling alongside the snackbar.
+  String? _fieldErrorKey;
 
   @override
   void initState() {
@@ -900,9 +902,19 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
   void _submit() {
     final amount = _toMoney(_amount.text);
     if (amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter an expense amount greater than 0')),
-      );
+      setState(() => _fieldErrorKey = 'amount');
+      final cs = Theme.of(context).colorScheme;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: cs.error,
+            content: const Text(
+              'Enter an expense amount greater than 0 (KES).',
+            ),
+          ),
+        );
       return;
     }
     final taxAmount = _toMoney(_taxAmount.text);
@@ -968,6 +980,12 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
                       hint: '0',
                       prefixText: 'KES ',
                       keyboardType: TextInputType.number,
+                      isInvalid: _fieldErrorKey == 'amount',
+                      onChanged: (_) {
+                        if (_fieldErrorKey != null) {
+                          setState(() => _fieldErrorKey = null);
+                        }
+                      },
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -1050,12 +1068,21 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
   }
 
   InputDecoration _sheetInputDecoration(ThemeData theme) {
+    final outline = theme.colorScheme.outlineVariant.withValues(alpha: 0.55);
     return InputDecoration(
       filled: true,
       fillColor: theme.colorScheme.surfaceContainerLow,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(color: outline, width: 1),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: outline, width: 1),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     );
@@ -1070,6 +1097,8 @@ class _SheetTextField extends StatelessWidget {
     this.prefixText,
     this.keyboardType,
     this.maxLines = 1,
+    this.isInvalid = false,
+    this.onChanged,
   });
 
   final TextEditingController controller;
@@ -1078,19 +1107,33 @@ class _SheetTextField extends StatelessWidget {
   final String? prefixText;
   final TextInputType? keyboardType;
   final int maxLines;
+  final bool isInvalid;
+  final void Function(String)? onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final errorColor = theme.colorScheme.error;
+    final idleOutline = theme.colorScheme.outlineVariant.withValues(alpha: 0.55);
+    final borderColor = isInvalid ? errorColor : idleOutline;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: theme.textTheme.labelLarge),
+        Text(
+          label,
+          style: theme.textTheme.labelLarge?.copyWith(
+            color:
+                isInvalid ? errorColor : theme.textTheme.labelLarge?.color,
+            fontWeight: isInvalid ? FontWeight.w700 : null,
+          ),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
           keyboardType: keyboardType,
           maxLines: maxLines,
+          onChanged: onChanged,
           inputFormatters: keyboardType == TextInputType.number
               ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))]
               : null,
@@ -1098,10 +1141,23 @@ class _SheetTextField extends StatelessWidget {
             hintText: hint,
             prefixText: prefixText,
             filled: true,
-            fillColor: theme.colorScheme.surfaceContainerLow,
+            fillColor: isInvalid
+                ? errorColor.withValues(alpha: 0.06)
+                : theme.colorScheme.surfaceContainerLow,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+              borderSide: BorderSide(color: borderColor, width: isInvalid ? 1.5 : 1),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: borderColor, width: isInvalid ? 1.5 : 1),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: isInvalid ? errorColor : theme.colorScheme.primary,
+                width: 1.5,
+              ),
             ),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

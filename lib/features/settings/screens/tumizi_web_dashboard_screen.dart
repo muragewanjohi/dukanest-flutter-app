@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -89,6 +91,29 @@ Map<String, dynamic> _section(Map<String, dynamic> root, List<String> keys) {
     if (value is Map) return Map<String, dynamic>.from(value);
   }
   return const <String, dynamic>{};
+}
+
+/// Merge common Tumizi wallet JSON shapes (nested `wallet`, `walletAccount`, …)
+/// so reads match the web/mobile proxy payload.
+List<Map<String, dynamic>> _tumiziWalletSearchMaps(Map<String, dynamic> root) {
+  final maps = <Map<String, dynamic>>[];
+  for (final key in const [
+    'wallet',
+    'walletAccount',
+    'wallet_account',
+    'data',
+    'walletDetails',
+    'wallet_details',
+  ]) {
+    final value = root[key];
+    if (value is Map<String, dynamic>) {
+      maps.add(value);
+    } else if (value is Map) {
+      maps.add(Map<String, dynamic>.from(value));
+    }
+  }
+  maps.add(root);
+  return maps;
 }
 
 String _pick(Iterable<Map<String, dynamic>> sources, List<String> keys) {
@@ -312,15 +337,13 @@ class _TumiziWalletSummaryCard extends StatelessWidget {
         status: 'Unavailable',
       ),
       data: (root) {
-        final wallet = _section(root, ['wallet', 'data']);
-        final source = wallet.isEmpty ? root : wallet;
-        final balance = _walletBalance(source, root);
+        final balance = _walletBalanceFromRoot(root);
         final currency = _pick(
-          [source, root],
+          _tumiziWalletSearchMaps(root),
           ['currency', 'walletCurrency', 'wallet_currency'],
         );
         final status = _pick(
-          [source, root],
+          _tumiziWalletSearchMaps(root),
           ['accountStatus', 'account_status', 'status', 'enabled', 'active'],
         );
 
@@ -1046,6 +1069,17 @@ void _showTumiziMessage(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 }
 
+void _showTumiziErrorSnack(BuildContext context, String message) {
+  final messenger = ScaffoldMessenger.of(context);
+  final theme = Theme.of(context);
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(message),
+      backgroundColor: theme.colorScheme.error,
+    ),
+  );
+}
+
 double _refundTotal(List<Map<String, dynamic>> items) {
   return items.fold<double>(0, (total, item) => total + _refundAmount(item));
 }
@@ -1399,6 +1433,7 @@ class _TumiziTextField extends StatelessWidget {
     this.enabled = true,
     this.onChanged,
     this.hintText,
+    this.hasError = false,
   });
 
   final String label;
@@ -1407,6 +1442,7 @@ class _TumiziTextField extends StatelessWidget {
   final bool enabled;
   final ValueChanged<String>? onChanged;
   final String? hintText;
+  final bool hasError;
 
   @override
   Widget build(BuildContext context) {
@@ -1422,7 +1458,7 @@ class _TumiziTextField extends StatelessWidget {
           keyboardType: keyboardType,
           onChanged: onChanged,
           style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
-          decoration: _tumiziInputDecoration(theme).copyWith(
+          decoration: _tumiziInputDecoration(theme, hasError: hasError).copyWith(
             hintText: hintText,
             hintStyle: GoogleFonts.inter(
               fontSize: 12,
@@ -1499,11 +1535,13 @@ class _TumiziFieldLabel extends StatelessWidget {
   }
 }
 
-InputDecoration _tumiziInputDecoration(ThemeData theme) {
+InputDecoration _tumiziInputDecoration(ThemeData theme, {bool hasError = false}) {
+  final borderColor =
+      hasError ? theme.colorScheme.error : theme.colorScheme.outlineVariant;
   final border = OutlineInputBorder(
     borderRadius: BorderRadius.circular(10),
     borderSide: BorderSide(
-      color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+      color: borderColor.withValues(alpha: hasError ? 1 : 0.35),
     ),
   );
   return InputDecoration(
@@ -1513,8 +1551,13 @@ InputDecoration _tumiziInputDecoration(ThemeData theme) {
     border: border,
     enabledBorder: border,
     disabledBorder: border,
+    errorBorder: border,
+    focusedErrorBorder: border,
     focusedBorder: border.copyWith(
-      borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.4),
+      borderSide: BorderSide(
+        color: hasError ? theme.colorScheme.error : theme.colorScheme.primary,
+        width: 1.4,
+      ),
     ),
     contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
   );
@@ -1679,6 +1722,7 @@ class _TumiziMpesaWithdrawalScreenState
   final _phone = TextEditingController();
   final _narration = TextEditingController();
   bool _submitting = false;
+  bool _amountExceedsMax = false;
 
   @override
   void dispose() {
@@ -1695,7 +1739,10 @@ class _TumiziMpesaWithdrawalScreenState
 
   double get _estimatedFee => _withdrawalFee(_amountValue);
 
-  Future<void> _submitWithdrawal() async {
+  Future<void> _submitWithdrawal(
+    double balance,
+    double maxGrossWithdrawal,
+  ) async {
     if (_submitting) return;
     final amount = _amountValue;
     final phone = _phone.text.trim();
@@ -1704,6 +1751,20 @@ class _TumiziMpesaWithdrawalScreenState
           context, 'Enter a withdrawal amount and M-Pesa phone number.');
       return;
     }
+    if (amount < _tumiziMinimumWithdrawalKes) {
+      setState(() => _amountExceedsMax = false);
+      _showTumiziErrorSnack(context,
+          'Minimum withdrawal is ${_formatKes(_tumiziMinimumWithdrawalKes)}.');
+      return;
+    }
+    if (amount > maxGrossWithdrawal ||
+        amount + _withdrawalFee(amount) > balance + 0.009) {
+      setState(() => _amountExceedsMax = true);
+      _showTumiziErrorSnack(context,
+          'Withdrawal cannot exceed ${_formatKes(maxGrossWithdrawal)} (maximum for your current balance).');
+      return;
+    }
+    setState(() => _amountExceedsMax = false);
     setState(() => _submitting = true);
     try {
       final response =
@@ -1726,6 +1787,7 @@ class _TumiziMpesaWithdrawalScreenState
       _amount.clear();
       _phone.clear();
       _narration.clear();
+      if (mounted) setState(() => _amountExceedsMax = false);
       ref.invalidate(_tumiziWalletProvider);
       _showTumiziMessage(context, 'Withdrawal request submitted.');
     } catch (e) {
@@ -1740,6 +1802,7 @@ class _TumiziMpesaWithdrawalScreenState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final wallet = ref.watch(_tumiziWalletProvider);
+    final merchant = ref.watch(_tumiziMerchantProvider);
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: const DashboardAppBar(title: 'M-Pesa withdrawal'),
@@ -1750,16 +1813,25 @@ class _TumiziMpesaWithdrawalScreenState
           onRetry: () => ref.invalidate(_tumiziWalletProvider),
         ),
         data: (root) {
-          final data = _section(root, ['wallet', 'data']);
+          final maps = _tumiziWalletSearchMaps(root);
+          final data = _section(root, ['wallet', 'data', 'walletAccount']);
           final source = data.isEmpty ? root : data;
-          final balance = _walletBalance(source, root);
+          final balance = _walletBalanceFromRoot(root);
           final currency = _pick(
-            [source, root],
+            maps,
             ['currency', 'walletCurrency', 'wallet_currency'],
           );
           final activity = _walletActivity(root, source);
-          final maxWithdrawable =
-              (balance - _estimatedFee).clamp(0, double.infinity);
+          final maxGross = _resolveMaxGrossWithdrawal(root, balance);
+          final feeAtMax = _withdrawalFee(maxGross);
+          final merchantRoot = merchant.asData?.value;
+          final accountNumber = _tumiziWalletAccountDisplay(root, merchantRoot);
+          final amountVal = _amountValue;
+          final amountOutOfRange = amountVal > 0 &&
+              (amountVal > maxGross ||
+                  amountVal + _withdrawalFee(amountVal) > balance + 0.009);
+          final showAmountWarning = amountOutOfRange && amountVal >= _tumiziMinimumWithdrawalKes;
+
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
             children: [
@@ -1780,22 +1852,29 @@ class _TumiziMpesaWithdrawalScreenState
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+              if (merchant.hasError && accountNumber == '-')
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text(
+                    'Merchant details could not be loaded; wallet account may still sync after refresh.',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      height: 1.35,
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ),
               const SizedBox(height: 16),
               _WithdrawalWalletCard(
-                accountNumber: _pick([
-                  source,
-                  root
-                ], [
-                  'accountNumber',
-                  'account_number',
-                  'walletAccountNumber',
-                  'wallet_account_number',
-                ]),
+                accountNumber: accountNumber,
                 balance: balance,
                 currency: currency == '-' ? 'KES' : currency,
-                maxWithdrawable: maxWithdrawable.toDouble(),
-                estimatedFee: _estimatedFee,
-                onRefresh: () => ref.invalidate(_tumiziWalletProvider),
+                maxWithdrawable: maxGross,
+                estimatedFeeAtMax: feeAtMax,
+                onRefresh: () {
+                  ref.invalidate(_tumiziWalletProvider);
+                  ref.invalidate(_tumiziMerchantProvider);
+                },
               ),
               const SizedBox(height: 12),
               _InitiateWithdrawalCard(
@@ -1803,9 +1882,19 @@ class _TumiziMpesaWithdrawalScreenState
                 phone: _phone,
                 narration: _narration,
                 estimatedFee: _estimatedFee,
+                maxWithdrawable: maxGross,
                 saving: _submitting,
-                onChanged: () => setState(() {}),
-                onSubmit: _submitWithdrawal,
+                amountFieldInvalid:
+                    _amountExceedsMax || showAmountWarning,
+                onAmountChanged: () {
+                  final amt = _amountValue;
+                  setState(() {
+                    _amountExceedsMax = amt > 0 &&
+                        (amt > maxGross ||
+                            amt + _withdrawalFee(amt) > balance + 0.009);
+                  });
+                },
+                onSubmit: () => _submitWithdrawal(balance, maxGross),
               ),
               const SizedBox(height: 12),
               _RecentWithdrawalActivity(activity: activity),
@@ -1833,8 +1922,10 @@ class _TumiziMpesaWithdrawalScreenState
   }
 }
 
-double _walletBalance(Map<String, dynamic> source, Map<String, dynamic> root) {
-  for (final map in [source, root]) {
+const double _tumiziMinimumWithdrawalKes = 101;
+
+double _walletBalanceFromRoot(Map<String, dynamic> root) {
+  for (final map in _tumiziWalletSearchMaps(root)) {
     for (final key in const [
       'availableBalance',
       'available_balance',
@@ -1852,6 +1943,103 @@ double _walletBalance(Map<String, dynamic> source, Map<String, dynamic> root) {
     }
   }
   return 0;
+}
+
+double? _maxWithdrawableFromApi(Map<String, dynamic> root) {
+  for (final map in _tumiziWalletSearchMaps(root)) {
+    for (final key in const [
+      'maxWithdrawable',
+      'max_withdrawable',
+      'maxWithdrawAmount',
+      'max_withdraw_amount',
+      'withdrawableBalance',
+      'withdrawable_balance',
+      'availableForWithdrawal',
+      'available_for_withdrawal',
+    ]) {
+      final value = map[key];
+      if (value is num) return value.toDouble();
+      if (value is String) {
+        final parsed =
+            double.tryParse(value.replaceAll(RegExp(r'[^0-9.]'), ''));
+        if (parsed != null) return parsed;
+      }
+    }
+  }
+  return null;
+}
+
+double _maxTumiziGrossWithdrawalFromBalance(double balance) {
+  if (balance <= 0) return 0;
+  if (_withdrawalFee(_tumiziMinimumWithdrawalKes) +
+          _tumiziMinimumWithdrawalKes >
+      balance + 1e-9) {
+    return 0;
+  }
+  var low = _tumiziMinimumWithdrawalKes;
+  var high = balance;
+  var best = 0.0;
+  for (var i = 0; i < 80; i++) {
+    final mid = (low + high) / 2;
+    final total = mid + _withdrawalFee(mid);
+    if (total <= balance + 1e-9) {
+      best = mid;
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+  return best;
+}
+
+double _resolveMaxGrossWithdrawal(
+  Map<String, dynamic> root,
+  double balance,
+) {
+  final fromApi = _maxWithdrawableFromApi(root);
+  if (fromApi != null && fromApi >= 0) {
+    final cap = _maxTumiziGrossWithdrawalFromBalance(balance);
+    return math.min(fromApi, cap);
+  }
+  return _maxTumiziGrossWithdrawalFromBalance(balance);
+}
+
+String _tumiziWalletAccountDisplay(
+  Map<String, dynamic> walletRoot,
+  Map<String, dynamic>? merchantRoot,
+) {
+  const keys = [
+    'walletAccountNumber',
+    'wallet_account_number',
+    'accountNumber',
+    'account_number',
+    'walletId',
+    'wallet_id',
+    'tillNumber',
+    'till_number',
+    'paybillNumber',
+    'paybill_number',
+    'merchantWalletId',
+    'merchant_wallet_id',
+  ];
+
+  final w = _pick(_tumiziWalletSearchMaps(walletRoot), keys);
+  if (w != '-') return w;
+
+  if (merchantRoot != null && merchantRoot.isNotEmpty) {
+    final merchant = _section(
+      merchantRoot,
+      ['merchant', 'merchantInformation'],
+    );
+    final profile = _section(merchantRoot, ['merchantProfile', 'profile']);
+    final nestedWallet =
+        _section(merchantRoot, ['wallet', 'walletAccount']);
+
+    final m =
+        _pick([nestedWallet, profile, merchant, merchantRoot], keys);
+    if (m != '-') return m;
+  }
+  return '-';
 }
 
 double _withdrawalFee(double amount) {
@@ -1887,7 +2075,7 @@ class _WithdrawalWalletCard extends StatelessWidget {
     required this.balance,
     required this.currency,
     required this.maxWithdrawable,
-    required this.estimatedFee,
+    required this.estimatedFeeAtMax,
     required this.onRefresh,
   });
 
@@ -1895,7 +2083,7 @@ class _WithdrawalWalletCard extends StatelessWidget {
   final double balance;
   final String currency;
   final double maxWithdrawable;
-  final double estimatedFee;
+  final double estimatedFeeAtMax;
   final VoidCallback onRefresh;
 
   @override
@@ -2005,7 +2193,7 @@ class _WithdrawalWalletCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'Est. fee at max: ${_formatKes(estimatedFee)}',
+                      'Est. fee at max: ${_formatKes(estimatedFeeAtMax)}',
                       style: GoogleFonts.inter(
                         fontSize: 10,
                         color: theme.colorScheme.onSurfaceVariant,
@@ -2028,8 +2216,10 @@ class _InitiateWithdrawalCard extends StatelessWidget {
     required this.phone,
     required this.narration,
     required this.estimatedFee,
+    required this.maxWithdrawable,
     required this.saving,
-    required this.onChanged,
+    required this.amountFieldInvalid,
+    required this.onAmountChanged,
     required this.onSubmit,
   });
 
@@ -2037,8 +2227,10 @@ class _InitiateWithdrawalCard extends StatelessWidget {
   final TextEditingController phone;
   final TextEditingController narration;
   final double estimatedFee;
+  final double maxWithdrawable;
   final bool saving;
-  final VoidCallback onChanged;
+  final bool amountFieldInvalid;
+  final VoidCallback onAmountChanged;
   final VoidCallback onSubmit;
 
   @override
@@ -2080,7 +2272,8 @@ class _InitiateWithdrawalCard extends StatelessWidget {
                 label: 'Withdrawal amount',
                 controller: amount,
                 keyboardType: TextInputType.number,
-                onChanged: (_) => onChanged(),
+                hasError: amountFieldInvalid,
+                onChanged: (_) => onAmountChanged(),
                 hintText: 'KES 0.00',
               ),
               _TumiziTextField(
@@ -2093,7 +2286,8 @@ class _InitiateWithdrawalCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Minimum withdrawal: KES 101.00 · Fee for this amount: ${_formatKes(estimatedFee)}',
+            'Minimum withdrawal: ${_formatKes(_tumiziMinimumWithdrawalKes)} · '
+            'Max: ${_formatKes(maxWithdrawable)} · Fee for this amount: ${_formatKes(estimatedFee)}',
             style: GoogleFonts.inter(
               fontSize: 11,
               height: 1.35,
