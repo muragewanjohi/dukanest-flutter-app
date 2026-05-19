@@ -19,6 +19,7 @@ import '../../../core/auth/token_storage.dart';
 import '../../../core/providers/first_run_tutorial_seen_provider.dart';
 import '../data/business_types.dart';
 import '../data/country_dial_codes.dart';
+import '../data/onboarding_trial.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/onboarding_step_header.dart';
 
@@ -491,10 +492,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     setState(() => _isLoading = true);
     _startCreationProgress();
     try {
-      final trialEndsAt = DateTime.now()
-          .toUtc()
-          .add(const Duration(days: 14))
-          .toIso8601String();
+      final now = DateTime.now().toUtc();
+      final trialEndsAt = DateTime.utc(
+        now.year,
+        now.month + OnboardingTrial.periodMonths,
+        now.day,
+        now.hour,
+        now.minute,
+        now.second,
+        now.millisecond,
+        now.microsecond,
+      ).toIso8601String();
 
       final payload = <String, dynamic>{
         'name': _storeNameController.text.trim(),
@@ -1213,7 +1221,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const OnboardingStepHeader(title: 'Start your 14-day free trial'),
+          const OnboardingStepHeader(title: OnboardingTrial.registerHeaderTitle),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: _isLoading ? null : _handleGoogleSignIn,

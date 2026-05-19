@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/util/store_media_url.dart';
 
 /// Unwraps mobile `{ success, data }` (or flat map) into the settings snapshot map.
 Map<String, dynamic>? unwrapSettingsData(dynamic root) {
@@ -27,6 +28,30 @@ String settingsPick(Map<String, dynamic>? m, List<String> keys, {String fallback
     if (v is num) return v.toString();
   }
   return fallback;
+}
+
+/// Storefront + getting-started read `static_options.store_logo` (and legacy aliases).
+String readStoreLogoFromSettings(Map<String, dynamic> data) {
+  final store = settingsSection(data, 'store') ?? {};
+  final fromStore = settingsPick(
+    store,
+    ['logoUrl', 'logo', 'storeLogo', 'logo_url', 'store_logo'],
+  );
+  if (fromStore.isNotEmpty) {
+    return normalizeStoreMediaUrl(fromStore);
+  }
+  final staticRaw = data['static_options'] ?? data['staticOptions'];
+  if (staticRaw is Map) {
+    final fromStatic = settingsPick(
+      Map<String, dynamic>.from(staticRaw),
+      ['store_logo', 'storeLogo', 'logoUrl', 'logo'],
+    );
+    if (fromStatic.isNotEmpty) {
+      return normalizeStoreMediaUrl(fromStatic);
+    }
+  }
+  final top = settingsPick(data, ['store_logo', 'storeLogo', 'logoUrl', 'logo']);
+  return normalizeStoreMediaUrl(top);
 }
 
 bool settingsPickBool(Map<String, dynamic>? m, List<String> keys, {bool fallback = false}) {

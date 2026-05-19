@@ -822,51 +822,44 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                 width: invalid ? 1.5 : 1,
               ),
             ),
-            child: Row(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Manage zones',
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Group areas and set fees per delivery zone',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Zone A: UpperHill, Town CBD — KES 250',
-                        style: GoogleFonts.inter(
-                          fontSize: 11.5,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Zone B: Westlands, Highridge — KES 350',
-                        style: GoogleFonts.inter(
-                          fontSize: 11.5,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
+                Text(
+                  'Manage zones',
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.primary,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(height: 4),
+                Text(
+                  'Group areas and set fees per delivery zone',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Zone A: UpperHill, Town CBD — KES 250',
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Zone B: Westlands, Highridge — KES 350',
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.primary,
                     borderRadius: BorderRadius.circular(999),
@@ -875,9 +868,9 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Open',
+                        'Create your delivery zone',
                         style: GoogleFonts.inter(
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
                         ),
@@ -885,7 +878,7 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                       const SizedBox(width: 4),
                       const Icon(
                         Icons.chevron_right_rounded,
-                        size: 14,
+                        size: 16,
                         color: Colors.white,
                       ),
                     ],

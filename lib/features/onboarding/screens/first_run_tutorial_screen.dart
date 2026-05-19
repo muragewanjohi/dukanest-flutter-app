@@ -70,15 +70,6 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
 
   static const _fallbackSteps = <_TutorialStep>[
     _TutorialStep(
-      key: 'product',
-      title: 'Add your first product',
-      description: 'Create at least one product so shoppers can browse and place orders.',
-      actionLabel: 'Open products',
-      completed: false,
-      icon: Icons.inventory_2_outlined,
-      route: '/products/new',
-    ),
-    _TutorialStep(
       key: 'first_category',
       title: 'Create your first category',
       description:
@@ -96,6 +87,15 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
       completed: false,
       icon: Icons.tune_outlined,
       route: '/attributes/new',
+    ),
+    _TutorialStep(
+      key: 'product',
+      title: 'Add your first product',
+      description: 'Create at least one product so shoppers can browse and place orders.',
+      actionLabel: 'Open products',
+      completed: false,
+      icon: Icons.inventory_2_outlined,
+      route: '/products/new',
     ),
     _TutorialStep(
       key: 'shipping',
@@ -388,7 +388,7 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
     return next;
   }
 
-  /// Product is first, attributes follow category, preview/share stay last.
+  /// Category, then attributes, then product; preview/share stay last.
   List<_TutorialStep> _orderTutorialSteps(List<_TutorialStep> steps) {
     final products = <_TutorialStep>[];
     final categories = <_TutorialStep>[];
@@ -411,7 +411,7 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
         middle.add(s);
       }
     }
-    return [...products, ...categories, ...attributes, ...middle, ...previews, ...shares];
+    return [...categories, ...attributes, ...products, ...middle, ...previews, ...shares];
   }
 
   Future<void> _completeTutorial() async {
@@ -1625,6 +1625,11 @@ class _PaymentIllustrationBody extends StatelessWidget {
           runSpacing: 8,
           alignment: WrapAlignment.center,
           children: [
+            _PaymentIllustrationBody._payChip(
+              theme,
+              Icons.account_balance_wallet_rounded,
+              'Tumizi wallet',
+            ),
             _PaymentIllustrationBody._payChip(theme, Icons.payments_outlined, 'Cash on delivery'),
             _PaymentIllustrationBody._payChip(theme, Icons.phone_android_rounded, 'M-Pesa'),
             _PaymentIllustrationBody._payChip(theme, Icons.credit_card_outlined, 'Card'),

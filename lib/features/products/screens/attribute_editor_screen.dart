@@ -265,7 +265,16 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
       },
     );
     if (picked != null && mounted) {
-      setState(() => row.color = picked);
+      setState(() {
+        final previousHex = AttributeValueFormat.hexRgb(row.color);
+        final labelText = row.label.text.trim();
+        row.color = picked;
+        final hex = AttributeValueFormat.hexRgb(picked);
+        if (labelText.isEmpty ||
+            labelText.toUpperCase() == previousHex.toUpperCase()) {
+          row.label.text = hex;
+        }
+      });
     }
   }
 

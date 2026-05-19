@@ -31,8 +31,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
   _PayTiming _timing = _PayTiming.beforeDelivery;
   bool _cashEnabled = true;
   bool _mpesaEnabled = true;
-  bool _tumiziEnabled = false;
-  _DefaultPaymentMethod _defaultMethod = _DefaultPaymentMethod.cash;
+  bool _tumiziEnabled = true;
+  _DefaultPaymentMethod _defaultMethod = _DefaultPaymentMethod.tumizi;
   _MpesaMethod _mpesaMethod = _MpesaMethod.sendMoney;
   bool _saving = false;
   /// Server snapshot signature; avoids re-applying GET data on every local [setState] while still hydrating after refetch.
@@ -58,20 +58,17 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     final p = settingsSection(root, 'payment') ?? {};
     _cashEnabled = settingsPickBool(p, ['cash_enabled', 'cashEnabled', 'cod_enabled', 'cash'], fallback: true);
     _mpesaEnabled = settingsPickBool(p, ['mpesa_enabled', 'mpesaEnabled', 'mpesa'], fallback: true);
-    _tumiziEnabled = settingsPickBool(
-      p,
-      ['tumizi_enabled', 'tumiziEnabled', 'payment_tumizi_enabled'],
-      fallback: false,
-    );
+    _tumiziEnabled = _readTumiziEnabled(p);
     _timing = _parsePayTiming(
       settingsPick(p, ['payment_timing', 'paymentTiming', 'pay_timing', 'when_to_pay', 'whenToPay']),
     );
+    // Prefer camelCase keys — legacy snake_case `payment_method: cash` must not override `paymentMethod: tumizi`.
     _defaultMethod = _parseDefaultMethod(
       settingsPick(p, [
-        'payment_method',
         'paymentMethod',
-        'default_method',
         'defaultMethod',
+        'payment_method',
+        'default_method',
       ]),
     );
     _mpesaMethod = _parseMpesa(
@@ -88,6 +85,49 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     _paybillNumber.text = settingsPick(p, ['paybill_number', 'paybillNumber', 'paybill']);
     _accountNumber.text = settingsPick(p, ['account_number', 'accountNumber', 'paybill_account', 'paybillAccount']);
     _pochiPhone.text = settingsPick(p, ['pochi_phone', 'pochiPhone', 'pochi']);
+    _applyTumiziPreferredDefault();
+  }
+
+  /// Tumizi on when the API omits flags; explicit `false` is respected.
+  bool _readTumiziEnabled(Map<String, dynamic> p) {
+    for (final k in [
+      'tumiziEnabled',
+      'tumizi_enabled',
+      'payment_tumizi_enabled',
+    ]) {
+      if (p.containsKey(k)) {
+        return settingsPickBool(p, [k], fallback: false);
+      }
+    }
+    return true;
+  }
+
+  /// Product default: Tumizi wallet is preferred whenever it is enabled.
+  void _applyTumiziPreferredDefault() {
+    if (_tumiziEnabled) {
+      _defaultMethod = _DefaultPaymentMethod.tumizi;
+      return;
+    }
+    _normalizeDefaultMethod();
+  }
+
+  /// Preferred order when auto-picking default: Tumizi → Cash → M-Pesa.
+  _DefaultPaymentMethod _firstEnabledDefaultMethod() {
+    if (_tumiziEnabled) return _DefaultPaymentMethod.tumizi;
+    if (_cashEnabled) return _DefaultPaymentMethod.cash;
+    if (_mpesaEnabled) return _DefaultPaymentMethod.mpesa;
+    return _DefaultPaymentMethod.tumizi;
+  }
+
+  void _normalizeDefaultMethod() {
+    final enabled = switch (_defaultMethod) {
+      _DefaultPaymentMethod.tumizi => _tumiziEnabled,
+      _DefaultPaymentMethod.cash => _cashEnabled,
+      _DefaultPaymentMethod.mpesa => _mpesaEnabled,
+    };
+    if (!enabled) {
+      _defaultMethod = _firstEnabledDefaultMethod();
+    }
   }
 
   static String _paymentSectionSignature(Map<String, dynamic>? p) {
@@ -125,9 +165,11 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
 
   static _DefaultPaymentMethod _parseDefaultMethod(String raw) {
     final s = raw.toLowerCase().trim();
+    if (s.isEmpty) return _DefaultPaymentMethod.tumizi;
+    if (s == 'cash' || s == 'cod') return _DefaultPaymentMethod.cash;
     if (s == 'mpesa') return _DefaultPaymentMethod.mpesa;
     if (s == 'tumizi') return _DefaultPaymentMethod.tumizi;
-    return _DefaultPaymentMethod.cash;
+    return _DefaultPaymentMethod.tumizi;
   }
 
   String _apiDefaultMethod() {
@@ -247,6 +289,9 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     try {
       final timing = _apiTiming();
       final mpesaMethod = _apiMpesaMethod();
+      if (_tumiziEnabled) {
+        _defaultMethod = _DefaultPaymentMethod.tumizi;
+      }
       final defaultMethod = _apiDefaultMethod();
       final mpesaPhone = _sendMoneyPhone.text.trim();
       final till = _tillNumber.text.trim();
@@ -444,17 +489,6 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                 const SizedBox(height: 16),
                 _methodToggleRow(
                   theme,
-                  icon: Icons.payments_outlined,
-                  title: 'Cash',
-                  subtitle: 'Enable cash on delivery payments',
-                  value: _cashEnabled,
-                  isPreferred:
-                      _defaultMethod == _DefaultPaymentMethod.cash && _cashEnabled,
-                  onChanged: (v) => setState(() => _cashEnabled = v),
-                ),
-                const SizedBox(height: 12),
-                _methodToggleRow(
-                  theme,
                   icon: Icons.account_balance_wallet_rounded,
                   title: 'Tumizi wallet',
                   subtitle:
@@ -467,11 +501,23 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                     if (v) {
                       _defaultMethod = _DefaultPaymentMethod.tumizi;
                     } else if (_defaultMethod == _DefaultPaymentMethod.tumizi) {
-                      if (_cashEnabled) {
-                        _defaultMethod = _DefaultPaymentMethod.cash;
-                      } else if (_mpesaEnabled) {
-                        _defaultMethod = _DefaultPaymentMethod.mpesa;
-                      }
+                      _defaultMethod = _firstEnabledDefaultMethod();
+                    }
+                  }),
+                ),
+                const SizedBox(height: 12),
+                _methodToggleRow(
+                  theme,
+                  icon: Icons.payments_outlined,
+                  title: 'Cash',
+                  subtitle: 'Enable cash on delivery payments',
+                  value: _cashEnabled,
+                  isPreferred:
+                      _defaultMethod == _DefaultPaymentMethod.cash && _cashEnabled,
+                  onChanged: (v) => setState(() {
+                    _cashEnabled = v;
+                    if (!v && _defaultMethod == _DefaultPaymentMethod.cash) {
+                      _defaultMethod = _firstEnabledDefaultMethod();
                     }
                   }),
                 ),
@@ -587,6 +633,11 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
       child: Column(
         children: [
           tile(
+            value: _DefaultPaymentMethod.tumizi,
+            label: 'Tumizi wallet',
+            enabled: _tumiziEnabled,
+          ),
+          tile(
             value: _DefaultPaymentMethod.cash,
             label: 'Cash',
             enabled: _cashEnabled,
@@ -595,11 +646,6 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
             value: _DefaultPaymentMethod.mpesa,
             label: 'M-Pesa',
             enabled: _mpesaEnabled,
-          ),
-          tile(
-            value: _DefaultPaymentMethod.tumizi,
-            label: 'Tumizi wallet',
-            enabled: _tumiziEnabled,
           ),
         ],
       ),
@@ -822,7 +868,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Mobile money integration',
+                        'Manual mpesa verification',
                         style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
                       ),
                     ],
@@ -833,11 +879,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                   onChanged: (v) => setState(() {
                     _mpesaEnabled = v;
                     if (!v && _defaultMethod == _DefaultPaymentMethod.mpesa) {
-                      if (_cashEnabled) {
-                        _defaultMethod = _DefaultPaymentMethod.cash;
-                      } else if (_tumiziEnabled) {
-                        _defaultMethod = _DefaultPaymentMethod.tumizi;
-                      }
+                      _defaultMethod = _firstEnabledDefaultMethod();
                     }
                   }),
                   activeTrackColor: theme.colorScheme.primaryContainer,

@@ -7,9 +7,12 @@ class AttributeValueFormat {
   AttributeValueFormat._();
 
   static String encodeColor(String label, Color color) {
-    final hex = _colorToHexRgb(color);
+    final hex = hexRgb(color);
     return '${label.trim()}|$hex';
   }
+
+  /// Uppercase `#RRGGBB` for labels and previews.
+  static String hexRgb(Color color) => _colorToHexRgb(color);
 
   static String shortLabel(String raw, AttributeDisplayType type) {
     if (type == AttributeDisplayType.color) {

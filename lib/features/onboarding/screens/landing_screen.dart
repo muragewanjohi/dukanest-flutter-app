@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../data/onboarding_trial.dart';
 
 /// Post-onboarding marketing/landing page.
 ///
@@ -328,7 +329,7 @@ class _PrimaryStartTrialButton extends StatelessWidget {
           padding: EdgeInsets.symmetric(vertical: compact ? 16 : 18),
         ),
         child: const Text(
-          'Start Free Trial',
+          OnboardingTrial.landingStartTrialLabel,
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ),

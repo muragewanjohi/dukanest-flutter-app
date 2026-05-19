@@ -3,6 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 import 'dashboard_settings_provider.dart';
 
+/// Parses currency text such as `KES 250`, `1,000`, or `250.5`.
+num? parseKesAmount(String raw) {
+  final normalized = raw.trim().replaceAll(RegExp(r'[^0-9.]'), '');
+  if (normalized.isEmpty) return null;
+  return num.tryParse(normalized);
+}
+
+/// Parses whole-day counts from plain digits or suffixed text (`20 days`).
+int? parseWholeDays(String raw) {
+  final normalized = raw.trim().replaceAll(RegExp(r'[^0-9]'), '');
+  if (normalized.isEmpty) return null;
+  return int.tryParse(normalized);
+}
+
 /// Rows from `GET /dashboard/delivery-zones` (`items` or `zones`).
 final deliveryZonesListProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final api = ref.watch(apiClientProvider);
@@ -35,15 +49,28 @@ String zoneName(Map<String, dynamic> z) => (z['name'] ?? 'Zone').toString();
 String zoneId(Map<String, dynamic> z) => (z['id'] ?? z['_id'] ?? '').toString();
 
 num zoneFee(Map<String, dynamic> z) {
-  final v = z['fee'] ?? z['deliveryFee'] ?? z['amount'] ?? z['price'] ?? 0;
+  final v = z['fee'] ??
+      z['deliveryFee'] ??
+      z['delivery_fee'] ??
+      z['flatRate'] ??
+      z['flat_rate'] ??
+      z['rate'] ??
+      z['amount'] ??
+      z['price'] ??
+      0;
   if (v is num) return v;
-  return num.tryParse(v.toString()) ?? 0;
+  return parseKesAmount(v.toString()) ?? 0;
 }
 
 num zoneFreeOver(Map<String, dynamic> z) {
-  final v = z['freeShippingThreshold'] ?? z['freeOver'] ?? z['free_shipping_threshold'] ?? 0;
+  final v = z['freeShippingThreshold'] ??
+      z['freeOver'] ??
+      z['free_shipping_threshold'] ??
+      z['freeDeliveryMinimum'] ??
+      z['free_delivery_minimum'] ??
+      0;
   if (v is num) return v;
-  return num.tryParse(v.toString()) ?? 0;
+  return parseKesAmount(v.toString()) ?? 0;
 }
 
 int zoneHandlingDays(Map<String, dynamic> z) {

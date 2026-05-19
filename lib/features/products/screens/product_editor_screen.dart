@@ -96,12 +96,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   static final Map<String, ({Map<String, dynamic> product, DateTime savedAt})>
       _productDetailCache = {};
 
-  static const _campaigns = [
-    'Summer Flash Sale 2024',
-    'Weekend Clearance',
-    'New Arrival Promo',
-  ];
-
   late final TextEditingController _name;
   late final TextEditingController _description;
   late final TextEditingController _regularPrice;
@@ -111,7 +105,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   late final TextEditingController _stock;
 
   late String _category;
-  String? _campaign;
   bool _visible = true;
 
   /// Remote gallery URLs (from API) + local file paths pending upload.
@@ -1568,7 +1561,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       'sku': _sku.text.trim(),
       'stock': _stock.text.trim(),
       'category': _category,
-      'campaign': _campaign,
       'visible': _visible,
       'remoteImageUrls': _remoteImageUrls,
       'localImagePaths': _localImagePaths,
@@ -3365,70 +3357,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                     },
                   ],
                   if (_activeEditorTab == _ProductEditorTab.visibility) ...[
-                    const SizedBox(height: 16),
-                    _CardShell(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Sales & Promotions',
-                            style: theme.textTheme.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${_campaigns.length} active sales available',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Add to Existing Sale',
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerLow,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String?>(
-                                value: _campaign,
-                                isExpanded: true,
-                                hint: Text(
-                                  'Select a campaign...',
-                                  style: TextStyle(
-                                      color: theme.colorScheme.outline),
-                                ),
-                                icon: Icon(Icons.expand_more,
-                                    color: theme.colorScheme.onSurfaceVariant),
-                                items: _campaigns
-                                    .map((c) => DropdownMenuItem(
-                                        value: c, child: Text(c)))
-                                    .toList(),
-                                onChanged: (v) => setState(() => _campaign = v),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Apply this product to active flash sales or discount campaigns.',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant
-                                  .withValues(alpha: 0.85),
-                              height: 1.35,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                     const SizedBox(height: 16),
                     Container(
                       key: _keyFor('section_visibility'),

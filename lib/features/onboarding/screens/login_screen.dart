@@ -7,6 +7,7 @@ import 'dart:async';
 import '../../../config/app_config.dart';
 import '../../../core/auth/auth_state.dart';
 import '../../../core/auth/google_sign_in_config.dart';
+import '../data/onboarding_trial.dart';
 import '../providers/auth_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -628,8 +629,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                                 // Registration path: directly under primary CTA so it is not lost at the bottom edge.
                                 Semantics(
-                                  label:
-                                      "Don't have a store? Start your free trial. Opens registration.",
+                                  label: OnboardingTrial.loginTrialSemanticLabel,
                                   child: Material(
                                     color: colorScheme.primaryContainer
                                         .withValues(alpha: 0.28),
@@ -669,7 +669,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                                   ),
                                                   const SizedBox(height: 2),
                                                   Text(
-                                                    'Start your free trial — create your shop in minutes.',
+                                                    OnboardingTrial.loginTrialSubtitle,
                                                     style: theme
                                                         .textTheme.bodySmall
                                                         ?.copyWith(

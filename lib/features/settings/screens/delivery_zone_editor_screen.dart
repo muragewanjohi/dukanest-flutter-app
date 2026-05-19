@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -59,6 +60,9 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
   late bool _isDefault;
   bool _saving = false;
   String? _areasInlineError;
+  String? _feeInlineError;
+  String? _freeOverInlineError;
+  String? _handlingDaysInlineError;
 
   @override
   void initState() {
@@ -87,9 +91,9 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
 
   Map<String, dynamic> _buildZoneBody() {
     final name = _name.text.trim();
-    final fee = num.tryParse(_fee.text.trim()) ?? 0;
-    final freeOver = num.tryParse(_freeOver.text.trim()) ?? 0;
-    final days = int.tryParse(_handlingDays.text.trim()) ?? 1;
+    final fee = (parseKesAmount(_fee.text) ?? 0).toDouble();
+    final freeOver = (parseKesAmount(_freeOver.text) ?? 0).toDouble();
+    final days = parseWholeDays(_handlingDays.text) ?? 1;
     return {
       'name': name,
       'areas': _areas,
@@ -100,14 +104,24 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
       'fee': fee,
       'deliveryFee': fee,
       'delivery_fee': fee,
+      'flatRate': fee,
+      'flat_rate': fee,
+      'rate': fee,
+      'price': fee,
       'amount': fee,
       'freeShippingThreshold': freeOver,
       'free_shipping_threshold': freeOver,
       'freeOver': freeOver,
+      'freeDeliveryMinimum': freeOver,
+      'free_delivery_minimum': freeOver,
       'estimatedDays': days,
       'estimated_days': days,
+      'estimatedHandlingDays': days,
+      'estimated_handling_days': days,
       'handlingDays': days,
       'handling_days': days,
+      'handlingBusinessDays': days,
+      'handling_business_days': days,
       'deliveryDays': days,
       'isDefault': _isDefault,
       'is_default': _isDefault,
@@ -138,25 +152,50 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
     required String fieldId,
     required String message,
   }) {
-    if (fieldId == 'areas') {
-      setState(() => _areasInlineError = message);
-    }
+    setState(() {
+      switch (fieldId) {
+        case 'areas':
+          _areasInlineError = message;
+        case 'fee':
+          _feeInlineError = message;
+        case 'freeOver':
+          _freeOverInlineError = message;
+        case 'handlingDays':
+          _handlingDaysInlineError = message;
+        default:
+          break;
+      }
+    });
     reportFieldError(fieldId: fieldId, message: message);
   }
 
   @override
   void clearFieldError(String fieldId) {
-    if (fieldId == 'areas' && _areasInlineError != null) {
-      setState(() => _areasInlineError = null);
-    }
+    setState(() {
+      switch (fieldId) {
+        case 'areas':
+          _areasInlineError = null;
+        case 'fee':
+          _feeInlineError = null;
+        case 'freeOver':
+          _freeOverInlineError = null;
+        case 'handlingDays':
+          _handlingDaysInlineError = null;
+        default:
+          break;
+      }
+    });
     super.clearFieldError(fieldId);
   }
 
   @override
   void clearAllFieldErrors() {
-    if (_areasInlineError != null) {
-      setState(() => _areasInlineError = null);
-    }
+    setState(() {
+      _areasInlineError = null;
+      _feeInlineError = null;
+      _freeOverInlineError = null;
+      _handlingDaysInlineError = null;
+    });
     super.clearAllFieldErrors();
   }
 
@@ -187,24 +226,27 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
       return;
     }
     final feeRaw = _fee.text.trim();
-    final fee = num.tryParse(feeRaw);
+    final fee = parseKesAmount(feeRaw);
     if (feeRaw.isEmpty || fee == null || fee < 0) {
       _reportZoneFieldError(
         fieldId: 'fee',
-        message: 'Enter a valid delivery fee (0 or more).',
+        message: 'Enter a valid delivery fee (amount only, e.g. 250).',
       );
       return;
     }
     final freeRaw = _freeOver.text.trim();
-    if (freeRaw.isNotEmpty && (num.tryParse(freeRaw) ?? -1) < 0) {
-      _reportZoneFieldError(
-        fieldId: 'freeOver',
-        message: 'Free-shipping threshold must be 0 or more.',
-      );
-      return;
+    if (freeRaw.isNotEmpty) {
+      final freeParsed = parseKesAmount(freeRaw);
+      if (freeParsed == null || freeParsed < 0) {
+        _reportZoneFieldError(
+          fieldId: 'freeOver',
+          message: 'Free-shipping threshold must be 0 or more.',
+        );
+        return;
+      }
     }
     final daysRaw = _handlingDays.text.trim();
-    final days = int.tryParse(daysRaw);
+    final days = parseWholeDays(daysRaw);
     if (daysRaw.isEmpty || days == null || days < 0) {
       _reportZoneFieldError(
         fieldId: 'handlingDays',
@@ -307,7 +349,9 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
   InputDecoration _fieldDeco(
     ThemeData theme, {
     String? hint,
-    Widget? prefixIcon,
+    String? prefixText,
+    String? helperText,
+    String? errorText,
     bool isInvalid = false,
   }) {
     final errorColor = theme.colorScheme.error;
@@ -320,6 +364,13 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
     );
     return InputDecoration(
       hintText: hint,
+      helperText: isInvalid ? null : helperText,
+      errorText: isInvalid ? errorText : null,
+      helperStyle: GoogleFonts.inter(
+        fontSize: 11,
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+      errorStyle: GoogleFonts.inter(fontSize: 11, color: errorColor),
       filled: true,
       fillColor: isInvalid
           ? errorColor.withValues(alpha: 0.06)
@@ -334,7 +385,14 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
         ),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      prefixIcon: prefixIcon,
+      prefixText: prefixText,
+      prefixStyle: prefixText == null
+          ? null
+          : GoogleFonts.inter(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
     );
   }
 
@@ -584,7 +642,7 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Flat delivery fee (KES)',
+                        'Flat delivery fee',
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -597,24 +655,24 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                         child: TextField(
                           controller: _fee,
                           keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                          ],
                           onChanged: (_) => clearFieldError('fee'),
                           decoration: _fieldDeco(
                             theme,
-                            hint: 'e.g. 200',
+                            hint: '250',
+                            prefixText: 'KES ',
+                            helperText:
+                                'Enter the amount only — KES is added for you.',
+                            errorText: _feeInlineError,
                             isInvalid: isFieldInvalid('fee'),
-                            prefixIcon: Padding(
-                              padding: const EdgeInsets.only(left: 12, right: 4),
-                              child: Center(
-                                widthFactor: 1,
-                                child: Text('KES', style: GoogleFonts.inter(color: theme.colorScheme.outline, fontSize: 14)),
-                              ),
-                            ),
                           ),
                         ),
                       ),
                       const SizedBox(height: 18),
                       Text(
-                        'Free delivery on orders over (KES)',
+                        'Free delivery on orders over',
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -627,10 +685,16 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                         child: TextField(
                           controller: _freeOver,
                           keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                          ],
                           onChanged: (_) => clearFieldError('freeOver'),
                           decoration: _fieldDeco(
                             theme,
-                            hint: '0 = not offered in this zone',
+                            hint: '0',
+                            prefixText: 'KES ',
+                            helperText: '0 means free delivery is not offered in this zone.',
+                            errorText: _freeOverInlineError,
                             isInvalid: isFieldInvalid('freeOver'),
                           ),
                         ),
@@ -660,10 +724,15 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                         child: TextField(
                           controller: _handlingDays,
                           keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
                           onChanged: (_) => clearFieldError('handlingDays'),
                           decoration: _fieldDeco(
                             theme,
-                            hint: 'e.g. 1',
+                            hint: '1',
+                            helperText: 'Business days before the order ships.',
+                            errorText: _handlingDaysInlineError,
                             isInvalid: isFieldInvalid('handlingDays'),
                           ),
                         ),

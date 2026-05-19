@@ -183,7 +183,7 @@ List<_OnboardingStepUi> _orderOnboardingSteps(List<_OnboardingStepUi> steps) {
       middle.add(s);
     }
   }
-  return [...products, ...categories, ...attributes, ...middle, ...previews, ...shares];
+  return [...categories, ...attributes, ...products, ...middle, ...previews, ...shares];
 }
 
 void _postGettingStartedPreview(WidgetRef ref) {
@@ -355,14 +355,6 @@ List<_OnboardingStepUi> _defaultOnboardingStepsAfterRegistration() {
   return const [
     _OnboardingStepUi(
       completed: false,
-      title: 'Add your first product',
-      description: 'Create a product so customers can start buying.',
-      durationHint: 'Takes 2 minutes',
-      actionLabel: 'Add product',
-      stepKey: 'product',
-    ),
-    _OnboardingStepUi(
-      completed: false,
       title: 'Create your first category',
       description:
           'Group products into sections like Footwear or Groceries so shoppers can browse.',
@@ -377,6 +369,14 @@ List<_OnboardingStepUi> _defaultOnboardingStepsAfterRegistration() {
       durationHint: 'Takes 2 minutes',
       actionLabel: 'Add attribute',
       stepKey: 'attributes',
+    ),
+    _OnboardingStepUi(
+      completed: false,
+      title: 'Add your first product',
+      description: 'Create a product so customers can start buying.',
+      durationHint: 'Takes 2 minutes',
+      actionLabel: 'Add product',
+      stepKey: 'product',
     ),
     _OnboardingStepUi(
       completed: true,

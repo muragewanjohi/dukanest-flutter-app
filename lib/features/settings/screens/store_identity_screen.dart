@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
@@ -11,10 +12,13 @@ import 'package:image_picker/image_picker.dart';
 import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/api_response.dart';
 import '../../../core/auth/token_storage.dart';
 import '../../../core/providers/store_identity_provider.dart';
+import '../../../core/util/store_media_url.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
+import '../../dashboard/providers/dashboard_getting_started_provider.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../../onboarding/providers/auth_provider.dart';
 import '../providers/dashboard_settings_provider.dart';
@@ -47,9 +51,14 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
   bool _saving = false;
   String? _serverSubdomain;
   String? _logoImageUrl;
+  /// Local file chosen by the user; uploaded only when they tap Save changes.
+  String? _pendingLogoLocalPath;
+  /// Local file kept after upload/save so preview survives until the CDN URL loads.
+  String? _logoPreviewLocalPath;
   /// Bumped when the logo URL changes or after save so [CachedNetworkImage] does not show a stale bitmap if the URL is unchanged.
   int _logoCacheEpoch = 0;
-  String? _lastHydratedStoreSignature;
+  String? _lastHydratedSettingsSignature;
+  bool _skipNextSettingsHydrate = false;
 
   bool _uploadingLogo = false;
   /// 0..1 send progress for the in-flight logo upload, or null when total size is unknown / not uploading.
@@ -58,15 +67,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
   /// must persist the cleared value instead of leaving the server logo untouched.
   bool _logoClearedByUser = false;
 
-  String _normalizeAbsoluteUrl(String? raw) {
-    final s = (raw ?? '').trim();
-    if (s.isEmpty) return '';
-    if (s.startsWith('http://') || s.startsWith('https://')) return s;
-    if (s.startsWith('//')) return 'https:$s';
-    final base = AppConfig.publicApiBaseUrl.replaceFirst(RegExp(r'/$'), '');
-    if (s.startsWith('/')) return '$base$s';
-    return '$base/$s';
-  }
+  /// Snapshot after hydrate / successful save so we can skip redundant PATCHes.
+  String _baselineFormSignature = '';
 
   static const _businessTypeOptions = [
     'Retail',
@@ -96,8 +98,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     super.dispose();
   }
 
-  void _hydrateFrom(Map<String, dynamic> data) {
-    final prevLogo = _logoImageUrl;
+  void _hydrateFormFieldsFrom(Map<String, dynamic> data) {
     final store = settingsSection(data, 'store') ?? {};
     _storeName.text = settingsPick(store, ['name']);
     final sub = settingsPick(store, ['subdomain']);
@@ -125,14 +126,6 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     _supportEmail.text = settingsPick(store, ['contactEmail', 'contact_email', 'supportEmail']);
     _description.text = settingsPick(store, ['description', 'tagline']);
 
-    final rawLogo = settingsPick(
-      store,
-      ['logoUrl', 'logo', 'storeLogo', 'logo_url'],
-      fallback: '',
-    );
-    final normalizedLogo = _normalizeAbsoluteUrl(rawLogo);
-    _logoImageUrl = normalizedLogo.isEmpty ? null : normalizedLogo;
-
     final bt = settingsPick(data, ['businessType', 'business_type']);
     if (bt.isNotEmpty && _businessTypeOptions.contains(bt)) {
       _businessType = bt;
@@ -145,25 +138,352 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     } else if (sell.isNotEmpty) {
       _sellingCategory = sell;
     }
-    if (prevLogo != _logoImageUrl) {
+    _captureSaveBaseline();
+  }
+
+  void _applyLogoFromSettings(Map<String, dynamic> data, {bool preserveLocalPending = true}) {
+    final prevLogo = _logoImageUrl;
+    final normalizedLogo = readStoreLogoFromSettings(data);
+    if (normalizedLogo.isNotEmpty) {
+      if (_logoImageUrl != normalizedLogo) {
+        _logoImageUrl = normalizedLogo;
+        _logoCacheEpoch++;
+      }
+      if (!_logoClearedByUser) {
+        _logoPreviewLocalPath = null;
+      }
+    } else if (_logoClearedByUser) {
+      _logoImageUrl = null;
+      _logoPreviewLocalPath = null;
+      _logoCacheEpoch++;
+    } else if (prevLogo != null && prevLogo.isNotEmpty) {
+      // GET settings often omits `static_options.store_logo` even after a successful PATCH.
+      _logoImageUrl = prevLogo;
+    }
+    if (preserveLocalPending) return;
+    _pendingLogoLocalPath = null;
+  }
+
+  void _hydrateFrom(Map<String, dynamic> data, {bool preserveLocalPending = true}) {
+    _hydrateFormFieldsFrom(data);
+    _applyLogoFromSettings(data, preserveLocalPending: preserveLocalPending);
+    if (!preserveLocalPending) {
+      _logoClearedByUser = false;
+    }
+  }
+
+  bool get _hasLogoPreview {
+    if (_logoClearedByUser) return false;
+    if (_pendingLogoLocalPath != null && _pendingLogoLocalPath!.isNotEmpty) {
+      return true;
+    }
+    if (_logoPreviewLocalPath != null &&
+        _logoPreviewLocalPath!.isNotEmpty &&
+        File(_logoPreviewLocalPath!).existsSync()) {
+      return true;
+    }
+    return _logoImageUrl != null && _logoImageUrl!.isNotEmpty;
+  }
+
+  String? get _activeLogoLocalPath {
+    if (_pendingLogoLocalPath != null && _pendingLogoLocalPath!.isNotEmpty) {
+      return _pendingLogoLocalPath;
+    }
+    if (_logoPreviewLocalPath != null &&
+        _logoPreviewLocalPath!.isNotEmpty &&
+        File(_logoPreviewLocalPath!).existsSync()) {
+      return _logoPreviewLocalPath;
+    }
+    return null;
+  }
+
+  String _currentFormSignature() {
+    final phoneDigits =
+        _phoneLocal.text.replaceAll(RegExp(r'\D'), '').replaceFirst(RegExp(r'^0+'), '');
+    return jsonEncode({
+      'name': _storeName.text.trim(),
+      'domain': _domain.text.trim(),
+      'phone': phoneDigits,
+      'line1': _address1.text.trim(),
+      'city': _city.text.trim(),
+      'state': _state.text.trim(),
+      'country': _country.text.trim(),
+      'postal': _postal.text.trim(),
+      'supportEmail': _supportEmail.text.trim(),
+      'description': _description.text.trim(),
+      'businessType': _businessType,
+      'selling': _sellingCategory,
+      'logo': normalizeStoreMediaUrl(_logoImageUrl ?? ''),
+      'pendingLogo': _pendingLogoLocalPath ?? '',
+      'logoCleared': _logoClearedByUser,
+    });
+  }
+
+  void _captureSaveBaseline() {
+    _baselineFormSignature = _currentFormSignature();
+  }
+
+  bool _hasUnsavedChanges() =>
+      _currentFormSignature() != _baselineFormSignature;
+
+  /// Keeps the logo visible after save when the settings GET omits `store_logo`.
+  void _ensureLogoUrlAfterSave({
+    required String savedLogoUrl,
+    required bool cleared,
+    String? localPreviewPath,
+  }) {
+    if (cleared) {
+      _logoImageUrl = null;
+      _pendingLogoLocalPath = null;
+      _logoPreviewLocalPath = null;
+      _logoCacheEpoch++;
+      return;
+    }
+    final normalized = normalizeStoreMediaUrl(savedLogoUrl);
+    if (normalized.isEmpty) return;
+    if (_logoImageUrl != normalized) {
+      _logoImageUrl = normalized;
       _logoCacheEpoch++;
     }
+    _pendingLogoLocalPath = null;
+    final preview = localPreviewPath?.trim();
+    if (preview != null &&
+        preview.isNotEmpty &&
+        File(preview).existsSync()) {
+      _logoPreviewLocalPath = preview;
+    }
+  }
+
+  String? _saveSuccessMessage({
+    required ApiResponse<dynamic> response,
+    required bool logoSaved,
+    required bool logoCleared,
+  }) {
+    if (!response.success && _isBenignNoUpdateResponse(response)) {
+      if (logoSaved) {
+        return 'Your logo is already saved on your storefront.';
+      }
+      return 'Store settings are already saved.';
+    }
+    if (logoCleared) return 'Changes saved. Store logo removed.';
+    if (logoSaved) {
+      return 'Changes saved. Your logo is updated on your storefront.';
+    }
+    return null;
+  }
+
+  bool _messageIndicatesNoSettingsUpdate(String raw) {
+    final msg = raw.toLowerCase();
+    return msg.contains('no settings fields') ||
+        msg.contains('nothing to update') ||
+        msg.contains('no changes');
+  }
+
+  bool _isBenignNoUpdateResponse(ApiResponse<dynamic> response) {
+    final candidates = <String>[
+      response.error?.message ?? '',
+      if (response.data is Map)
+        (response.data as Map)['message']?.toString() ?? '',
+    ];
+    for (final raw in candidates) {
+      if (_messageIndicatesNoSettingsUpdate(raw)) return true;
+    }
+    return false;
+  }
+
+  bool _isBenignNoUpdateDio(DioException error) {
+    final data = error.response?.data;
+    if (data is Map) {
+      final candidates = <String>[
+        data['message']?.toString() ?? '',
+        if (data['error'] is Map)
+          (data['error'] as Map)['message']?.toString() ?? '',
+      ];
+      for (final raw in candidates) {
+        if (_messageIndicatesNoSettingsUpdate(raw)) return true;
+      }
+    }
+    return false;
+  }
+
+  void _showSavedSnack({String? message}) {
+    if (!mounted) return;
+    final fromTutorial =
+        GoRouterState.of(context).uri.queryParameters['tutorial'] == '1';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message ??
+              (fromTutorial
+                  ? 'Changes saved. Returning to tutorial…'
+                  : 'Changes saved'),
+        ),
+        duration: Duration(seconds: fromTutorial ? 3 : 2),
+      ),
+    );
+  }
+
+  Future<void> _afterSuccessfulSave({String? message}) async {
+    _captureSaveBaseline();
     _logoClearedByUser = false;
+    final normalizedSubdomain = _domain.text.trim();
+    final rootHost = (Uri.tryParse(AppConfig.publicApiBaseUrl)?.host ?? 'dukanest.com')
+        .replaceFirst(RegExp(r'^www\.'), '');
+    await ref.read(tokenStorageProvider).saveStoreIdentity(
+          name: _storeName.text.trim(),
+          subdomain: normalizedSubdomain,
+          storeUrl: normalizedSubdomain.isNotEmpty
+              ? 'https://$normalizedSubdomain.$rootHost'
+              : '',
+          logoUrl: _logoImageUrl,
+        );
+    ref.invalidate(storeIdentityProvider);
+    ref.invalidate(dashboardGettingStartedProvider);
+    if (!mounted) return;
+    _showSavedSnack(message: message);
+    final fromTutorial =
+        GoRouterState.of(context).uri.queryParameters['tutorial'] == '1';
+    if (fromTutorial) {
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      if (!mounted) return;
+      context.go('/first-run-tutorial');
+    }
   }
 
-  static String _storeSectionSignature(Map<String, dynamic>? s) {
-    if (s == null || s.isEmpty) return '';
-    final keys = s.keys.toList()..sort();
-    return jsonEncode({for (final k in keys) k: s[k]});
+  Map<String, dynamic> _mergedStaticOptions(
+    Map<String, dynamic>? root, {
+    String? storeLogo,
+    bool clearStoreLogo = false,
+  }) {
+    final merged = <String, dynamic>{};
+    if (root != null) {
+      final raw = root['static_options'] ?? root['staticOptions'];
+      if (raw is Map) {
+        merged.addAll(Map<String, dynamic>.from(raw));
+      }
+    }
+    if (clearStoreLogo) {
+      merged['store_logo'] = '';
+    } else if (storeLogo != null && storeLogo.trim().isNotEmpty) {
+      merged['store_logo'] = storeLogo.trim();
+    }
+    return merged;
   }
 
-  void _hydrateWhenStoreSectionChanges(Map<String, dynamic>? root) {
-    final sig = _storeSectionSignature(settingsSection(root, 'store'));
-    if (_lastHydratedStoreSignature != null && sig == _lastHydratedStoreSignature) return;
-    _lastHydratedStoreSignature = sig;
+  /// Storefront logo is persisted on `static_options.store_logo` (merge existing options).
+  /// Web dashboard also reads flat `store_logo` on settings PUT — send both shapes.
+  Map<String, dynamic> _logoSettingsPatch(
+    String logo, {
+    Map<String, dynamic>? settingsRoot,
+  }) {
+    final normalized = normalizeStoreMediaUrl(logo);
+    final staticOptions = _mergedStaticOptions(
+      settingsRoot,
+      storeLogo: normalized,
+    );
+    return {
+      'store_logo': normalized,
+      'storeLogo': normalized,
+      'logoUrl': normalized,
+      'logo_url': normalized,
+      'static_options': staticOptions,
+      'staticOptions': Map<String, dynamic>.from(staticOptions),
+    };
+  }
+
+  Map<String, dynamic> _logoClearSettingsPatch({Map<String, dynamic>? settingsRoot}) {
+    final staticOptions = _mergedStaticOptions(
+      settingsRoot,
+      clearStoreLogo: true,
+    );
+    return {
+      'store_logo': '',
+      'storeLogo': '',
+      'logoUrl': '',
+      'logo_url': '',
+      'static_options': staticOptions,
+      'staticOptions': Map<String, dynamic>.from(staticOptions),
+    };
+  }
+
+  Future<ApiResponse<dynamic>?> _persistStoreLogoOnly({
+    required String logo,
+    required bool clear,
+    Map<String, dynamic>? settingsRoot,
+  }) async {
+    final api = ref.read(apiClientProvider);
+    final body = clear
+        ? _logoClearSettingsPatch(settingsRoot: settingsRoot)
+        : _logoSettingsPatch(logo, settingsRoot: settingsRoot);
+    try {
+      return await api.patchDashboardSettings(body);
+    } on DioException catch (e) {
+      if (_isBenignNoUpdateDio(e)) {
+        return ApiResponse<dynamic>(success: true, data: null);
+      }
+      rethrow;
+    }
+  }
+
+  String _formatApiError(Object e, {String fallback = 'Could not save store logo'}) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map) {
+        final details = data['details'];
+        if (details is List && details.isNotEmpty) {
+          final lines = <String>[];
+          for (final item in details) {
+            if (item is Map) {
+              final msg = item['message'] ?? item['msg'];
+              if (msg is String && msg.trim().isNotEmpty) {
+                lines.add(msg.trim());
+              }
+            }
+          }
+          if (lines.isNotEmpty) return lines.join('\n');
+        }
+        final msg = data['message'];
+        if (msg is String && msg.trim().isNotEmpty) return msg.trim();
+        final err = data['error'];
+        if (err is Map && err['message'] is String) {
+          return (err['message'] as String).trim();
+        }
+      }
+      if (e.message != null && e.message!.trim().isNotEmpty) {
+        return e.message!.trim();
+      }
+    }
+    return fallback;
+  }
+
+  static String _settingsHydrationSignature(Map<String, dynamic>? root) {
+    if (root == null || root.isEmpty) return '';
+    final store = settingsSection(root, 'store');
+    final storeKeys = store == null ? <String>[] : (store.keys.toList()..sort());
+    final storeJson =
+        store == null ? <String, dynamic>{} : {for (final k in storeKeys) k: store[k]};
+    return jsonEncode({
+      'store': storeJson,
+      'logo': readStoreLogoFromSettings(root),
+      'businessType': settingsPick(root, ['businessType', 'business_type']),
+      'selling': settingsPick(root, ['selling', 'sellingCategory', 'selling_category']),
+    });
+  }
+
+  void _hydrateWhenSettingsChange(Map<String, dynamic>? root) {
+    if (_skipNextSettingsHydrate) {
+      _skipNextSettingsHydrate = false;
+      return;
+    }
+    final sig = _settingsHydrationSignature(root);
+    if (_lastHydratedSettingsSignature != null &&
+        sig == _lastHydratedSettingsSignature) {
+      return;
+    }
+    _lastHydratedSettingsSignature = sig;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _hydrateFrom(root ?? {});
+      _hydrateFrom(root ?? {}, preserveLocalPending: true);
       setState(() {});
     });
   }
@@ -194,13 +514,20 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       return;
     }
     clearAllFieldErrors();
-    setState(() => _saving = true);
-    try {
-      if (_logoImageUrl != null && _logoImageUrl!.isNotEmpty) {
-        ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(
-              DashboardOnboardingStepKeys.logo,
-            );
+    if (!_hasUnsavedChanges()) {
+      _showSavedSnack(
+        message: 'Store settings are already saved.',
+      );
+      return;
+    }
+    setState(() {
+      _saving = true;
+      if (_pendingLogoLocalPath != null && !_logoClearedByUser) {
+        _uploadingLogo = true;
+        _logoUploadProgress = null;
       }
+    });
+    try {
       final api = ref.read(apiClientProvider);
       final name = _storeName.text.trim();
       final line1 = _address1.text.trim();
@@ -223,20 +550,43 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
         storePatch['phone'] = phoneE164;
         storePatch['store_phone'] = phoneE164;
       }
-      final logo = _logoImageUrl?.trim() ?? '';
-      final shouldPersistLogo = logo.isNotEmpty || _logoClearedByUser;
-      if (shouldPersistLogo) {
-        // Cover every key variant the backend / storefront may read.
-        // The web storefront resolves the logo from the `store_logo` static
-        // option (see docs/backend-context/flutter_apis.md), so surface it
-        // both nested under `store` and at the top level for whichever
-        // shape the settings normalizer expects.
-        storePatch['logoUrl'] = logo;
-        storePatch['logo_url'] = logo;
-        storePatch['logo'] = logo;
-        storePatch['storeLogo'] = logo;
-        storePatch['store_logo'] = logo;
+      var logo = normalizeStoreMediaUrl(_logoImageUrl ?? '');
+      String? uploadedFromLocalPath;
+      if (_pendingLogoLocalPath != null && !_logoClearedByUser) {
+        uploadedFromLocalPath = _pendingLogoLocalPath;
+        final uploadedUrl = await _uploadLogoFile(_pendingLogoLocalPath!);
+        if (!mounted) return;
+        if (uploadedUrl == null) return;
+        logo = uploadedUrl;
+        _logoImageUrl = uploadedUrl;
+        _logoCacheEpoch++;
       }
+      final shouldPersistLogo = logo.isNotEmpty || _logoClearedByUser;
+
+      Map<String, dynamic>? settingsRoot;
+      try {
+        settingsRoot = await ref.read(dashboardSettingsProvider.future);
+      } catch (_) {
+        settingsRoot = null;
+      }
+
+      if (shouldPersistLogo) {
+        final logoR = await _persistStoreLogoOnly(
+          logo: logo,
+          clear: _logoClearedByUser,
+          settingsRoot: settingsRoot,
+        );
+        if (!mounted) return;
+        if (logoR != null && !logoR.success && !_isBenignNoUpdateResponse(logoR)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(logoR.error?.message ?? 'Could not save store logo'),
+            ),
+          );
+          return;
+        }
+      }
+
       final body = <String, dynamic>{
         'store': storePatch,
         'businessType': _businessType,
@@ -244,17 +594,41 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
         'selling': _sellingCategory,
         'selling_category': _sellingCategory,
         'sellingCategory': _sellingCategory,
-        if (shouldPersistLogo) ...{
-          'store_logo': logo,
-          'storeLogo': logo,
-          'static_options': {
-            'store_logo': logo,
-          },
-        },
       };
-      final r = await api.patchDashboardSettings(body);
+
+      late final ApiResponse<dynamic> r;
+      try {
+        r = await api.patchDashboardSettings(body);
+      } on DioException catch (e) {
+        if (!mounted) return;
+        if (_isBenignNoUpdateDio(e) && shouldPersistLogo) {
+          _ensureLogoUrlAfterSave(
+            savedLogoUrl: logo,
+            cleared: _logoClearedByUser,
+            localPreviewPath: uploadedFromLocalPath,
+          );
+          _skipNextSettingsHydrate = true;
+          _logoClearedByUser = false;
+          await _afterSuccessfulSave(
+            message: logo.isNotEmpty && !_logoClearedByUser
+                ? 'Your logo is already saved on your storefront.'
+                : 'Store settings are already saved.',
+          );
+          return;
+        }
+        if (_isBenignNoUpdateDio(e)) {
+          await _afterSuccessfulSave(
+            message: 'Store settings are already saved.',
+          );
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_formatApiError(e, fallback: 'Could not save'))),
+        );
+        return;
+      }
       if (!mounted) return;
-      if (!r.success) {
+      if (!r.success && !_isBenignNoUpdateResponse(r)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(r.error?.message ?? 'Could not save')),
         );
@@ -262,46 +636,40 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       }
       final patched = unwrapSettingsData(r.data);
       if (patched != null) {
-        _hydrateFrom(patched);
-        _lastHydratedStoreSignature = _storeSectionSignature(settingsSection(patched, 'store'));
+        _hydrateFormFieldsFrom(patched);
+        _applyLogoFromSettings(patched, preserveLocalPending: true);
+        _lastHydratedSettingsSignature = _settingsHydrationSignature(patched);
       }
+      _ensureLogoUrlAfterSave(
+        savedLogoUrl: logo,
+        cleared: _logoClearedByUser,
+        localPreviewPath: uploadedFromLocalPath,
+      );
+      _skipNextSettingsHydrate = true;
       final refreshedRoot = await ref.refresh(dashboardSettingsProvider.future);
       if (refreshedRoot != null) {
-        _hydrateFrom(refreshedRoot);
-        _lastHydratedStoreSignature = _storeSectionSignature(settingsSection(refreshedRoot, 'store'));
+        _hydrateFormFieldsFrom(refreshedRoot);
+        _applyLogoFromSettings(refreshedRoot, preserveLocalPending: true);
+        _lastHydratedSettingsSignature = _settingsHydrationSignature(refreshedRoot);
+        _ensureLogoUrlAfterSave(
+          savedLogoUrl: logo,
+          cleared: _logoClearedByUser,
+          localPreviewPath: uploadedFromLocalPath,
+        );
       }
-      if (!mounted) return;
-      final normalizedSubdomain = _domain.text.trim();
-      final rootHost = (Uri.tryParse(AppConfig.publicApiBaseUrl)?.host ?? 'dukanest.com')
-          .replaceFirst(RegExp(r'^www\.'), '');
-      await ref.read(tokenStorageProvider).saveStoreIdentity(
-            name: _storeName.text.trim(),
-            subdomain: normalizedSubdomain,
-            storeUrl: normalizedSubdomain.isNotEmpty
-                ? 'https://$normalizedSubdomain.$rootHost'
-                : '',
-            logoUrl: _logoImageUrl,
-          );
-      ref.invalidate(storeIdentityProvider);
       _logoClearedByUser = false;
       if (!mounted) return;
-      final fromTutorial =
-          GoRouterState.of(context).uri.queryParameters['tutorial'] == '1';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            fromTutorial
-                ? 'Changes saved. Returning to tutorial…'
-                : 'Changes saved',
-          ),
-          duration: Duration(seconds: fromTutorial ? 3 : 2),
-        ),
+      final message = _saveSuccessMessage(
+        response: r,
+        logoSaved: logo.isNotEmpty && !_logoClearedByUser,
+        logoCleared: _logoClearedByUser,
       );
-      if (fromTutorial) {
-        await Future<void>.delayed(const Duration(milliseconds: 900));
-        if (!mounted) return;
-        context.go('/first-run-tutorial');
+      if (logo.isNotEmpty && !_logoClearedByUser) {
+        ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(
+              DashboardOnboardingStepKeys.logo,
+            );
       }
+      await _afterSuccessfulSave(message: message);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -309,26 +677,24 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
         );
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _uploadingLogo = false;
+          _logoUploadProgress = null;
+        });
+      }
     }
   }
 
-  Future<void> _pickAndUploadLogo() async {
-    if (_uploadingLogo) return;
-    final source = await _showLogoSourcePicker();
-    if (!mounted || source == null) return;
-    final file = await _picker.pickImage(source: source, maxWidth: 2048);
-    if (!mounted || file == null) return;
-    setState(() {
-      _uploadingLogo = true;
-      _logoUploadProgress = 0;
-    });
+  /// Uploads a local logo file; returns public URL or null on failure (shows snackbar).
+  Future<String?> _uploadLogoFile(String filePath) async {
+    final api = ref.read(apiClientProvider);
     try {
-      final api = ref.read(apiClientProvider);
       final form = FormData.fromMap({
         'file': await MultipartFile.fromFile(
-          file.path,
-          filename: file.path.replaceAll(r'\', '/').split('/').last,
+          filePath,
+          filename: filePath.replaceAll(r'\', '/').split('/').last,
         ),
       });
       final r = await api.uploadMedia(
@@ -340,63 +706,46 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
           });
         },
       );
-      if (!mounted) return;
+      if (!mounted) return null;
       if (!r.success || r.data == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(r.error?.message ?? 'Upload failed')),
+          SnackBar(content: Text(r.error?.message ?? 'Logo upload failed')),
         );
-        return;
+        return null;
       }
-      final payload = r.data is Map<String, dynamic>
-          ? r.data as Map<String, dynamic>
-          : <String, dynamic>{};
-      final inner = unwrapSettingsData(payload) ?? payload;
-      var url = settingsPick(inner, [
-        'url',
-        'publicUrl',
-        'public_url',
-        'src',
-      ]);
-      url = _normalizeAbsoluteUrl(url);
+      final url = extractMediaUploadUrl(r.data);
       if (url.isEmpty) {
-        final data = inner['data'];
-        if (data is Map) {
-          final m = Map<String, dynamic>.from(data);
-          final u = _normalizeAbsoluteUrl(
-            settingsPick(m, ['url', 'publicUrl', 'path']),
-          );
-          if (u.isNotEmpty) {
-            setState(() {
-              _logoImageUrl = u;
-              _logoCacheEpoch++;
-            });
-          }
-        }
-      } else {
-        setState(() {
-          _logoImageUrl = url;
-          _logoCacheEpoch++;
-        });
-      }
-      if (_logoImageUrl != null && _logoImageUrl!.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Logo uploaded — tap Save to apply')),
+          const SnackBar(
+            content: Text('Upload succeeded but no image URL was returned.'),
+          ),
         );
+        return null;
       }
-    } catch (e) {
+      return url;
+    } on DioException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: $e')),
+          SnackBar(
+            content: Text(_formatApiError(e, fallback: 'Logo upload failed')),
+          ),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _uploadingLogo = false;
-          _logoUploadProgress = null;
-        });
-      }
+      return null;
     }
+  }
+
+  Future<void> _pickLogo() async {
+    if (_uploadingLogo || _saving) return;
+    final source = await _showLogoSourcePicker();
+    if (!mounted || source == null) return;
+    final file = await _picker.pickImage(source: source, maxWidth: 2048);
+    if (!mounted || file == null) return;
+    setState(() {
+      _pendingLogoLocalPath = file.path;
+      _logoClearedByUser = false;
+      _logoCacheEpoch++;
+    });
   }
 
   Future<ImageSource?> _showLogoSourcePicker() async {
@@ -426,9 +775,11 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
   }
 
   void _clearLogo() {
-    if (_uploadingLogo) return;
+    if (_uploadingLogo || _saving) return;
     setState(() {
       _logoImageUrl = null;
+      _pendingLogoLocalPath = null;
+      _logoPreviewLocalPath = null;
       _logoCacheEpoch++;
       _logoClearedByUser = true;
     });
@@ -546,7 +897,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       ),
       data: (data) {
         if (data != null) {
-          _hydrateWhenStoreSectionChanges(data);
+          _hydrateWhenSettingsChange(data);
         }
         return _buildMainScaffold(theme);
       },
@@ -830,7 +1181,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
   }
 
   Widget _buildLogoUploader(ThemeData theme) {
-    final hasLogo = _logoImageUrl != null && _logoImageUrl!.isNotEmpty;
+    final localPath = _activeLogoLocalPath;
+    final hasLocalPreview = localPath != null;
     final progress = _logoUploadProgress;
     final progressPercent = progress != null ? (progress * 100).clamp(0, 100).toInt() : null;
 
@@ -864,29 +1216,77 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
           ],
         ),
       );
-    } else if (hasLogo) {
+    } else if (_hasLogoPreview) {
+      final Widget imageChild;
+      if (hasLocalPreview) {
+        imageChild = Image.file(
+          File(localPath),
+          width: 72,
+          height: 72,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Icon(Icons.broken_image_outlined,
+              color: theme.colorScheme.primary, size: 32),
+        );
+      } else {
+        imageChild = CachedNetworkImage(
+          imageUrl: _logoImageUrl!,
+          cacheKey: 'store_logo_${_logoImageUrl}_$_logoCacheEpoch',
+          width: 72,
+          height: 72,
+          fit: BoxFit.cover,
+          errorWidget: (_, __, ___) {
+            final fallback = _logoPreviewLocalPath;
+            if (fallback != null &&
+                fallback.isNotEmpty &&
+                File(fallback).existsSync()) {
+              return Image.file(
+                File(fallback),
+                width: 72,
+                height: 72,
+                fit: BoxFit.cover,
+              );
+            }
+            return Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.store_rounded,
+                  color: theme.colorScheme.primary, size: 32),
+            );
+          },
+        );
+      }
       centerVisual = Stack(
         clipBehavior: Clip.none,
         children: [
-          ClipOval(
-            child: CachedNetworkImage(
-              imageUrl: _logoImageUrl!,
-              cacheKey: 'store_logo_${_logoImageUrl}_$_logoCacheEpoch',
-              width: 72,
-              height: 72,
-              fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => Container(
-                width: 72,
-                height: 72,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
+          ClipOval(child: imageChild),
+          if (_pendingLogoLocalPath != null && _pendingLogoLocalPath!.isNotEmpty)
+            Positioned(
+              bottom: -2,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.tertiaryContainer,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Unsaved',
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: theme.colorScheme.onTertiaryContainer,
+                    ),
+                  ),
                 ),
-                child: Icon(Icons.store_rounded,
-                    color: theme.colorScheme.primary, size: 32),
               ),
             ),
-          ),
           Positioned(
             top: -4,
             right: -4,
@@ -930,19 +1330,23 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     if (_uploadingLogo) {
       headline = progressPercent != null ? 'Uploading… $progressPercent%' : 'Uploading…';
       hint = 'Please keep this screen open until the upload completes.';
-    } else if (hasLogo) {
-      headline = 'Tap to replace logo';
-      hint = 'Tap the X to remove the current logo.';
+    } else if (_hasLogoPreview) {
+      final hasUnsavedPick =
+          _pendingLogoLocalPath != null && _pendingLogoLocalPath!.isNotEmpty;
+      headline = hasUnsavedPick ? 'Logo ready to save' : 'Tap to replace logo';
+      hint = hasUnsavedPick
+          ? 'Confirm this image, then tap Save changes to publish it on your storefront.'
+          : 'Shown on your storefront header. Tap X to remove.';
     } else {
       headline = 'Upload Store Logo';
-      hint = 'Take photo or upload PNG/JPG up to 5MB (512x512px)';
+      hint = 'Choose an image, then tap Save changes to apply it.';
     }
 
     return Material(
       color: theme.colorScheme.surfaceContainer.withValues(alpha: 0.5),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        onTap: _uploadingLogo ? null : _pickAndUploadLogo,
+        onTap: (_uploadingLogo || _saving) ? null : _pickLogo,
         borderRadius: BorderRadius.circular(16),
         child: CustomPaint(
           painter: _DashedRectPainter(

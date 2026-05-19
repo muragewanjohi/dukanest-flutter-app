@@ -136,9 +136,27 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Group counties or areas into zones and assign a delivery fee for each. Customers see the fee that matches their address.',
+                'Group locations into zones and assign a delivery fee for each. Customers see the fee that matches their address.',
                 style: GoogleFonts.inter(
                   fontSize: 14,
+                  height: 1.45,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Zone A: UpperHill, Town CBD — KES 250',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  height: 1.45,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Zone B: Westlands, Highridge — KES 350',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
                   height: 1.45,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -177,8 +195,10 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Orders that are not included in a delivery zone will require manual price input; '
-                        'those included in a zone will have delivery pricing applied automatically.',
+                        'Once delivery zones are set, checkout only proceeds when the customer\'s address '
+                        'falls inside a zone. Orders outside every zone are not processed—the shopper is '
+                        'told you are not currently delivering to their location. For example, if your zones '
+                        'only cover UpperHill, Town CBD, and Westlands, an order from Kitui cannot proceed.',
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           height: 1.45,
@@ -207,7 +227,7 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
                 final areas = zoneAreasFromMap(z);
                 final fee = zoneFee(z);
                 final summary = areas.isEmpty
-                    ? 'No areas configured'
+                    ? 'No locations configured'
                     : areas.length <= 3
                         ? areas.join(', ')
                         : '${areas.take(3).join(', ')}…';
@@ -317,7 +337,7 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
                 onPressed: () => _openEditor(),
                 icon: Icon(Icons.add_rounded, color: AppTheme.primaryDark),
                 label: Text(
-                  'Add shipping zone',
+                  'Add delivery zone',
                   style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, color: AppTheme.primaryDark),
                 ),
                 style: OutlinedButton.styleFrom(
