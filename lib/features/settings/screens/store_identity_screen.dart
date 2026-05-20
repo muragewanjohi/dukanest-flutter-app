@@ -370,8 +370,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     return merged;
   }
 
-  /// Storefront logo is persisted on `static_options.store_logo` (merge existing options).
-  /// Web dashboard also reads flat `store_logo` on settings PUT — send both shapes.
+  /// Storefront logo: prefer `store.logo` (mobile PATCH); also merge `static_options.store_logo` + flat aliases.
   Map<String, dynamic> _logoSettingsPatch(
     String logo, {
     Map<String, dynamic>? settingsRoot,
@@ -382,6 +381,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       storeLogo: normalized,
     );
     return {
+      'store': {'logo': normalized},
       'store_logo': normalized,
       'storeLogo': normalized,
       'logoUrl': normalized,
@@ -397,6 +397,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       clearStoreLogo: true,
     );
     return {
+      'store': {'logo': ''},
       'store_logo': '',
       'storeLogo': '',
       'logoUrl': '',
@@ -406,22 +407,27 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     };
   }
 
-  Future<ApiResponse<dynamic>?> _persistStoreLogoOnly({
+  void _mergeLogoIntoSettingsBody(
+    Map<String, dynamic> body, {
     required String logo,
     required bool clear,
     Map<String, dynamic>? settingsRoot,
-  }) async {
-    final api = ref.read(apiClientProvider);
-    final body = clear
+  }) {
+    final logoPatch = clear
         ? _logoClearSettingsPatch(settingsRoot: settingsRoot)
         : _logoSettingsPatch(logo, settingsRoot: settingsRoot);
-    try {
-      return await api.patchDashboardSettings(body);
-    } on DioException catch (e) {
-      if (_isBenignNoUpdateDio(e)) {
-        return ApiResponse<dynamic>(success: true, data: null);
-      }
-      rethrow;
+    final existingStore = body['store'];
+    final storeMap = existingStore is Map
+        ? Map<String, dynamic>.from(existingStore)
+        : <String, dynamic>{};
+    final logoStore = logoPatch['store'];
+    if (logoStore is Map) {
+      storeMap.addAll(Map<String, dynamic>.from(logoStore));
+    }
+    body['store'] = storeMap;
+    for (final entry in logoPatch.entries) {
+      if (entry.key == 'store') continue;
+      body[entry.key] = entry.value;
     }
   }
 
@@ -570,23 +576,6 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
         settingsRoot = null;
       }
 
-      if (shouldPersistLogo) {
-        final logoR = await _persistStoreLogoOnly(
-          logo: logo,
-          clear: _logoClearedByUser,
-          settingsRoot: settingsRoot,
-        );
-        if (!mounted) return;
-        if (logoR != null && !logoR.success && !_isBenignNoUpdateResponse(logoR)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(logoR.error?.message ?? 'Could not save store logo'),
-            ),
-          );
-          return;
-        }
-      }
-
       final body = <String, dynamic>{
         'store': storePatch,
         'businessType': _businessType,
@@ -595,6 +584,14 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
         'selling_category': _sellingCategory,
         'sellingCategory': _sellingCategory,
       };
+      if (shouldPersistLogo) {
+        _mergeLogoIntoSettingsBody(
+          body,
+          logo: logo,
+          clear: _logoClearedByUser,
+          settingsRoot: settingsRoot,
+        );
+      }
 
       late final ApiResponse<dynamic> r;
       try {

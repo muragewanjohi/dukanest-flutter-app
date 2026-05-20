@@ -115,7 +115,7 @@ StoreFlow does **not** use a separate “onboarding table”. Completion is comp
 | `share` | `static_options.getting_started_shared_link === 'true'` — **`POST`** with `{ "action": "share_done" }`. |
 | `contact_phone` | `store_phone` static option non-empty (`PATCH /dashboard/settings` → `store.phone`). |
 | `payment` | Cash enabled and/or M-Pesa enabled **with** a configured M-Pesa number/till/paybill (see same lib). |
-| `delivery` | `shipping_enabled` and either delivery zones exist **or** flat rate amount set. |
+| `delivery` | `shipping_enabled === 'true'` and (`shipping_method_type === 'delivery_zones'` with zones **or** `flat_rate_amount` set). |
 | `logo` | `store_logo` static option set (e.g. via media + web settings; extend mobile settings if needed). |
 
 **Flutter:** Call **`GET /api/v1/mobile/dashboard/getting-started`** for the checklist (mobile envelope). After the user previews the storefront or shares the link, call **`POST`** on the same path with the actions above so **web and app stay in sync**.

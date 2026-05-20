@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -31,7 +33,7 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
   final _flatRate = TextEditingController(text: '250');
   final _freeOver = TextEditingController(text: '5000');
   int _handlingDays = 1;
-  bool _hydrated = false;
+  String _lastHydratedShippingSignature = '';
   bool _saving = false;
 
   @override
@@ -41,62 +43,156 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     super.dispose();
   }
 
+  String _pickFromSources(
+    List<Map<String, dynamic>> sources,
+    List<String> keys, {
+    String fallback = '',
+  }) {
+    for (final source in sources) {
+      final value = settingsPick(source, keys);
+      if (value.isNotEmpty) return value;
+    }
+    return fallback;
+  }
+
+  bool _pickBoolFromSources(
+    List<Map<String, dynamic>> sources,
+    List<String> keys, {
+    bool fallback = false,
+  }) {
+    for (final source in sources) {
+      for (final k in keys) {
+        final v = source[k];
+        if (v is bool) return v;
+        if (v is String) {
+          final s = v.toLowerCase();
+          if (s == 'true' || s == '1') return true;
+          if (s == 'false' || s == '0') return false;
+        }
+        if (v is num) return v != 0;
+      }
+    }
+    return fallback;
+  }
+
+  static String _shippingSectionSignature(Map<String, dynamic>? shipping) {
+    if (shipping == null || shipping.isEmpty) return '';
+    final keys = shipping.keys.toList()..sort();
+    return jsonEncode({for (final k in keys) k: shipping[k]});
+  }
+
+  void _hydrateWhenShippingSectionChanges(Map<String, dynamic>? root) {
+    final sig = _shippingSectionSignature(settingsSection(root, 'shipping'));
+    if (sig == _lastHydratedShippingSignature) return;
+    _lastHydratedShippingSignature = sig;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _hydrateFrom(root);
+      setState(() {});
+    });
+  }
+
   void _hydrateFrom(Map<String, dynamic>? root) {
     final s = settingsSection(root, 'shipping') ?? {};
-    _allowDelivery = settingsPickBool(
-      s,
-      ['local_delivery', 'localDelivery'],
-      fallback: false,
+    final staticRaw = root?['static_options'] ?? root?['staticOptions'];
+    final staticOpts = staticRaw is Map
+        ? Map<String, dynamic>.from(staticRaw)
+        : <String, dynamic>{};
+    final sources = [s, staticOpts];
+
+    _allowDelivery = _pickBoolFromSources(
+      sources,
+      ['enabled', 'shipping_enabled', 'shippingEnabled', 'local_delivery', 'localDelivery'],
     );
-    _storePickup = settingsPickBool(
-      s,
-      ['store_pickup', 'storePickup', 'pickup_enabled'],
-      fallback: false,
+    _storePickup = _pickBoolFromSources(
+      sources,
+      ['pickupEnabled', 'pickup_enabled', 'store_pickup', 'storePickup'],
     );
 
-    final modeRaw = settingsPick(
-      s,
-      ['shipping_mode', 'shippingMode', 'rate_mode', 'rateMode', 'delivery_rate_mode'],
+    final methodType = _pickFromSources(
+      sources,
+      [
+        'methodType',
+        'method_type',
+        'shippingMethodType',
+        'shipping_method_type',
+        'shipping_mode',
+        'shippingMode',
+      ],
     ).toLowerCase();
-    final useFlat = settingsPickBool(
-      s,
-      ['use_flat_rate', 'useFlatRate', 'flat_rate_enabled', 'flatRateEnabled'],
-      fallback: false,
+    final flatRateText = _pickFromSources(
+      sources,
+      ['flatRateAmount', 'flat_rate_amount', 'flat_rate', 'flatRate'],
+      fallback: '0',
     );
-    final useZones = settingsPickBool(
-      s,
-      ['use_delivery_zones', 'useDeliveryZones', 'zones_enabled', 'zonesEnabled'],
-      fallback: false,
-    );
-    if (modeRaw.contains('flat')) {
-      _rateMode = _ShippingRateMode.flatRate;
-    } else if (useFlat && !useZones) {
+    final flatRateVal = num.tryParse(flatRateText) ?? 0;
+
+    if (methodType == 'delivery_zones' || methodType.contains('zone')) {
+      _rateMode = _ShippingRateMode.zones;
+    } else if (methodType == 'flat_rate' ||
+        methodType.contains('flat') ||
+        flatRateVal > 0) {
       _rateMode = _ShippingRateMode.flatRate;
     } else {
       _rateMode = _ShippingRateMode.zones;
     }
 
-    _flatRate.text = settingsPick(
-      s,
-      ['flat_rate', 'flatRate', 'standard_flat_rate', 'default_shipping_fee'],
-      fallback: '0',
-    );
-    _freeOver.text = settingsPick(
-      s,
+    _flatRate.text = flatRateText;
+    _freeOver.text = _pickFromSources(
+      sources,
       [
-        'free_shipping_threshold',
         'freeShippingThreshold',
+        'free_shipping_threshold',
         'free_over',
         'freeOver',
       ],
       fallback: '0',
     );
-    final daysRaw = settingsPick(
-      s,
-      ['handling_days', 'handlingDays', 'estimated_days', 'estimatedDays'],
+    final daysRaw = _pickFromSources(
+      sources,
+      [
+        'defaultEstimatedDeliveryDays',
+        'default_estimated_delivery_days',
+        'handling_days',
+        'handlingDays',
+        'estimated_days',
+        'estimatedDays',
+      ],
       fallback: '1',
     );
     _handlingDays = int.tryParse(daysRaw)?.clamp(0, 90) ?? 1;
+  }
+
+  Map<String, dynamic> _shippingSettingsPatch({
+    required bool localDelivery,
+    required bool storePickup,
+    required bool useZones,
+    required bool useFlat,
+    required num flatRate,
+    required num freeThreshold,
+    required int handlingDays,
+  }) {
+    final shipping = <String, dynamic>{
+      'enabled': localDelivery,
+      'pickupEnabled': storePickup,
+    };
+
+    if (localDelivery) {
+      shipping['methodType'] = useZones ? 'delivery_zones' : 'flat_rate';
+      if (useFlat) {
+        shipping['flatRateAmount'] = flatRate;
+        shipping['freeShippingEnabled'] = freeThreshold > 0;
+        shipping['freeShippingThreshold'] = freeThreshold > 0 ? freeThreshold : null;
+      } else {
+        shipping['flatRateAmount'] = null;
+        shipping['freeShippingEnabled'] = false;
+        shipping['freeShippingThreshold'] = null;
+      }
+    }
+
+    shipping['defaultEstimatedDeliveryDays'] = handlingDays;
+
+    return {'shipping': shipping};
   }
 
   Future<void> _save() async {
@@ -151,28 +247,16 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
       final free = num.tryParse(_freeOver.text.trim()) ?? 0;
       final useZones = _allowDelivery && _rateMode == _ShippingRateMode.zones;
       final useFlat = _allowDelivery && _rateMode == _ShippingRateMode.flatRate;
-      final body = <String, dynamic>{
-        'shipping': {
-          'localDelivery': _allowDelivery,
-          'local_delivery': _allowDelivery,
-          'storePickup': _storePickup,
-          'store_pickup': _storePickup,
-          'shippingEnabled': _allowDelivery || _storePickup,
-          'shipping_enabled': _allowDelivery || _storePickup,
-          'shippingMode': useZones ? 'zones' : (useFlat ? 'flat_rate' : 'none'),
-          'shipping_mode': useZones ? 'zones' : (useFlat ? 'flat_rate' : 'none'),
-          'useDeliveryZones': useZones,
-          'use_delivery_zones': useZones,
-          'useFlatRate': useFlat,
-          'use_flat_rate': useFlat,
-          'flatRate': useFlat ? flat : 0,
-          'flat_rate': useFlat ? flat : 0,
-          'freeShippingThreshold': useFlat ? free : 0,
-          'free_shipping_threshold': useFlat ? free : 0,
-          'handlingDays': _handlingDays,
-          'handling_days': _handlingDays,
-        },
-      };
+
+      final body = _shippingSettingsPatch(
+        localDelivery: _allowDelivery,
+        storePickup: _storePickup,
+        useZones: useZones,
+        useFlat: useFlat,
+        flatRate: flat,
+        freeThreshold: free,
+        handlingDays: _handlingDays,
+      );
       final api = ref.read(apiClientProvider);
       final r = await api.patchDashboardSettings(body);
       if (!mounted) return;
@@ -182,9 +266,25 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
         );
         return;
       }
-      ref.invalidate(dashboardSettingsProvider);
+      final patched = unwrapSettingsData(r.data);
+      if (patched != null) {
+        _hydrateFrom(patched);
+        _lastHydratedShippingSignature =
+            _shippingSectionSignature(settingsSection(patched, 'shipping'));
+      }
+      try {
+        final refreshedRoot = await ref.refresh(dashboardSettingsProvider.future);
+        if (refreshedRoot != null) {
+          _lastHydratedShippingSignature =
+              _shippingSectionSignature(settingsSection(refreshedRoot, 'shipping'));
+        }
+      } catch (_) {
+        // PATCH response already hydrated local state; ignore refresh timeout.
+      }
       ref.invalidate(dashboardGettingStartedProvider);
       ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(DashboardOnboardingStepKeys.shipping);
+      if (!mounted) return;
+      setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Shipping settings saved')),
       );
@@ -266,14 +366,7 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
         ),
       ),
       data: (root) {
-        if (!_hydrated) {
-          _hydrated = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            _hydrateFrom(root);
-            setState(() {});
-          });
-        }
+        _hydrateWhenShippingSectionChanges(root);
         return _buildScaffold(theme);
       },
     );

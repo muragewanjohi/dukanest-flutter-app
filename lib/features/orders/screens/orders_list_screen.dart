@@ -55,14 +55,36 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
     super.dispose();
   }
 
-  String _normalizeStatus(String input) {
-    final lower = input.trim().toLowerCase();
-    if (lower.contains('pending')) return 'Pending';
-    if (lower.contains('paid') || lower.contains('payment')) return 'Paid';
-    if (lower.contains('ship') || lower.contains('fulfill') || lower.contains('deliver')) {
-      return 'Shipped';
+  static String _pickString(Map<String, dynamic> map, List<String> keys, {String fallback = ''}) {
+    for (final key in keys) {
+      final value = map[key];
+      if (value is String && value.trim().isNotEmpty) return value.trim();
     }
-    return 'Pending';
+    return fallback;
+  }
+
+  static String _formatOrderStatusLabel(String raw) {
+    final lower = raw.trim().toLowerCase();
+    if (lower.isEmpty || lower.contains('pending')) return 'Pending';
+    if (lower.contains('process')) return 'Processing';
+    if (lower.contains('ship')) return 'Shipped';
+    if (lower.contains('deliver')) return 'Delivered';
+    if (lower.contains('cancel')) return 'Cancelled';
+    if (lower.contains('refund')) return 'Refunded';
+    return '${lower[0].toUpperCase()}${lower.substring(1)}';
+  }
+
+  static String _formatPaymentStatusLabel(String raw, {required bool isTumizi}) {
+    final lower = raw.trim().toLowerCase();
+    if (isTumizi && (lower.isEmpty || lower.contains('pending'))) {
+      return 'Awaiting M-Pesa';
+    }
+    if (lower.contains('paid') || lower.contains('success')) return 'Paid';
+    if (lower.contains('fail')) return 'Failed';
+    if (lower.contains('refund')) return 'Refunded';
+    if (lower.contains('pending')) return 'Payment pending';
+    if (lower.isEmpty) return 'Payment pending';
+    return '${lower[0].toUpperCase()}${lower.substring(1)}';
   }
 
   String _formatCurrency(dynamic amount, String? currencyCode) {
@@ -253,7 +275,19 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
             'UNKNOWN';
         final idText = idValue.toString();
         final idLine = idText.startsWith('#') ? 'ORDER $idText' : 'ORDER #$idText';
-        final status = _normalizeStatus((order['status'] ?? '').toString());
+        final status = _formatOrderStatusLabel((order['status'] ?? '').toString());
+        final paymentStatusRaw = _pickString(
+          order,
+          ['paymentStatus', 'payment_status'],
+        );
+        final paymentGateway = _pickString(
+          order,
+          ['paymentGateway', 'payment_gateway'],
+        ).toLowerCase();
+        final paymentStatus = _formatPaymentStatusLabel(
+          paymentStatusRaw.isEmpty ? 'pending' : paymentStatusRaw,
+          isTumizi: paymentGateway == 'tumizi',
+        );
         final currencyCode = (order['currencyCode'] ?? order['currency_code'])?.toString();
         final totalText = _formatCurrency(order['total'] ?? order['totalAmount'] ?? order['amount'], currencyCode);
         final quantity = order['itemCount'] ?? order['totalItems'] ?? order['itemsCount'];
@@ -278,6 +312,7 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
           date: dateText,
           customer: customer,
           status: status,
+          paymentStatus: paymentStatus,
           detail: detail,
         );
       }).toList();
@@ -503,6 +538,7 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
                     date: order.date,
                     customer: order.customer,
                     status: order.status,
+                    paymentStatus: order.paymentStatus,
                     detail: order.detail,
                     accentLeft: order.status == 'Pending',
                     onOpen: () => context.push('/orders/detail/${Uri.encodeComponent(order.orderKey)}'),
@@ -540,6 +576,7 @@ class _OrderListItem {
     required this.date,
     required this.customer,
     required this.status,
+    required this.paymentStatus,
     required this.detail,
   });
 
@@ -548,6 +585,7 @@ class _OrderListItem {
   final String date;
   final String customer;
   final String status;
+  final String paymentStatus;
   final String detail;
 }
 
@@ -720,6 +758,7 @@ class _OrderCard extends StatelessWidget {
     required this.date,
     required this.customer,
     required this.status,
+    required this.paymentStatus,
     required this.detail,
     required this.accentLeft,
     required this.onOpen,
@@ -729,6 +768,7 @@ class _OrderCard extends StatelessWidget {
   final String date;
   final String customer;
   final String status;
+  final String paymentStatus;
   final String detail;
   final bool accentLeft;
   final VoidCallback onOpen;
@@ -799,7 +839,8 @@ class _OrderCard extends StatelessWidget {
                       spacing: 8,
                       runSpacing: 6,
                       children: [
-                        _StatusPill(status: status),
+                        _OrderStatusPill(status: status),
+                        _PaymentStatusPill(status: paymentStatus),
                         Text(
                           detail,
                           style: theme.textTheme.bodySmall?.copyWith(
@@ -822,8 +863,8 @@ class _OrderCard extends StatelessWidget {
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.status});
+class _OrderStatusPill extends StatelessWidget {
+  const _OrderStatusPill({required this.status});
 
   final String status;
 
@@ -832,12 +873,17 @@ class _StatusPill extends StatelessWidget {
     final theme = Theme.of(context);
     final (bg, fg) = switch (status) {
       'Pending' => (theme.colorScheme.errorContainer, theme.colorScheme.onErrorContainer),
-      'Paid' => (const Color(0xFFDFE0FF), const Color(0xFF0A2ACF)),
-      'Shipped' => (theme.colorScheme.surfaceContainerHigh, theme.colorScheme.onSurfaceVariant),
+      'Processing' => (const Color(0xFFDFE0FF), const Color(0xFF0A2ACF)),
+      'Shipped' || 'Delivered' => (
+          theme.colorScheme.surfaceContainerHigh,
+          theme.colorScheme.onSurfaceVariant
+        ),
+      'Cancelled' || 'Refunded' => (
+          theme.colorScheme.surfaceContainerHighest,
+          theme.colorScheme.onSurfaceVariant
+        ),
       _ => (const Color(0xFFF0F0F0), theme.colorScheme.onSurfaceVariant),
     };
-
-    final label = status.toUpperCase();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -846,11 +892,47 @@ class _StatusPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        label,
+        status.toUpperCase(),
         style: theme.textTheme.labelSmall?.copyWith(
           color: fg,
           fontWeight: FontWeight.w800,
           letterSpacing: 0.35,
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentStatusPill extends StatelessWidget {
+  const _PaymentStatusPill({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (bg, fg) = switch (status) {
+      'Paid' => (const Color(0xFFDCFCE7), const Color(0xFF166534)),
+      'Failed' => (theme.colorScheme.errorContainer, theme.colorScheme.onErrorContainer),
+      'Refunded' => (const Color(0xFFF3F4F6), const Color(0xFF4B5563)),
+      'Awaiting M-Pesa' => (const Color(0xFFFFF7ED), const Color(0xFF9A3412)),
+      _ => (const Color(0xFFFFFBEB), const Color(0xFF92400E)),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: fg.withValues(alpha: 0.12)),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: fg,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.35,
+          fontSize: 10,
         ),
       ),
     );

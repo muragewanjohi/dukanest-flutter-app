@@ -1,6 +1,13 @@
 import '../../config/app_config.dart';
 
-/// Normalizes media URLs for tenant storefront + dashboard (absolute, public host).
+/// Supabase public object URLs are served from the branded storage host.
+/// `www.dukanest.com/storage/v1/...` returns 404; `auth.dukanest.com/storage/v1/...` works.
+const String kStoreMediaPublicHost = 'auth.dukanest.com';
+
+bool _isSupabasePublicStoragePath(String path) =>
+    path.startsWith('/storage/v1/object/public/');
+
+/// Normalizes media URLs for tenant storefront + dashboard (absolute, loadable host).
 String normalizeStoreMediaUrl(String? raw) {
   final s = (raw ?? '').trim();
   if (s.isEmpty) return '';
@@ -17,14 +24,12 @@ String normalizeStoreMediaUrl(String? raw) {
 
   try {
     final u = Uri.parse(resolved);
-    if (u.host == 'auth.dukanest.com' &&
-        u.path.startsWith('/storage/v1/object/public/')) {
-      final base = Uri.parse(AppConfig.publicApiBaseUrl);
+    if (_isSupabasePublicStoragePath(u.path)) {
       return u
           .replace(
-            scheme: base.scheme,
-            host: base.host,
-            port: base.hasPort ? base.port : null,
+            scheme: 'https',
+            host: kStoreMediaPublicHost,
+            port: null,
           )
           .toString();
     }

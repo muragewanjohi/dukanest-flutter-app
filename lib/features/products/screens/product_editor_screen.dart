@@ -925,15 +925,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                       const SizedBox(height: 8),
                       FilledButton(
                         onPressed: () {
-                          for (final a in attrs) {
-                            final sel = selected[a.name]?.trim();
-                            if (sel == null || sel.isEmpty) {
-                              reportVariantSheetError(
-                                'variantAttributes',
-                                'Select a value for ${a.name}.',
-                              );
-                              return;
-                            }
+                          if (selected.isEmpty) {
+                            reportVariantSheetError(
+                              'variantAttributes',
+                              'Select at least one attribute value.',
+                            );
+                            return;
                           }
                           final variantRegular =
                               _toDouble(regularPriceCtrl.text);
@@ -1377,17 +1374,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                       const SizedBox(height: 16),
                       FilledButton(
                         onPressed: () {
-                          if (usableAttrs.isNotEmpty) {
-                            for (final a in usableAttrs) {
-                              final sel = selected[a.name]?.trim();
-                              if (sel == null || sel.isEmpty) {
-                                reportEv(
-                                  'variantAttributes',
-                                  'Select a value for ${a.name}.',
-                                );
-                                return;
-                              }
-                            }
+                          if (usableAttrs.isNotEmpty && selected.isEmpty) {
+                            reportEv(
+                              'variantAttributes',
+                              'Select at least one attribute value.',
+                            );
+                            return;
                           }
                           final variantRegular =
                               _toDouble(regularCtrl.text);
@@ -3077,18 +3069,46 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: _PriceField(
-                            key: _keyFor('salePrice'),
-                            label: 'SALE PRICE',
-                            controller: _salePrice,
-                            accent: AppTheme.primary,
-                            hintText: '—',
-                            isInvalid: _isInvalid('salePrice'),
-                            onChanged: (_) {
-                              _clearErrorFor('regularPrice');
-                              _clearErrorFor('salePrice');
-                              setState(() {});
-                            },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _PriceField(
+                                key: _keyFor('salePrice'),
+                                label: 'SALE PRICE',
+                                controller: _salePrice,
+                                accent: AppTheme.primary,
+                                hintText: '—',
+                                isInvalid: _isInvalid('salePrice'),
+                                onChanged: (_) {
+                                  _clearErrorFor('regularPrice');
+                                  _clearErrorFor('salePrice');
+                                  setState(() {});
+                                },
+                              ),
+                              if (saleDiscountLabel != null) ...[
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primary
+                                          .withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      saleDiscountLabel,
+                                      style:
+                                          theme.textTheme.labelMedium?.copyWith(
+                                        color: AppTheme.primary,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ],
@@ -3114,27 +3134,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                         height: 1.35,
                       ),
                     ),
-                    if (saleDiscountLabel != null) ...[
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primary.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            saleDiscountLabel,
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: AppTheme.primary,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                   const SizedBox(height: 16),
                   if (_activeEditorTab == _ProductEditorTab.variants) ...[

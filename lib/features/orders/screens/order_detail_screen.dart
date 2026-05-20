@@ -266,6 +266,11 @@ class OrderDetailScreen extends ConsumerWidget {
       ['paymentStatus', 'payment_status', 'payment'],
       fallback: 'pending',
     ).toLowerCase();
+    final paymentGateway = _pickString(
+      raw,
+      ['paymentGateway', 'payment_gateway'],
+    ).toLowerCase();
+    final isTumiziOrder = paymentGateway == 'tumizi';
     final timeline = <_TimelineStep>[
       const _TimelineStep(
         title: 'Order Received',
@@ -381,6 +386,7 @@ class OrderDetailScreen extends ConsumerWidget {
       code: code,
       status: status,
       paymentStatus: paymentStatus,
+      isTumiziOrder: isTumiziOrder,
       itemsCategorySubtitle: '${lineItems.length} items',
       premiumCustomer: false,
       lineItems: lineItems,
@@ -400,7 +406,12 @@ class OrderDetailScreen extends ConsumerWidget {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  Future<void> _patchOrderStatus(
+  void _returnToOrdersList(BuildContext context, WidgetRef ref) {
+    ref.invalidate(pendingOrdersCountProvider);
+    context.go('/orders');
+  }
+
+  Future<bool> _patchOrderStatus(
     BuildContext context,
     WidgetRef ref,
     String status, {
@@ -413,17 +424,20 @@ class OrderDetailScreen extends ConsumerWidget {
         throw StateError(r.error?.message ?? 'Update failed');
       }
       ref.invalidate(orderDetailProvider(orderKey));
+      ref.invalidate(pendingOrdersCountProvider);
       if (context.mounted) {
         _toast(context, 'Order updated');
       }
+      return true;
     } catch (e) {
       if (context.mounted) {
         _toast(context, 'Update failed: $e');
       }
+      return false;
     }
   }
 
-  Future<void> _patchOrderUpdate(
+  Future<bool> _patchOrderUpdate(
     BuildContext context,
     WidgetRef ref, {
     required String apiId,
@@ -445,11 +459,127 @@ class OrderDetailScreen extends ConsumerWidget {
       if (context.mounted) {
         _toast(context, 'Order updated');
       }
+      return true;
     } catch (e) {
       if (context.mounted) {
         _toast(context, 'Update failed: $e');
       }
+      return false;
     }
+  }
+
+  Future<bool> _submitOrderCancellation(
+    BuildContext context,
+    WidgetRef ref, {
+    required String apiId,
+    required String reason,
+  }) async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.cancelOrder(apiId, reason: reason);
+      if (!r.success) {
+        throw StateError(r.error?.message ?? 'Could not cancel order');
+      }
+      ref.invalidate(orderDetailProvider(orderKey));
+      ref.invalidate(pendingOrdersCountProvider);
+      return true;
+    } catch (e) {
+      if (context.mounted) {
+        _toast(context, 'Cancel failed: $e');
+      }
+      return false;
+    }
+  }
+
+  Future<void> _openCancelOrderDialog(
+    BuildContext context,
+    WidgetRef ref,
+    _OrderDetailData data,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel order?'),
+        content: const Text(
+          'This will cancel the order for your customer. This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep order'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final reasonController = TextEditingController();
+    String? reason;
+    try {
+      reason = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) {
+          return StatefulBuilder(
+            builder: (dialogContext, setDialogState) {
+              final canSubmit = reasonController.text.trim().isNotEmpty;
+              return AlertDialog(
+                title: const Text('Cancellation reason'),
+                content: TextField(
+                  controller: reasonController,
+                  autofocus: true,
+                  maxLines: 4,
+                  maxLength: 500,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Reason (required)',
+                    hintText: 'e.g. Customer requested cancellation',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Back'),
+                  ),
+                  FilledButton(
+                    onPressed: canSubmit
+                        ? () => Navigator.of(dialogContext).pop(reasonController.text.trim())
+                        : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Theme.of(dialogContext).colorScheme.error,
+                    ),
+                    child: const Text('Cancel order'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      reasonController.dispose();
+    }
+
+    if (reason == null || reason.trim().isEmpty || !context.mounted) return;
+
+    final cancelled = await _submitOrderCancellation(
+      context,
+      ref,
+      apiId: data.apiId,
+      reason: reason.trim(),
+    );
+    if (!cancelled || !context.mounted) return;
+
+    _toast(context, 'Order cancelled');
+    _returnToOrdersList(context, ref);
   }
 
   static const List<String> _orderStatusOptions = <String>[
@@ -502,6 +632,7 @@ class OrderDetailScreen extends ConsumerWidget {
     var selectedStatus = _normalizeOrderStatus(data.status);
     var selectedPaymentStatus = _normalizePaymentStatus(data.paymentStatus);
     var isSaving = false;
+    final isTumiziOrder = data.isTumiziOrder;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -516,15 +647,26 @@ class OrderDetailScreen extends ConsumerWidget {
           builder: (sheetContext, setSheetState) {
             Future<void> onConfirm() async {
               setSheetState(() => isSaving = true);
-              await _patchOrderUpdate(
-                context,
-                ref,
-                apiId: data.apiId,
-                status: selectedStatus,
-                paymentStatus: selectedPaymentStatus,
-              );
-              if (context.mounted && sheetContext.mounted) {
+              final ok = isTumiziOrder
+                  ? await _patchOrderStatus(
+                      context,
+                      ref,
+                      selectedStatus,
+                      apiId: data.apiId,
+                    )
+                  : await _patchOrderUpdate(
+                      context,
+                      ref,
+                      apiId: data.apiId,
+                      status: selectedStatus,
+                      paymentStatus: selectedPaymentStatus,
+                    );
+              if (!context.mounted || !sheetContext.mounted) return;
+              if (ok) {
                 Navigator.of(sheetContext).pop();
+                _returnToOrdersList(context, ref);
+              } else {
+                setSheetState(() => isSaving = false);
               }
             }
 
@@ -562,7 +704,9 @@ class OrderDetailScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Select the order and payment status, then confirm.',
+                      isTumiziOrder
+                          ? 'Select the order status. Tumizi payment status updates automatically.'
+                          : 'Select the order and payment status, then confirm.',
                       style: GoogleFonts.inter(
                         color: theme.colorScheme.onSurfaceVariant,
                         fontSize: 13,
@@ -595,33 +739,35 @@ class OrderDetailScreen extends ConsumerWidget {
                               setSheetState(() => selectedStatus = v);
                             },
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Payment Status',
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                        color: AppTheme.onSurfaceVariant,
+                    if (!isTumiziOrder) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Payment Status',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                          color: AppTheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedPaymentStatus,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedPaymentStatus,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                        items: _paymentStatusOptions
+                            .map((s) => DropdownMenuItem(value: s, child: Text(_statusLabel(s))))
+                            .toList(),
+                        onChanged: isSaving
+                            ? null
+                            : (v) {
+                                if (v == null) return;
+                                setSheetState(() => selectedPaymentStatus = v);
+                              },
                       ),
-                      items: _paymentStatusOptions
-                          .map((s) => DropdownMenuItem(value: s, child: Text(_statusLabel(s))))
-                          .toList(),
-                      onChanged: isSaving
-                          ? null
-                          : (v) {
-                              if (v == null) return;
-                              setSheetState(() => selectedPaymentStatus = v);
-                            },
-                    ),
+                    ],
                     const SizedBox(height: 18),
                     FilledButton(
                       onPressed: isSaving ? null : onConfirm,
@@ -1158,7 +1304,7 @@ class OrderDetailScreen extends ConsumerWidget {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: () => _patchOrderStatus(context, ref, 'cancelled', apiId: data.apiId),
+              onTap: () => _openCancelOrderDialog(context, ref, data),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Row(
@@ -1629,6 +1775,7 @@ class _OrderDetailData {
     required this.code,
     required this.status,
     required this.paymentStatus,
+    required this.isTumiziOrder,
     required this.itemsCategorySubtitle,
     required this.premiumCustomer,
     required this.lineItems,
@@ -1649,6 +1796,7 @@ class _OrderDetailData {
   final String code;
   final String status;
   final String paymentStatus;
+  final bool isTumiziOrder;
   final String itemsCategorySubtitle;
   final bool premiumCustomer;
   final List<_LineItem> lineItems;

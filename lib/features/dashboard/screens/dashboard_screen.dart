@@ -269,6 +269,73 @@ Map<String, dynamic>? _firstMap(Map<String, dynamic>? data, List<String> keys) {
   return null;
 }
 
+int? _toIntOrNull(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value.trim());
+  return null;
+}
+
+/// Trial snapshot from `GET /dashboard/overview` → `data.subscription`.
+class _TrialSnapshot {
+  const _TrialSnapshot({
+    required this.daysRemaining,
+    this.totalDays,
+    this.planName,
+  });
+
+  final int daysRemaining;
+  final int? totalDays;
+  final String? planName;
+
+  bool get isUrgent => daysRemaining <= 3;
+
+  double? get progressFraction {
+    final total = totalDays;
+    if (total == null || total <= 0) return null;
+    return (daysRemaining / total).clamp(0.0, 1.0);
+  }
+
+  String get daysLabel =>
+      '$daysRemaining day${daysRemaining == 1 ? '' : 's'} left in trial';
+}
+
+_TrialSnapshot? _trialSnapshotFromOverview(Map<String, dynamic>? data) {
+  if (data == null) return null;
+  final raw = data['subscription'];
+  if (raw is! Map) return null;
+  final sub = Map<String, dynamic>.from(raw);
+
+  var days = _toIntOrNull(sub['trialDaysRemaining']);
+  if (days == null || days <= 0) {
+    if (sub['inTrial'] != true) return null;
+    days = _toIntOrNull(sub['daysUntilExpire']);
+  }
+  if (days == null || days <= 0) return null;
+
+  final planRaw = sub['planName'] ?? sub['plan_name'];
+  final planName = planRaw is String && planRaw.trim().isNotEmpty
+      ? planRaw.trim()
+      : null;
+
+  return _TrialSnapshot(
+    daysRemaining: days,
+    totalDays: _toIntOrNull(sub['trialDays']),
+    planName: planName,
+  );
+}
+
+Uri? _subscriptionWebUri(String? storeUrl) {
+  final trimmed = storeUrl?.trim();
+  if (trimmed == null || trimmed.isEmpty) return null;
+  final parsed = Uri.tryParse(trimmed);
+  if (parsed == null || !parsed.hasScheme || parsed.host.isEmpty) {
+    return null;
+  }
+  return parsed.replace(path: '/dashboard/subscription');
+}
+
 List<_OnboardingStepUi> _parseOnboardingStepsFromOverview(
   Map<String, dynamic>? data, {
   required List<_OnboardingStepUi> defaultSteps,
@@ -822,6 +889,7 @@ class DashboardScreen extends ConsumerWidget {
     final onboardingTotal = onboardingSteps.length;
     final allOnboardingComplete =
         onboardingSteps.isNotEmpty && onboardingSteps.every((s) => s.completed);
+    final trial = _trialSnapshotFromOverview(data);
 
     Future<void> refreshDashboard() async {
       ref.invalidate(dashboardOverviewProvider);
@@ -879,6 +947,26 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ],
             ),
+            if (trial != null) ...[
+              const SizedBox(height: 12),
+              _TrialPeriodBanner(
+                trial: trial,
+                onUpgrade: () {
+                  final uri = _subscriptionWebUri(storeUrl);
+                  if (uri == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Open your store settings on the web to manage your subscription.',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+                  launchUrl(uri, mode: LaunchMode.externalApplication);
+                },
+              ),
+            ],
             if (storeUrl != null && storeUrl.trim().isNotEmpty) ...[
               const SizedBox(height: 10),
               _storeUrlShareRow(
@@ -1646,6 +1734,167 @@ class DashboardScreen extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TrialPeriodBanner extends StatelessWidget {
+  const _TrialPeriodBanner({
+    required this.trial,
+    required this.onUpgrade,
+  });
+
+  final _TrialSnapshot trial;
+  final VoidCallback onUpgrade;
+
+  static const _amber = Color(0xFFB45309);
+  static const _amberSoft = Color(0xFFFFF7ED);
+  static const _amberBorder = Color(0xFFFCD34D);
+  static const _urgent = Color(0xFFDC2626);
+  static const _urgentSoft = Color(0xFFFEF2F2);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final urgent = trial.isUrgent;
+    final accent = urgent ? _urgent : _amber;
+    final background = urgent ? _urgentSoft : _amberSoft;
+    final border = urgent
+        ? _urgent.withValues(alpha: 0.28)
+        : _amberBorder.withValues(alpha: 0.85);
+    final progress = trial.progressFraction;
+
+    return Semantics(
+      label: trial.daysLabel,
+      button: true,
+      child: Material(
+        color: background,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onUpgrade,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: border),
+            ),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        urgent
+                            ? Icons.schedule_rounded
+                            : Icons.auto_awesome_rounded,
+                        color: accent,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'FREE TRIAL',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: accent,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          RichText(
+                            text: TextSpan(
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: theme.colorScheme.onSurface,
+                                fontWeight: FontWeight.w800,
+                                height: 1.2,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: '${trial.daysRemaining}',
+                                  style: TextStyle(
+                                    color: accent,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 22,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text:
+                                      ' day${trial.daysRemaining == 1 ? '' : 's'} left',
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (trial.planName != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${trial.planName} plan',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.open_in_new_rounded,
+                      size: 18,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+                if (progress != null) ...[
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 6,
+                      backgroundColor: accent.withValues(alpha: 0.12),
+                      color: accent,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonal(
+                    onPressed: onUpgrade,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: accent.withValues(alpha: 0.12),
+                      foregroundColor: accent,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      urgent ? 'Upgrade before trial ends' : 'View plans',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

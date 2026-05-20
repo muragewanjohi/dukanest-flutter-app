@@ -201,6 +201,23 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
+  Future<ApiResponse<dynamic>> cancelOrder(
+    String orderId, {
+    required String reason,
+    bool refund = false,
+    String? notes,
+  }) async {
+    final response = await _dio.post(
+      '/dashboard/orders/$orderId/cancel',
+      data: {
+        'reason': reason,
+        if (refund) 'refund': true,
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      },
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
   Future<ApiResponse<dynamic>> getProductDetail(String productId) async {
     final response = await _dio.get('/dashboard/products/$productId');
     return ApiResponse.fromJson(response.data, (json) => json);

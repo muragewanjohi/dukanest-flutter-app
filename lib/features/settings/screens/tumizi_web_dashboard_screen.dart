@@ -9,6 +9,7 @@ import 'package:dio/dio.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../providers/dashboard_settings_provider.dart';
 
 /// Cached for the session so Tumizi hub → withdrawal reuses the same snapshot (no duplicate fetch on navigate).
 final _tumiziMerchantProvider =
@@ -41,6 +42,22 @@ final _tumiziWalletProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   } on DioException catch (e) {
     throw StateError(_tumiziApiErrorMessage(e, 'wallet'));
   }
+});
+
+/// Cached store settings for withdrawal — avoids refetching on every visit.
+final _withdrawalStoreSettingsProvider =
+    FutureProvider<Map<String, dynamic>>((ref) async {
+  ref.keepAlive();
+  final api = ref.watch(apiClientProvider);
+  final response = await api.getDashboardSettings();
+  if (!response.success || response.data == null) {
+    throw StateError(response.error?.message ?? 'Failed to load store settings');
+  }
+  final unwrapped = unwrapSettingsData(response.data);
+  if (unwrapped == null) {
+    throw const FormatException('Invalid settings response');
+  }
+  return unwrapped;
 });
 
 final _tumiziRefundsProvider =
@@ -1742,15 +1759,15 @@ class _TumiziMpesaWithdrawalScreenState
   Future<void> _submitWithdrawal(
     double balance,
     double maxGrossWithdrawal,
-    String merchantPhone,
+    String storePhone,
   ) async {
     if (_submitting) return;
     final amount = _amountValue;
-    final phone = _normalizeKenyaMsisdn(merchantPhone);
+    final phone = _normalizeKenyaMsisdn(storePhone);
     if (phone.isEmpty) {
       _showTumiziMessage(
         context,
-        'Add your registered M-Pesa number in Edit merchant before withdrawing.',
+        'Add your store phone number in Settings before withdrawing.',
       );
       return;
     }
@@ -1809,8 +1826,10 @@ class _TumiziMpesaWithdrawalScreenState
     final theme = Theme.of(context);
     final wallet = ref.watch(_tumiziWalletProvider);
     final merchant = ref.watch(_tumiziMerchantProvider);
+    final storeSettings = ref.watch(_withdrawalStoreSettingsProvider);
     final walletRoot = wallet.valueOrNull;
     final merchantRoot = merchant.valueOrNull;
+    final settingsRoot = storeSettings.valueOrNull;
 
     if (wallet.isLoading && walletRoot == null) {
       return Scaffold(
@@ -1847,7 +1866,7 @@ class _TumiziMpesaWithdrawalScreenState
     final feeAtMax = _withdrawalFee(maxGross);
     final accountNumber = _tumiziWalletAccountDisplay(root, merchantRoot);
     final walletStatus = _tumiziWalletStatusLabel(root);
-    final merchantPhone = _tumiziMerchantPhone(merchantRoot);
+    final storePhone = _storePhoneFromSettings(settingsRoot);
     final amountVal = _amountValue;
     final amountOutOfRange = amountVal > 0 &&
         (amountVal > maxGross ||
@@ -1861,27 +1880,9 @@ class _TumiziMpesaWithdrawalScreenState
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         children: [
-          Text(
-            'M-Pesa withdrawal',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.primaryDark,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Move funds from your Tumizi wallet to your registered merchant M-Pesa number only. '
-            'Charges apply by amount tier and are deducted automatically from the withdrawal.',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              height: 1.4,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          if (wallet.isLoading || merchant.isLoading)
+          if (wallet.isLoading || merchant.isLoading || storeSettings.isLoading)
             Padding(
-              padding: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.only(bottom: 10),
               child: Text(
                 'Updating wallet details…',
                 style: GoogleFonts.inter(
@@ -1890,11 +1891,11 @@ class _TumiziMpesaWithdrawalScreenState
                 ),
               ),
             ),
-          if (merchant.hasError && merchantPhone.isEmpty)
+          if (storeSettings.hasError && storePhone.isEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.only(bottom: 10),
               child: Text(
-                'Merchant phone could not be loaded. Update merchant details to enable withdrawals.',
+                'Store phone could not be loaded. Update it in Settings to enable withdrawals.',
                 style: GoogleFonts.inter(
                   fontSize: 11,
                   height: 1.35,
@@ -1902,7 +1903,6 @@ class _TumiziMpesaWithdrawalScreenState
                 ),
               ),
             ),
-          const SizedBox(height: 16),
           _WithdrawalWalletCard(
             accountNumber: accountNumber,
             walletStatus: walletStatus,
@@ -1923,9 +1923,7 @@ class _TumiziMpesaWithdrawalScreenState
             maxWithdrawable: maxGross,
             saving: _submitting,
             amountFieldInvalid: _amountExceedsMax || showAmountWarning,
-            merchantPhone: merchantPhone,
-            onEditMerchant: () =>
-                context.push('/tumizi-dashboard/edit-merchant'),
+            storePhone: storePhone,
             onAmountChanged: () {
               final amt = _amountValue;
               setState(() {
@@ -1934,7 +1932,7 @@ class _TumiziMpesaWithdrawalScreenState
                         amt + _withdrawalFee(amt) > balance + 0.009);
               });
             },
-            onSubmit: () => _submitWithdrawal(balance, maxGross, merchantPhone),
+            onSubmit: () => _submitWithdrawal(balance, maxGross, storePhone),
           ),
           const SizedBox(height: 12),
           _RecentWithdrawalActivity(activity: activity),
@@ -1945,8 +1943,8 @@ class _TumiziMpesaWithdrawalScreenState
             icon: Icons.info_outline_rounded,
             title: 'Important note',
             message:
-                'Withdrawals are sent only to your registered merchant M-Pesa number for security. '
-                'Payouts are usually credited within a few minutes. To pay suppliers or other numbers, use a separate pay flow when available.',
+                'Withdrawals are sent only to your store phone number for security. '
+                'Payouts are usually credited within a few minutes.',
           ),
           const SizedBox(height: 12),
           const _WithdrawalNoteCard(
@@ -2069,25 +2067,11 @@ List<Map<String, dynamic>> _tumiziMerchantSearchMaps(Map<String, dynamic>? root)
   return maps;
 }
 
-String _tumiziMerchantPhone(Map<String, dynamic>? merchantRoot) {
-  if (merchantRoot == null || merchantRoot.isEmpty) return '';
-  final raw = _pick(
-    _tumiziMerchantSearchMaps(merchantRoot),
-    [
-      'merchantPhone',
-      'merchant_phone',
-      'phone',
-      'phoneNumber',
-      'phone_number',
-      'ownerPhone',
-      'owner_phone',
-      'mpesaPhone',
-      'mpesa_phone',
-      'primaryPhone',
-      'primary_phone',
-    ],
-  );
-  if (raw == '-') return '';
+String _storePhoneFromSettings(Map<String, dynamic>? settingsRoot) {
+  if (settingsRoot == null || settingsRoot.isEmpty) return '';
+  final store = settingsSection(settingsRoot, 'store') ?? {};
+  final raw = settingsPick(store, ['phone', 'storePhone', 'store_phone']);
+  if (raw.isEmpty) return '';
   return _normalizeKenyaMsisdn(raw);
 }
 
@@ -2284,14 +2268,6 @@ class _WithdrawalWalletCard extends StatelessWidget {
               ),
             ],
           ),
-          Text(
-            'Uses the same Tumizi wallet snapshot as your Tumizi hub. Tap refresh for the latest balance.',
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              height: 1.35,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
           const SizedBox(height: 16),
           Divider(
               color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45)),
@@ -2370,8 +2346,7 @@ class _InitiateWithdrawalCard extends StatelessWidget {
     required this.maxWithdrawable,
     required this.saving,
     required this.amountFieldInvalid,
-    required this.merchantPhone,
-    required this.onEditMerchant,
+    required this.storePhone,
     required this.onAmountChanged,
     required this.onSubmit,
   });
@@ -2382,12 +2357,11 @@ class _InitiateWithdrawalCard extends StatelessWidget {
   final double maxWithdrawable;
   final bool saving;
   final bool amountFieldInvalid;
-  final String merchantPhone;
-  final VoidCallback onEditMerchant;
+  final String storePhone;
   final VoidCallback onAmountChanged;
   final VoidCallback onSubmit;
 
-  bool get _canWithdraw => merchantPhone.isNotEmpty;
+  bool get _canWithdraw => storePhone.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -2403,25 +2377,6 @@ class _InitiateWithdrawalCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: Colors.white,
-                child: const Icon(Icons.arrow_forward_rounded),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Initiate withdrawal',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.primaryDark,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
           _TumiziTextField(
             label: 'Withdrawal amount',
             controller: amount,
@@ -2430,97 +2385,26 @@ class _InitiateWithdrawalCard extends StatelessWidget {
             onChanged: (_) => onAmountChanged(),
             hintText: 'KES 0.00',
           ),
-          const SizedBox(height: 16),
-          _WithdrawalLabel('Withdraw to (registered M-Pesa)'),
           const SizedBox(height: 8),
           if (_canWithdraw)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.35),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.verified_user_outlined,
-                        size: 20,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _formatMaskedKenyaPhone(merchantPhone),
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Withdrawals are sent only to your verified merchant M-Pesa number. '
-                    'Paying suppliers or other numbers will be available in a separate flow later.',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      height: 1.4,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+            Text(
+              'Withdraw to: ${_formatMaskedKenyaPhone(storePhone)}',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                height: 1.4,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             )
           else
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.error.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: theme.colorScheme.error.withValues(alpha: 0.35),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'No registered M-Pesa number',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Add your merchant phone in Edit merchant before you can withdraw from your Tumizi wallet.',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: onEditMerchant,
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    label: const Text('Edit merchant'),
-                  ),
-                ],
+            Text(
+              'Add your store phone number in Settings before withdrawing.',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                height: 1.4,
+                color: theme.colorScheme.error,
               ),
             ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
             'Minimum withdrawal: ${_formatKes(_tumiziMinimumWithdrawalKes)} · '
             'Max: ${_formatKes(maxWithdrawable)} · Fee for this amount: ${_formatKes(estimatedFee)}',
