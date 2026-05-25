@@ -75,6 +75,29 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
         data: (snap) => ListView(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
           children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => context.push('/forms'),
+                  icon:
+                      const Icon(Icons.dynamic_form_outlined, size: 18),
+                  label: const Text('Forms'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => context.push('/themes'),
+                  icon: const Icon(Icons.palette_outlined, size: 18),
+                  label: const Text('Themes'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => context.push('/media-library'),
+                  icon: const Icon(Icons.photo_library_outlined, size: 18),
+                  label: const Text('Media'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
             _SearchAndActionsRow(
               theme: theme,
               searchController: _searchCtrl,

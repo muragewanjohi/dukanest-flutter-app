@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
@@ -39,12 +42,13 @@ class CustomersListScreen extends ConsumerStatefulWidget {
 }
 
 class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
-  String _query = '';
   int _chip = 0;
   Timer? _searchDebounce;
   bool _loading = true;
+  bool _exporting = false;
   String? _error;
   List<_CustomerRow> _customers = const [];
+  final TextEditingController _searchController = TextEditingController();
 
   static const _chips = ['All Customers', 'VIP Customers', 'Repeat Buyers', 'New This Month'];
 
@@ -57,6 +61,7 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -70,7 +75,7 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
       final response = await api.getCustomers(
         page: 1,
         limit: 100,
-        search: _query.trim(),
+        search: _searchController.text.trim(),
       );
       if (!response.success || response.data == null) {
         throw StateError(response.error?.message ?? 'Failed to load customers');
@@ -87,7 +92,7 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
       }
       final mapped = items.whereType<Map>().map((raw) {
         final p = Map<String, dynamic>.from(raw);
-        final id = (p['id'] ?? p['customerId'] ?? '').toString();
+        final id = (p['id'] ?? p['customerId'] ?? '').toString().trim();
         final name = (p['name'] ?? p['fullName'] ?? p['displayName'] ?? p['email'] ?? 'Customer')
             .toString();
         final email = (p['email'] ?? '').toString();
@@ -106,7 +111,7 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
         final isVip = p['isVip'] == true || p['vip'] == true;
         final isNew = p['isNewThisMonth'] == true || p['newThisMonth'] == true;
         return _CustomerRow(
-          id: id.isEmpty ? name.hashCode.toString() : id,
+          id: id,
           name: name,
           email: email,
           orderCount: orderCount,
@@ -146,11 +151,7 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
       default:
         break;
     }
-    if (_query.trim().isEmpty) return list;
-    final q = _query.toLowerCase();
-    return list
-        .where((c) => c.name.toLowerCase().contains(q) || c.email.toLowerCase().contains(q))
-        .toList();
+    return list;
   }
 
   static String _initials(String name) {
@@ -168,56 +169,75 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
     }
   }
 
-  void _onSearchChanged(String v) {
-    setState(() => _query = v);
+  void _onSearchChanged(String _) {
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 350), _loadCustomers);
   }
 
-  void _showCustomerSheet(_CustomerRow c) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) {
-        final theme = Theme.of(ctx);
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    child: Text(_initials(c.name), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(c.name, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-                        Text(c.email, style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(child: _SheetStat(label: 'Orders', value: '${c.orderCount}')),
-                  Expanded(child: _SheetStat(label: 'Lifetime value', value: c.totalSpentLabel)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text('Last order · ${c.lastOrderLabel}', style: theme.textTheme.bodySmall),
-            ],
-          ),
+  Future<void> _exportCustomersCsv() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final Response<dynamic> res = await api.exportCustomers(
+        search: _searchController.text.trim(),
+        format: 'csv',
+      );
+      final status = res.statusCode ?? 0;
+      if (status < 200 || status >= 300) {
+        throw DioException(
+          requestOptions: res.requestOptions,
+          response: res,
+          type: DioExceptionType.badResponse,
         );
-      },
+      }
+      final payload = res.data;
+      Uint8List bytes;
+      if (payload is Uint8List) {
+        bytes = payload;
+      } else if (payload is List) {
+        bytes = Uint8List.fromList(List<int>.from(payload));
+      } else {
+        throw FormatException(
+            'Unexpected CSV payload type: ${payload.runtimeType}');
+      }
+      final csvFile = XFile.fromData(
+        bytes,
+        name: 'customers_export.csv',
+        mimeType: 'text/csv',
+      );
+      if (!mounted) return;
+      await SharePlus.instance.share(
+        ShareParams(
+          subject: 'Customer export',
+          files: [csvFile],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Export failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  Future<void> _openCustomerDetail(_CustomerRow c) async {
+    if (c.id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Missing customer ID — refresh the list or sync your account.'),
+        ),
+      );
+      return;
+    }
+    await context.push<Object?>(
+      '/customers/detail/${Uri.encodeComponent(c.id)}',
     );
+    if (!mounted) return;
+    await _loadCustomers();
   }
 
   @override
@@ -271,8 +291,23 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
               ),
               actions: [
                 IconButton(
-                  icon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
-                  onPressed: () {},
+                  tooltip: 'Export CSV',
+                  onPressed: _exporting ? null : _exportCustomersCsv,
+                  icon: _exporting
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child:
+                              CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(Icons.file_download_outlined,
+                          color: theme.colorScheme.onSurfaceVariant),
+                ),
+                IconButton(
+                  tooltip: 'Refresh',
+                  icon: Icon(Icons.refresh_rounded,
+                      color: theme.colorScheme.onSurfaceVariant),
+                  onPressed: _loading ? null : _loadCustomers,
                 ),
               ],
             ),
@@ -281,6 +316,7 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
               children: [
                 Expanded(
                   child: TextField(
+                    controller: _searchController,
                     onChanged: _onSearchChanged,
                     decoration: InputDecoration(
                       hintText: 'Search customer name...',
@@ -358,7 +394,9 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
                     color: theme.colorScheme.surfaceContainerLowest,
                     borderRadius: BorderRadius.circular(12),
                     child: InkWell(
-                      onTap: () => _showCustomerSheet(c),
+                      onTap: () {
+                        unawaited(_openCustomerDetail(c));
+                      },
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
                         decoration: BoxDecoration(
@@ -409,27 +447,3 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
   }
 }
 
-class _SheetStat extends StatelessWidget {
-  const _SheetStat({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: theme.textTheme.labelMedium),
-            const SizedBox(height: 4),
-            Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-          ],
-        ),
-      ),
-    );
-  }
-}

@@ -9,7 +9,7 @@ import '../../../core/widgets/dashboard_page_header.dart';
 import '../analytics_parse.dart';
 import '../providers/dashboard_analytics_provider.dart';
 import '../providers/dashboard_pnl_provider.dart';
-
+import '../widgets/analytics_segment_pane.dart';
 /// Analytics Center — data from `GET /dashboard/analytics?days=`.
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
@@ -18,8 +18,11 @@ class AnalyticsScreen extends ConsumerStatefulWidget {
   ConsumerState<AnalyticsScreen> createState() => _AnalyticsScreenState();
 }
 
-class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
+class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
+    with SingleTickerProviderStateMixin {
   int _period = 1;
+  late final TabController _segmentTabs;
+
 
   int get _days => switch (_period) {
         0 => 7,
@@ -43,6 +46,18 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       };
 
   @override
+  void initState() {
+    super.initState();
+    _segmentTabs = TabController(length: 8, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _segmentTabs.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final async = ref.watch(dashboardAnalyticsProvider(_days));
@@ -54,106 +69,166 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(dashboardAnalyticsProvider(_days));
-          ref.invalidate(dashboardPnlProvider(pnlQuery));
-          await Future.wait([
-            ref.read(dashboardAnalyticsProvider(_days).future),
-            ref.read(dashboardPnlProvider(pnlQuery).future),
-          ]);
-        },
-        child: ListView(
-          padding: EdgeInsets.fromLTRB(
-              16, 8 + MediaQuery.of(context).padding.top, 16, 24),
-          children: [
-            DashboardPageHeader(
-              title: 'Analytics Center',
-              subtitle:
-                  'Deep-dive insights into your store performance and customer behavior across all channels.',
-              actions: [
-                IconButton(
-                  icon: Icon(Icons.notifications_none_rounded,
-                      color: theme.colorScheme.onSurfaceVariant),
-                  onPressed: () => context.push('/notifications'),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              8 + MediaQuery.paddingOf(context).top,
+              16,
+              0,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DashboardPageHeader(
+                  title: 'Analytics Center',
+                  subtitle:
+                      'Deep-dive insights into your store performance and customer behavior across all channels.',
+                  actions: [
+                    IconButton(
+                      tooltip: 'Scheduled reports',
+                      icon: const Icon(Icons.event_repeat_outlined),
+                      onPressed: () =>
+                          context.push('/analytics/scheduled-reports'),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.notifications_none_rounded,
+                          color: theme.colorScheme.onSurfaceVariant),
+                      onPressed: () => context.push('/notifications'),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  _PeriodChip(
-                    label: '7d',
-                    selected: _period == 0,
-                    onTap: () => setState(() => _period = 0),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  _PeriodChip(
-                    label: '30d',
-                    selected: _period == 1,
-                    onTap: () => setState(() => _period = 1),
-                  ),
-                  _PeriodChip(
-                    label: '90d',
-                    selected: _period == 2,
-                    onTap: () => setState(() => _period = 2),
-                  ),
-                ],
-              ),
-            ),
-            if (async.isLoading) const LinearProgressIndicator(minHeight: 2),
-            if (async.hasError && !async.hasValue) ...[
-              const SizedBox(height: 12),
-              Material(
-                color: theme.colorScheme.errorContainer.withValues(alpha: 0.35),
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
                   child: Row(
                     children: [
-                      Icon(Icons.error_outline, color: theme.colorScheme.error),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Could not load analytics. Pull to retry.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onErrorContainer,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                      _PeriodChip(
+                        label: '7d',
+                        selected: _period == 0,
+                        onTap: () => setState(() => _period = 0),
+                      ),
+                      _PeriodChip(
+                        label: '30d',
+                        selected: _period == 1,
+                        onTap: () => setState(() => _period = 1),
+                      ),
+                      _PeriodChip(
+                        label: '90d',
+                        selected: _period == 2,
+                        onTap: () => setState(() => _period = 2),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
-            const SizedBox(height: 20),
-            _FinanceHubCard(theme: theme),
-            const SizedBox(height: 16),
-            _PnlOverviewCard(
-              view: pnlView,
-              periodLabel: _periodLabel,
-              isLoading: pnlAsync.isLoading,
-              hasError: pnlAsync.hasError,
-              theme: theme,
+                const SizedBox(height: 8),
+                TabBar(
+                  controller: _segmentTabs,
+                  isScrollable: true,
+                  tabs: const [
+                    Tab(text: 'Summary'),
+                    Tab(text: 'Overview'),
+                    Tab(text: 'Revenue'),
+                    Tab(text: 'Sales'),
+                    Tab(text: 'Customers'),
+                    Tab(text: 'Inventory'),
+                    Tab(text: 'Traffic'),
+                    Tab(text: 'Funnel'),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            _SalesPerformanceCard(view: view, theme: theme),
-            const SizedBox(height: 16),
-            _ConversionCard(view: view, theme: theme),
-            const SizedBox(height: 16),
-            _TopProductsCard(view: view, theme: theme),
-            const SizedBox(height: 16),
-            _CustomerLoyaltyCard(returningShare: view.returningShare),
-            const SizedBox(height: 16),
-            _TrafficSourcesCard(rows: view.trafficSources),
-          ],
-        ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _segmentTabs,
+              children: [
+                RefreshIndicator(
+                  onRefresh: () async {
+                    ref.invalidate(dashboardAnalyticsProvider(_days));
+                    ref.invalidate(dashboardPnlProvider(pnlQuery));
+                    await Future.wait([
+                      ref.read(dashboardAnalyticsProvider(_days).future),
+                      ref.read(dashboardPnlProvider(pnlQuery).future),
+                    ]);
+                  },
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    children: [
+                      if (async.isLoading)
+                        const LinearProgressIndicator(minHeight: 2),
+                      if (async.hasError && !async.hasValue) ...[
+                        const SizedBox(height: 12),
+                        Material(
+                          color: theme.colorScheme.errorContainer
+                              .withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                Icon(Icons.error_outline,
+                                    color: theme.colorScheme.error),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Could not load analytics. Pull to retry.',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color:
+                                          theme.colorScheme.onErrorContainer,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 20),
+                      _FinanceHubCard(theme: theme),
+                      const SizedBox(height: 16),
+                      _PnlOverviewCard(
+                        view: pnlView,
+                        periodLabel: _periodLabel,
+                        isLoading: pnlAsync.isLoading,
+                        hasError: pnlAsync.hasError,
+                        theme: theme,
+                      ),
+                      const SizedBox(height: 16),
+                      _SalesPerformanceCard(view: view, theme: theme),
+                      const SizedBox(height: 16),
+                      _ConversionCard(view: view, theme: theme),
+                      const SizedBox(height: 16),
+                      _TopProductsCard(view: view, theme: theme),
+                      const SizedBox(height: 16),
+                      _CustomerLoyaltyCard(
+                          returningShare: view.returningShare),
+                      const SizedBox(height: 16),
+                      _TrafficSourcesCard(rows: view.trafficSources),
+                    ],
+                  ),
+                ),
+                AnalyticsSegmentPane(segment: 'overview', days: _days),
+                AnalyticsSegmentPane(segment: 'revenue', days: _days),
+                AnalyticsSegmentPane(segment: 'sales', days: _days),
+                AnalyticsSegmentPane(segment: 'customers', days: _days),
+                AnalyticsSegmentPane(segment: 'inventory', days: _days),
+                AnalyticsSegmentPane(
+                    segment: 'traffic-sources', days: _days),
+                AnalyticsSegmentPane(
+                    segment: 'conversion-funnel', days: _days),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

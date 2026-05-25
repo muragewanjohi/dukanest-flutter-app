@@ -23,6 +23,9 @@ import '../features/products/screens/attribute_editor_screen.dart';
 import '../features/dashboard/screens/more_menu_screen.dart';
 import '../features/analytics/screens/analytics_screen.dart';
 import '../features/analytics/screens/expenses_screen.dart';
+import '../features/analytics/screens/scheduled_reports_screen.dart';
+import '../features/themes/screens/themes_screen.dart';
+import '../features/media/screens/media_library_screen.dart';
 import '../features/notifications/screens/notifications_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
 import '../features/settings/screens/store_identity_screen.dart';
@@ -34,11 +37,19 @@ import '../features/settings/screens/manage_zones_screen.dart';
 import '../features/settings/screens/delivery_zone_editor_screen.dart';
 import '../features/content/screens/content_management_screen.dart';
 import '../features/content/screens/blog_post_editor_screen.dart';
+import '../features/content/screens/forms_list_screen.dart';
+import '../features/content/screens/form_editor_screen.dart';
+import '../features/content/screens/form_submissions_screen.dart';
 import '../features/content/screens/page_editor_screen.dart';
 import '../features/content/screens/hero_section_editor_screen.dart';
 import '../features/sales/screens/sales_list_screen.dart';
 import '../features/sales/screens/sales_editor_screen.dart';
 import '../features/customers/screens/customers_list_screen.dart';
+import '../features/customers/screens/customer_detail_screen.dart';
+import '../features/customers/screens/customer_edit_screen.dart';
+import '../features/inventory/screens/inventory_screen.dart';
+import '../features/subscription/screens/subscription_screen.dart';
+import '../features/subscription/screens/billing_history_screen.dart';
 import '../features/onboarding/providers/auth_provider.dart';
 import '../core/auth/auth_state.dart';
 import '../core/providers/first_run_tutorial_seen_provider.dart';
@@ -73,6 +84,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         return location == '/settings' ||
             location == '/store-identity' ||
             location == '/payment-settings' ||
+            location == '/subscription' ||
+            location == '/billing-history' ||
             location == '/tumizi-dashboard' ||
             location == '/shipping-delivery' ||
             location == '/shipping-zones' ||
@@ -268,13 +281,83 @@ final routerProvider = Provider<GoRouter>((ref) {
           return DeliveryZoneEditorScreen(args: args);
         },
       ),
+
+      GoRoute(
+        path: '/subscription',
+        builder: (context, state) => const SubscriptionScreen(),
+      ),
+      GoRoute(
+        path: '/billing-history',
+        builder: (context, state) => const BillingHistoryScreen(),
+      ),
+      GoRoute(
+        path: '/inventory',
+        builder: (context, state) => const InventoryScreen(),
+      ),
       GoRoute(
         path: '/customers',
         builder: (context, state) => const CustomersListScreen(),
+        routes: [
+          GoRoute(
+            path: 'detail/:id',
+            builder: (context, state) {
+              final id = Uri.decodeComponent(state.pathParameters['id']!);
+              return CustomerDetailScreen(customerId: id);
+            },
+          ),
+          GoRoute(
+            path: 'edit/:id',
+            builder: (context, state) {
+              final id = Uri.decodeComponent(state.pathParameters['id']!);
+              return CustomerEditScreen(customerId: id);
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: '/content-management',
         builder: (context, state) => const ContentManagementScreen(),
+      ),
+      GoRoute(
+        path: '/media-library',
+        builder: (context, state) => const MediaLibraryScreen(),
+      ),
+      GoRoute(
+        path: '/themes',
+        builder: (context, state) => const ThemesScreen(),
+        routes: [
+          GoRoute(
+            path: 'customize',
+            builder: (context, state) =>
+                const ThemeCustomizationScreen(),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/forms',
+        builder: (context, state) => const FormsListScreen(),
+        routes: [
+          GoRoute(
+            path: 'new',
+            builder: (context, state) => const FormEditorScreen(),
+          ),
+          GoRoute(
+            path: ':id/edit',
+            builder: (context, state) {
+              final id =
+                  Uri.decodeComponent(state.pathParameters['id']!);
+              return FormEditorScreen(formId: id);
+            },
+          ),
+          GoRoute(
+            path: ':id/submissions',
+            builder: (context, state) {
+              final id =
+                  Uri.decodeComponent(state.pathParameters['id']!);
+              return FormSubmissionsScreen(formId: id);
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: '/blog-post/new',
@@ -419,6 +502,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'expenses',
                     builder: (context, state) => const ExpensesScreen(),
+                  ),
+                  GoRoute(
+                    path: 'scheduled-reports',
+                    builder: (context, state) =>
+                        const ScheduledReportsScreen(),
                   ),
                 ],
               ),

@@ -16,6 +16,8 @@ import '../../../core/widgets/dashboard_page_header.dart';
 import '../../onboarding/providers/auth_provider.dart';
 import '../providers/dashboard_getting_started_provider.dart';
 import '../providers/dashboard_local_onboarding_provider.dart';
+import '../providers/dashboard_reward_checklist_provider.dart';
+import '../widgets/reward_checklist_card.dart';
 
 /// Home dashboard aligned with Stitch screen
 /// `projects/13184140852829986275/screens/a93fc25cee2c4ac98d30472dc7535058`
@@ -324,16 +326,6 @@ _TrialSnapshot? _trialSnapshotFromOverview(Map<String, dynamic>? data) {
     totalDays: _toIntOrNull(sub['trialDays']),
     planName: planName,
   );
-}
-
-Uri? _subscriptionWebUri(String? storeUrl) {
-  final trimmed = storeUrl?.trim();
-  if (trimmed == null || trimmed.isEmpty) return null;
-  final parsed = Uri.tryParse(trimmed);
-  if (parsed == null || !parsed.hasScheme || parsed.host.isEmpty) {
-    return null;
-  }
-  return parsed.replace(path: '/dashboard/subscription');
 }
 
 List<_OnboardingStepUi> _parseOnboardingStepsFromOverview(
@@ -646,6 +638,51 @@ class DashboardScreen extends ConsumerWidget {
             });
           };
         }
+      } else if (k == 'demo_products' ||
+          k.contains('demo_product') ||
+          k == 'remove_demo_products') {
+        onAction = () async {
+          final ok = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Remove demo products?'),
+              content: const Text(
+                'This archives sample catalog items so only your real products remain.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Remove'),
+                ),
+              ],
+            ),
+          );
+          if (ok != true || !context.mounted) return;
+          try {
+            final response =
+                await ref.read(apiClientProvider).removeDemoProducts();
+            if (!response.success) {
+              throw StateError(response.error?.message ?? 'Request failed');
+            }
+            if (!context.mounted) return;
+            ref.invalidate(dashboardGettingStartedProvider);
+            ref.invalidate(dashboardOverviewProvider);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Demo products removed')),
+            );
+          } catch (_) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Could not remove demo products. Try again.'),
+              ),
+            );
+          }
+        };
       } else if (k == 'payment' || k == 'payments' || k == 'checkout') {
         onAction = () => context.push('/payment-settings');
       } else if (k == 'shipping' || k == 'delivery') {
@@ -712,6 +749,50 @@ class DashboardScreen extends ConsumerWidget {
           onAction = () => context.push('/shipping-delivery');
         } else if (t.contains('logo')) {
           onAction = () => context.push('/store-identity');
+        } else if (t.contains('demo') &&
+            (t.contains('product') || t.contains('sample'))) {
+          onAction = () async {
+            final ok = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Remove demo products?'),
+                content: const Text(
+                  'This archives sample catalog items so only your real products remain.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Remove'),
+                  ),
+                ],
+              ),
+            );
+            if (ok != true || !context.mounted) return;
+            try {
+              final response =
+                  await ref.read(apiClientProvider).removeDemoProducts();
+              if (!response.success) {
+                throw StateError(response.error?.message ?? 'Request failed');
+              }
+              if (!context.mounted) return;
+              ref.invalidate(dashboardGettingStartedProvider);
+              ref.invalidate(dashboardOverviewProvider);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Demo products removed')),
+              );
+            } catch (_) {
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Could not remove demo products. Try again.'),
+                ),
+              );
+            }
+          };
         } else if (t.contains('phone')) {
           onAction = () => context.push('/settings');
         } else if (t.contains('design') || t.contains('customize')) {
@@ -894,9 +975,11 @@ class DashboardScreen extends ConsumerWidget {
     Future<void> refreshDashboard() async {
       ref.invalidate(dashboardOverviewProvider);
       ref.invalidate(dashboardGettingStartedProvider);
+      ref.invalidate(dashboardRewardChecklistProvider);
       await Future.wait([
         ref.read(dashboardOverviewProvider.future),
         ref.read(dashboardGettingStartedProvider.future),
+        ref.read(dashboardRewardChecklistProvider.future),
       ]);
       ref.read(dashboardLastSyncedAtProvider.notifier).state = DateTime.now();
     }
@@ -951,20 +1034,7 @@ class DashboardScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               _TrialPeriodBanner(
                 trial: trial,
-                onUpgrade: () {
-                  final uri = _subscriptionWebUri(storeUrl);
-                  if (uri == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Open your store settings on the web to manage your subscription.',
-                        ),
-                      ),
-                    );
-                    return;
-                  }
-                  launchUrl(uri, mode: LaunchMode.externalApplication);
-                },
+                onUpgrade: () => context.push('/subscription'),
               ),
             ],
             if (storeUrl != null && storeUrl.trim().isNotEmpty) ...[
@@ -976,6 +1046,8 @@ class DashboardScreen extends ConsumerWidget {
                 storeName: displayStoreName,
               ),
             ],
+            const SizedBox(height: 14),
+            const RewardChecklistCard(),
             const SizedBox(height: 16),
             _quickActionRow(context),
             const SizedBox(height: 18),
@@ -1852,8 +1924,8 @@ class _TrialPeriodBanner extends StatelessWidget {
                       ),
                     ),
                     Icon(
-                      Icons.open_in_new_rounded,
-                      size: 18,
+                      Icons.chevron_right_rounded,
+                      size: 22,
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ],

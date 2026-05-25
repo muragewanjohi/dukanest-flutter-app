@@ -88,11 +88,16 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
     setState(() => _saving = true);
     try {
       final rate = num.tryParse(_defaultRate.text.trim());
+      final pricingType = _taxInclusive ? 'inclusive' : 'exclusive';
       final body = <String, dynamic>{
         'tax': {
           'enabled': _taxEnabled,
+          'defaultRate': rate ?? 0,
           'rate': rate ?? 0,
+          'pricingType': pricingType,
+          'includedInPrice': _taxInclusive,
           'inclusive': _taxInclusive,
+          'calculationBasedOn': _apiTaxBasis(),
           'basedOn': _apiTaxBasis(),
         },
       };

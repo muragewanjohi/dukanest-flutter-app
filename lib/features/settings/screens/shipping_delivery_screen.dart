@@ -32,6 +32,9 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
 
   final _flatRate = TextEditingController(text: '250');
   final _freeOver = TextEditingController(text: '5000');
+  final _pickupLocation = TextEditingController();
+  final _pickupInstructions = TextEditingController();
+  final _pickupHours = TextEditingController();
   int _handlingDays = 1;
   String _lastHydratedShippingSignature = '';
   bool _saving = false;
@@ -40,6 +43,9 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
   void dispose() {
     _flatRate.dispose();
     _freeOver.dispose();
+    _pickupLocation.dispose();
+    _pickupInstructions.dispose();
+    _pickupHours.dispose();
     super.dispose();
   }
 
@@ -104,9 +110,23 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
       sources,
       ['enabled', 'shipping_enabled', 'shippingEnabled', 'local_delivery', 'localDelivery'],
     );
+    final pickup = settingsSection(root, 'pickup') ?? {};
+    final pickupSources = [pickup, s, staticOpts];
     _storePickup = _pickBoolFromSources(
-      sources,
-      ['pickupEnabled', 'pickup_enabled', 'store_pickup', 'storePickup'],
+      pickupSources,
+      ['enabled', 'pickupEnabled', 'pickup_enabled', 'store_pickup', 'storePickup'],
+    );
+    _pickupLocation.text = _pickFromSources(
+      pickupSources,
+      ['locationName', 'location_name', 'location', 'name'],
+    );
+    _pickupInstructions.text = _pickFromSources(
+      pickupSources,
+      ['instructions', 'pickup_instructions', 'pickupInstructions'],
+    );
+    _pickupHours.text = _pickFromSources(
+      pickupSources,
+      ['hours', 'pickup_hours', 'pickupHours'],
     );
 
     final methodType = _pickFromSources(
@@ -171,10 +191,12 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     required num flatRate,
     required num freeThreshold,
     required int handlingDays,
+    required String pickupLocation,
+    required String pickupInstructions,
+    required String pickupHours,
   }) {
     final shipping = <String, dynamic>{
       'enabled': localDelivery,
-      'pickupEnabled': storePickup,
     };
 
     if (localDelivery) {
@@ -192,7 +214,16 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
 
     shipping['defaultEstimatedDeliveryDays'] = handlingDays;
 
-    return {'shipping': shipping};
+    return {
+      'shipping': shipping,
+      'pickup': {
+        'enabled': storePickup,
+        'locationName': pickupLocation.trim().isEmpty ? null : pickupLocation.trim(),
+        'instructions':
+            pickupInstructions.trim().isEmpty ? null : pickupInstructions.trim(),
+        'hours': pickupHours.trim().isEmpty ? null : pickupHours.trim(),
+      },
+    };
   }
 
   Future<void> _save() async {
@@ -256,6 +287,9 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
         flatRate: flat,
         freeThreshold: free,
         handlingDays: _handlingDays,
+        pickupLocation: _pickupLocation.text,
+        pickupInstructions: _pickupInstructions.text,
+        pickupHours: _pickupHours.text,
       );
       final api = ref.read(apiClientProvider);
       final r = await api.patchDashboardSettings(body);
@@ -463,6 +497,28 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                         value: _storePickup,
                         onChanged: (v) => setState(() => _storePickup = v),
                       ),
+                      if (_storePickup) ...[
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _pickupLocation,
+                          decoration: _fieldDeco(theme, hint: 'Pickup location name'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _pickupInstructions,
+                          maxLines: 2,
+                          decoration: _fieldDeco(theme, hint: 'Pickup instructions'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _pickupHours,
+                          maxLines: 3,
+                          decoration: _fieldDeco(
+                            theme,
+                            hint: 'Hours (JSON string, same as web)',
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

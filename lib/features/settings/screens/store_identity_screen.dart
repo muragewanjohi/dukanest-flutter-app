@@ -36,6 +36,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
   final _storeName = TextEditingController();
   final _domain = TextEditingController();
   final _phoneLocal = TextEditingController();
+  final _phone2Local = TextEditingController();
+  final _phone3Local = TextEditingController();
   final _address1 = TextEditingController();
   final _city = TextEditingController();
   final _state = TextEditingController();
@@ -43,7 +45,14 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
   final _postal = TextEditingController();
   final _supportEmail = TextEditingController();
   final _description = TextEditingController();
+  final _currencyCode = TextEditingController(text: 'KES');
+  final _currencySymbol = TextEditingController(text: 'KSh');
+  final _decimalPlaces = TextEditingController(text: '0');
+  final _thousandSeparator = TextEditingController(text: ',');
+  final _decimalSeparator = TextEditingController(text: '.');
   final _picker = ImagePicker();
+
+  List<String> _countryOptions = const [];
 
   String _businessType = 'Retail';
   String _sellingCategory = 'Electronics & Gadgets';
@@ -88,6 +97,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     _storeName.dispose();
     _domain.dispose();
     _phoneLocal.dispose();
+    _phone2Local.dispose();
+    _phone3Local.dispose();
     _address1.dispose();
     _city.dispose();
     _state.dispose();
@@ -95,6 +106,11 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     _postal.dispose();
     _supportEmail.dispose();
     _description.dispose();
+    _currencyCode.dispose();
+    _currencySymbol.dispose();
+    _decimalPlaces.dispose();
+    _thousandSeparator.dispose();
+    _decimalSeparator.dispose();
     super.dispose();
   }
 
@@ -112,6 +128,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       phone = phone.substring(3);
     }
     _phoneLocal.text = phone.replaceAll(RegExp(r'\D'), '');
+    _phone2Local.text = _normalizeLocalPhone(settingsPick(store, ['phone2', 'phone_2']));
+    _phone3Local.text = _normalizeLocalPhone(settingsPick(store, ['phone3', 'phone_3']));
     _address1.text = settingsPick(store, [
       'line1',
       'addressLine1',
@@ -138,7 +156,38 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     } else if (sell.isNotEmpty) {
       _sellingCategory = sell;
     }
+    final countriesRaw = data['countries'];
+    if (countriesRaw is List) {
+      _countryOptions = countriesRaw
+          .map((c) {
+            if (c is Map) {
+              return settingsPick(Map<String, dynamic>.from(c), ['name', 'label', 'code', 'country']);
+            }
+            return c?.toString() ?? '';
+          })
+          .where((s) => s.trim().isNotEmpty)
+          .toSet()
+          .toList();
+    }
+    final currency = settingsSection(data, 'currency') ?? {};
+    _currencyCode.text = settingsPick(currency, ['code'], fallback: 'KES');
+    _currencySymbol.text = settingsPick(currency, ['symbol'], fallback: 'KSh');
+    _decimalPlaces.text = settingsPick(currency, ['decimalPlaces', 'decimal_places'], fallback: '0');
+    _thousandSeparator.text = settingsPick(currency, ['thousandSeparator', 'thousand_separator'], fallback: ',');
+    _decimalSeparator.text = settingsPick(currency, ['decimalSeparator', 'decimal_separator'], fallback: '.');
     _captureSaveBaseline();
+  }
+
+  String _normalizeLocalPhone(String raw) {
+    var phone = raw.replaceAll(RegExp(r'\s'), '');
+    if (phone.startsWith('+254')) phone = phone.substring(4);
+    if (phone.startsWith('254')) phone = phone.substring(3);
+    return phone.replaceAll(RegExp(r'\D'), '');
+  }
+
+  String _toE164(String local) {
+    final digits = local.replaceAll(RegExp(r'\D'), '').replaceFirst(RegExp(r'^0+'), '');
+    return digits.isEmpty ? '' : '+254$digits';
   }
 
   void _applyLogoFromSettings(Map<String, dynamic> data, {bool preserveLocalPending = true}) {
@@ -537,8 +586,9 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       final api = ref.read(apiClientProvider);
       final name = _storeName.text.trim();
       final line1 = _address1.text.trim();
-      final phoneDigits = _phoneLocal.text.replaceAll(RegExp(r'\D'), '').replaceFirst(RegExp(r'^0+'), '');
-      final phoneE164 = phoneDigits.isNotEmpty ? '+254$phoneDigits' : '';
+      final phoneE164 = _toE164(_phoneLocal.text);
+      final phone2E164 = _toE164(_phone2Local.text);
+      final phone3E164 = _toE164(_phone3Local.text);
       final storePatch = <String, dynamic>{
         'name': name,
         'line1': line1,
@@ -556,6 +606,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
         storePatch['phone'] = phoneE164;
         storePatch['store_phone'] = phoneE164;
       }
+      if (phone2E164.isNotEmpty) storePatch['phone2'] = phone2E164;
+      if (phone3E164.isNotEmpty) storePatch['phone3'] = phone3E164;
       var logo = normalizeStoreMediaUrl(_logoImageUrl ?? '');
       String? uploadedFromLocalPath;
       if (_pendingLogoLocalPath != null && !_logoClearedByUser) {
@@ -578,6 +630,13 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
 
       final body = <String, dynamic>{
         'store': storePatch,
+        'currency': {
+          'code': _currencyCode.text.trim(),
+          'symbol': _currencySymbol.text.trim(),
+          'decimalPlaces': int.tryParse(_decimalPlaces.text.trim()) ?? 0,
+          'thousandSeparator': _thousandSeparator.text.trim(),
+          'decimalSeparator': _decimalSeparator.text.trim(),
+        },
         'businessType': _businessType,
         'business_type': _businessType,
         'selling': _sellingCategory,
@@ -984,6 +1043,86 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                _label(theme, 'Additional phones (optional)'),
+                TextField(
+                  controller: _phone2Local,
+                  keyboardType: TextInputType.phone,
+                  decoration: _fieldDeco(theme),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _phone3Local,
+                  keyboardType: TextInputType.phone,
+                  decoration: _fieldDeco(theme),
+                ),
+              ],
+            ),
+          ),
+          _SectionCard(
+            theme: theme,
+            icon: Icons.payments_outlined,
+            title: 'Currency',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label(theme, 'Code'),
+                          TextField(controller: _currencyCode, decoration: _fieldDeco(theme)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label(theme, 'Symbol'),
+                          TextField(controller: _currencySymbol, decoration: _fieldDeco(theme)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label(theme, 'Decimal places'),
+                          TextField(controller: _decimalPlaces, decoration: _fieldDeco(theme)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label(theme, 'Thousands sep'),
+                          TextField(controller: _thousandSeparator, decoration: _fieldDeco(theme)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label(theme, 'Decimal sep'),
+                          TextField(controller: _decimalSeparator, decoration: _fieldDeco(theme)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -1086,10 +1225,19 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _label(theme, 'Country'),
-                          TextField(
-                            controller: _country,
-                            decoration: _fieldDeco(theme),
-                          ),
+                          _countryOptions.isEmpty
+                              ? TextField(
+                                  controller: _country,
+                                  decoration: _fieldDeco(theme),
+                                )
+                              : _dropdown(
+                                  theme,
+                                  value: _countryOptions.contains(_country.text.trim())
+                                      ? _country.text.trim()
+                                      : (_countryOptions.isNotEmpty ? _countryOptions.first : ''),
+                                  items: _countryOptions,
+                                  onChanged: (v) => setState(() => _country.text = v ?? ''),
+                                ),
                         ],
                       ),
                     ),

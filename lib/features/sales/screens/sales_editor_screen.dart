@@ -101,6 +101,80 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
     super.dispose();
   }
 
+  void _disposeAllProductControllers() {
+    for (final p in _products) {
+      p.salePriceCtrl.dispose();
+    }
+    _products = [];
+  }
+
+  List<_SaleProduct> _mapSaleProducts(List<Map<String, dynamic>> items) {
+    return items.asMap().entries.map((entry) {
+      final i = entry.key;
+      final item = entry.value;
+      final nested = item['product'] is Map
+          ? Map<String, dynamic>.from(item['product'] as Map)
+          : <String, dynamic>{};
+      final name = _pickString(item, ['name', 'productName', 'title'],
+          fallback: _pickString(nested, ['name', 'title'],
+              fallback: 'Product ${i + 1}'));
+      final salePrice = _pickDouble(item,
+          ['sale_price', 'salePrice', 'discount_price', 'discountPrice']);
+      var original = _pickDouble(
+          item,
+          ['original_price', 'originalPrice', 'price'],
+          fallback: _pickDouble(nested, ['price']));
+      if (original <= 0 && salePrice > 0) original = salePrice;
+      return _SaleProduct(
+        productId: _pickString(item, ['product_id', 'productId'],
+            fallback: _pickString(nested, ['id', '_id'])),
+        saleItemId:
+            _pickString(item, ['id', '_id', 'sale_item_id', 'saleItemId']),
+        name: name,
+        original: original,
+        salePriceCtrl:
+            TextEditingController(text: salePrice.toStringAsFixed(2)),
+        imageUrl: _pickString(
+            item,
+            ['image', 'image_url', 'imageUrl'],
+            fallback: _pickString(
+                nested, ['image', 'imageUrl', 'thumbnail', 'thumbnailUrl'])),
+      );
+    }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchSaleProductRows(String saleId) async {
+    final pr = await ref.read(apiClientProvider).getSaleProducts(saleId);
+    if (!pr.success || pr.data == null) {
+      throw StateError(pr.error?.message ?? 'Could not load sale products');
+    }
+    final payload = pr.data;
+    final root =
+        payload is Map<String, dynamic> ? payload : <String, dynamic>{};
+    final nested = root['data'];
+    final bag = nested is Map<String, dynamic>
+        ? nested
+        : nested is Map
+            ? Map<String, dynamic>.from(nested)
+            : root;
+    final raw = bag['items'] ?? bag['product_sales'] ?? root['items'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  Future<void> _reloadSaleProducts() async {
+    if (widget.isCreate) return;
+    final rows = await _fetchSaleProductRows(widget.saleId!);
+    if (!mounted) return;
+    setState(() {
+      _disposeAllProductControllers();
+      _products = _mapSaleProducts(rows);
+    });
+  }
+
   Future<void> _load() async {
     if (widget.isCreate) {
       setState(() => _loading = false);
@@ -127,26 +201,14 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
       _end = DateTime.tryParse(_pickString(sale, ['end_date', 'endDate'])) ?? _start.add(const Duration(days: 7));
       _syncDates();
 
-      final itemsRaw = sale['product_sales'] ?? sale['productSales'] ?? sale['products'] ?? sale['items'];
-      final items = itemsRaw is List ? itemsRaw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : <Map<String, dynamic>>[];
-      _products = items.asMap().entries.map((entry) {
-        final i = entry.key;
-        final item = entry.value;
-        final nested = item['product'] is Map ? Map<String, dynamic>.from(item['product'] as Map) : <String, dynamic>{};
-        final name = _pickString(item, ['name', 'productName', 'title'], fallback: _pickString(nested, ['name', 'title'], fallback: 'Product ${i + 1}'));
-        final salePrice = _pickDouble(item, ['sale_price', 'salePrice', 'discount_price', 'discountPrice']);
-        final original = _pickDouble(item, ['original_price', 'originalPrice', 'price'], fallback: _pickDouble(nested, ['price']));
-        return _SaleProduct(
-          productId: _pickString(item, ['product_id', 'productId'], fallback: _pickString(nested, ['id', '_id'])),
-          saleItemId: _pickString(item, ['id', '_id', 'sale_item_id', 'saleItemId']),
-          name: name,
-          original: original,
-          salePriceCtrl: TextEditingController(text: salePrice.toStringAsFixed(2)),
-          imageUrl: _pickString(item, ['image', 'image_url', 'imageUrl'], fallback: _pickString(nested, ['image', 'imageUrl', 'thumbnail', 'thumbnailUrl'])),
-        );
-      }).toList();
-
-      setState(() => _loading = false);
+      final items =
+          await _fetchSaleProductRows(widget.saleId!);
+      if (!mounted) return;
+      setState(() {
+        _disposeAllProductControllers();
+        _products = _mapSaleProducts(items);
+        _loading = false;
+      });
     } catch (e) {
       setState(() {
         _error = '$e';
@@ -174,33 +236,69 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
     });
   }
 
-  void _addCatalogProduct(Map<String, dynamic> raw) {
+  Future<void> _addCatalogProduct(Map<String, dynamic> raw) async {
     final id = _pickString(raw, ['id', '_id', 'sku']);
     if (id.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Product has no id/sku')));
       return;
     }
     if (_products.any((p) => p.productId == id)) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Product already in this sale')));
       return;
     }
     final name = _pickString(raw, ['name', 'title'], fallback: 'Product');
-    final price = _pickDouble(raw, ['price', 'base_price', 'amount', 'regular_price']);
-    final nested = raw['product'] is Map ? Map<String, dynamic>.from(raw['product'] as Map) : <String, dynamic>{};
-    final image = _pickString(raw, ['thumbnail', 'thumbnail_url', 'image', 'image_url', 'imageUrl'],
+    final price =
+        _pickDouble(raw, ['price', 'base_price', 'amount', 'regular_price']);
+    final nested = raw['product'] is Map
+        ? Map<String, dynamic>.from(raw['product'] as Map)
+        : <String, dynamic>{};
+    final image = _pickString(
+        raw,
+        ['thumbnail', 'thumbnail_url', 'image', 'image_url', 'imageUrl'],
         fallback: _pickString(nested, ['thumbnail', 'image', 'image_url']));
-    setState(() {
-      _products.add(
-        _SaleProduct(
-          productId: id,
-          saleItemId: '',
-          name: name,
-          original: price,
-          salePriceCtrl: TextEditingController(text: price.toStringAsFixed(2)),
-          imageUrl: image,
-        ),
+
+    if (widget.isCreate) {
+      setState(() {
+        _products.add(
+          _SaleProduct(
+            productId: id,
+            saleItemId: '',
+            name: name,
+            original: price,
+            salePriceCtrl:
+                TextEditingController(text: price.toStringAsFixed(2)),
+            imageUrl: image,
+          ),
+        );
+      });
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      final res = await ref.read(apiClientProvider).addSaleProduct(
+        widget.saleId!,
+        {
+          'productId': id,
+          'salePrice': price,
+        },
       );
-    });
+      if (!res.success) {
+        throw StateError(res.error?.message ?? 'Could not add product');
+      }
+      await _reloadSaleProducts();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Product added')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _openAddProductsSheet() async {
@@ -221,7 +319,7 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
               existingProductIds: existing,
               onPick: (map) {
                 Navigator.of(sheetContext).pop();
-                _addCatalogProduct(map);
+                unawaited(_addCatalogProduct(map));
               },
             ),
           ),
@@ -230,19 +328,29 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
     );
   }
 
-  Map<String, dynamic> _payload() {
+  Map<String, dynamic> _saleMetaPayload() {
     return {
       'name': _saleName.text.trim(),
       'description': _note.text.trim(),
       'start_date': _start.toIso8601String(),
       'end_date': _end.toIso8601String(),
       'status': _status,
-      'product_sales': _products.map((p) => {
-            if (p.saleItemId.isNotEmpty) 'id': p.saleItemId,
-            if (p.productId.isNotEmpty) 'product_id': p.productId,
-            'sale_price': double.tryParse(p.salePriceCtrl.text.trim()) ?? 0,
-          }).toList(),
     };
+  }
+
+  static String? _saleIdFromCreateResponse(dynamic data) {
+    if (data is! Map<String, dynamic>) return null;
+    final root = data['data'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(data['data'] as Map)
+        : data;
+    final sale = root['sale'] ?? root['item'] ?? root;
+    if (sale is! Map) return null;
+    final m = Map<String, dynamic>.from(sale);
+    for (final k in ['id', '_id']) {
+      final v = m[k];
+      if (v != null && '$v'.trim().isNotEmpty) return '$v'.trim();
+    }
+    return null;
   }
 
   Future<void> _save() async {
@@ -275,8 +383,41 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
     setState(() => _saving = true);
     try {
       final api = ref.read(apiClientProvider);
-      final result = widget.isCreate ? await api.createSale(_payload()) : await api.updateSale(widget.saleId!, _payload());
-      if (!result.success) throw StateError(result.error?.message ?? 'Save failed');
+      if (widget.isCreate) {
+        final created = await api.createSale(_saleMetaPayload());
+        if (!created.success) {
+          throw StateError(created.error?.message ?? 'Save failed');
+        }
+        final sid = _saleIdFromCreateResponse(created.data);
+        if (sid == null || sid.isEmpty) {
+          throw StateError('Create response missing sale id');
+        }
+        for (final p in _products) {
+          final sp = double.tryParse(p.salePriceCtrl.text.trim()) ?? 0;
+          final ar = await api.addSaleProduct(sid, {
+            'productId': p.productId,
+            'salePrice': sp,
+          });
+          if (!ar.success) throw StateError(ar.error?.message ?? 'Add product failed');
+        }
+      } else {
+        final updated = await api.updateSale(widget.saleId!, _saleMetaPayload());
+        if (!updated.success) throw StateError(updated.error?.message ?? 'Save failed');
+        for (final p in _products) {
+          final raw = p.salePriceCtrl.text.trim();
+          final price = double.tryParse(raw);
+          if (raw.isEmpty || price == null || price <= 0) {
+            throw StateError('Invalid sale price for "${p.name}"');
+          }
+          final ur = await api.updateSaleProduct(widget.saleId!, {
+            'productId': p.productId,
+            'salePrice': price,
+          });
+          if (!ur.success) {
+            throw StateError(ur.error?.message ?? 'Update product failed');
+          }
+        }
+      }
       ref.read(salesListRefreshTokenProvider.notifier).state++;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sale saved')));
@@ -491,14 +632,45 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
                       ),
                     ),
                     IconButton(
-                      onPressed: () {
-                        clearFieldError(fieldId);
-                        setState(() {
-                          final removed = _products.removeAt(i);
-                          removed.salePriceCtrl.dispose();
-                        });
-                      },
-                      icon: Icon(Icons.remove_circle_outline, color: theme.colorScheme.error),
+                      onPressed: _saving
+                          ? null
+                          : () async {
+                              clearFieldError(fieldId);
+                              if (widget.isCreate) {
+                                if (!mounted) return;
+                                setState(() {
+                                  final removed = _products.removeAt(i);
+                                  removed.salePriceCtrl.dispose();
+                                });
+                                return;
+                              }
+                              if (p.productId.isEmpty) return;
+                              setState(() => _saving = true);
+                              try {
+                                final r =
+                                    await ref.read(apiClientProvider).removeSaleProduct(
+                                          widget.saleId!,
+                                          p.productId,
+                                        );
+                                if (!r.success) {
+                                  throw StateError(
+                                      r.error?.message ?? 'Remove failed');
+                                }
+                                await _reloadSaleProducts();
+                                if (!mounted) return;
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('$e')),
+                                );
+                              } finally {
+                                if (mounted) {
+                                  setState(() => _saving = false);
+                                }
+                              }
+                            },
+                      icon: Icon(Icons.remove_circle_outline,
+                          color: theme.colorScheme.error),
                     ),
                   ],
                 ),

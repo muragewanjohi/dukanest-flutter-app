@@ -63,6 +63,27 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
     return fallback;
   }
 
+  static String _paymentKeyFromRaw(String raw) {
+    final lower = raw.trim().toLowerCase();
+    if (lower.contains('paid') || lower.contains('success')) return 'paid';
+    if (lower.contains('fail')) return 'failed';
+    if (lower.contains('refund')) return 'refunded';
+    if (lower.isEmpty || lower.contains('pending')) return 'pending';
+    return lower;
+  }
+
+  static String? _tumiziPaymentBadgeText({
+    required bool isTumizi,
+    required String paymentRaw,
+  }) {
+    if (!isTumizi) return null;
+    final k = _paymentKeyFromRaw(paymentRaw.isEmpty ? 'pending' : paymentRaw);
+    if (k == 'pending') return 'Awaiting M-Pesa (Tumizi)';
+    if (k == 'paid') return 'Paid via Tumizi';
+    if (k == 'failed') return 'Payment failed';
+    return null;
+  }
+
   static String _formatOrderStatusLabel(String raw) {
     final lower = raw.trim().toLowerCase();
     if (lower.isEmpty || lower.contains('pending')) return 'Pending';
@@ -276,18 +297,35 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
         final idText = idValue.toString();
         final idLine = idText.startsWith('#') ? 'ORDER $idText' : 'ORDER #$idText';
         final status = _formatOrderStatusLabel((order['status'] ?? '').toString());
-        final paymentStatusRaw = _pickString(
+        var paymentStatusRaw = _pickString(
           order,
           ['paymentStatus', 'payment_status'],
         );
+        if (paymentStatusRaw.isEmpty) {
+          final pay = order['payment'];
+          if (pay is String && pay.trim().isNotEmpty) {
+            paymentStatusRaw = pay.trim();
+          } else if (pay is Map) {
+            paymentStatusRaw = _pickString(
+              Map<String, dynamic>.from(pay),
+              ['status', 'paymentStatus', 'payment_status'],
+            );
+          }
+        }
         final paymentGateway = _pickString(
           order,
           ['paymentGateway', 'payment_gateway'],
         ).toLowerCase();
-        final paymentStatus = _formatPaymentStatusLabel(
-          paymentStatusRaw.isEmpty ? 'pending' : paymentStatusRaw,
-          isTumizi: paymentGateway == 'tumizi',
+        final isTumizi = paymentGateway == 'tumizi';
+        final tumiziBadge = _tumiziPaymentBadgeText(
+          isTumizi: isTumizi,
+          paymentRaw: paymentStatusRaw.isEmpty ? 'pending' : paymentStatusRaw,
         );
+        final paymentStatus = tumiziBadge ??
+            _formatPaymentStatusLabel(
+              paymentStatusRaw.isEmpty ? 'pending' : paymentStatusRaw,
+              isTumizi: isTumizi,
+            );
         final currencyCode = (order['currencyCode'] ?? order['currency_code'])?.toString();
         final totalText = _formatCurrency(order['total'] ?? order['totalAmount'] ?? order['amount'], currencyCode);
         final quantity = order['itemCount'] ?? order['totalItems'] ?? order['itemsCount'];
@@ -912,10 +950,13 @@ class _PaymentStatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final (bg, fg) = switch (status) {
-      'Paid' => (const Color(0xFFDCFCE7), const Color(0xFF166534)),
-      'Failed' => (theme.colorScheme.errorContainer, theme.colorScheme.onErrorContainer),
+      'Paid' || 'Paid via Tumizi' =>
+        (const Color(0xFFDCFCE7), const Color(0xFF166534)),
+      'Failed' || 'Payment failed' =>
+        (theme.colorScheme.errorContainer, theme.colorScheme.onErrorContainer),
       'Refunded' => (const Color(0xFFF3F4F6), const Color(0xFF4B5563)),
-      'Awaiting M-Pesa' => (const Color(0xFFFFF7ED), const Color(0xFF9A3412)),
+      'Awaiting M-Pesa' || 'Awaiting M-Pesa (Tumizi)' =>
+        (const Color(0xFFFFF7ED), const Color(0xFF9A3412)),
       _ => (const Color(0xFFFFFBEB), const Color(0xFF92400E)),
     };
 
@@ -932,7 +973,7 @@ class _PaymentStatusPill extends StatelessWidget {
           color: fg,
           fontWeight: FontWeight.w800,
           letterSpacing: 0.35,
-          fontSize: 10,
+          fontSize: status.length > 24 ? 9 : 10,
         ),
       ),
     );

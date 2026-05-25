@@ -80,7 +80,7 @@ class MoreMenuScreen extends ConsumerWidget {
             title: 'Inventory',
             subtitle:
                 'Track stock levels, warehouse locations, and restock alerts.',
-            onTap: () => context.go('/products'),
+            onTap: () => context.push('/inventory'),
           ),
           const SizedBox(height: 12),
           _MoreItem(
@@ -91,6 +91,42 @@ class MoreMenuScreen extends ConsumerWidget {
             subtitle:
                 'Create discount codes, flash sales, and campaign banners.',
             onTap: () => context.push('/sales'),
+          ),
+          const SizedBox(height: 12),
+          _MoreItem(
+            icon: Icons.card_membership_outlined,
+            iconColor: const Color(0xFF1D4ED8),
+            iconBackground: const Color(0xFFDBEAFE),
+            title: 'Subscription & billing',
+            subtitle: 'Manage your plan, usage limits, and payment history.',
+            onTap: () => context.push('/subscription'),
+          ),
+          const SizedBox(height: 12),
+          _MoreItem(
+            icon: Icons.palette_outlined,
+            iconColor: const Color(0xFF7C3AED),
+            iconBackground: const Color(0xFFEDE9FE),
+            title: 'Themes',
+            subtitle: 'Install storefront themes and customize colors.',
+            onTap: () => context.push('/themes'),
+          ),
+          const SizedBox(height: 12),
+          _MoreItem(
+            icon: Icons.dynamic_form_outlined,
+            iconColor: const Color(0xFF0369A1),
+            iconBackground: const Color(0xFFE0F2FE),
+            title: 'Forms',
+            subtitle: 'Build contact forms and review submissions.',
+            onTap: () => context.push('/forms'),
+          ),
+          const SizedBox(height: 12),
+          _MoreItem(
+            icon: Icons.photo_library_outlined,
+            iconColor: const Color(0xFF059669),
+            iconBackground: const Color(0xFFD1FAE5),
+            title: 'Media library',
+            subtitle: 'Browse uploaded images and manage alt text.',
+            onTap: () => context.push('/media-library'),
           ),
           const SizedBox(height: 12),
           _MoreItem(

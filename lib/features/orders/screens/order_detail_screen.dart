@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -103,7 +104,7 @@ final orderDetailProvider = FutureProvider.family<Map<String, dynamic>?, String>
   }
 });
 
-class OrderDetailScreen extends ConsumerWidget {
+class OrderDetailScreen extends ConsumerStatefulWidget {
   const OrderDetailScreen({
     super.key,
     required this.orderKey,
@@ -402,18 +403,341 @@ class OrderDetailScreen extends ConsumerWidget {
     );
   }
 
+  static const List<String> _orderStatusOptions = <String>[
+    'pending',
+    'processing',
+    'shipped',
+    'delivered',
+    'cancelled',
+    'refunded',
+  ];
+
+  static const List<String> _paymentStatusOptions = <String>[
+    'pending',
+    'paid',
+    'failed',
+    'refunded',
+  ];
+
+  static String _normalizeOrderStatus(String value) {
+    final raw = value.trim().toLowerCase();
+    if (_orderStatusOptions.contains(raw)) return raw;
+    if (raw.contains('process')) return 'processing';
+    if (raw.contains('ship')) return 'shipped';
+    if (raw.contains('deliver')) return 'delivered';
+    if (raw.contains('cancel')) return 'cancelled';
+    if (raw.contains('refund')) return 'refunded';
+    return 'pending';
+  }
+
+  static String _normalizePaymentStatus(String value) {
+    final raw = value.trim().toLowerCase();
+    if (_paymentStatusOptions.contains(raw)) return raw;
+    if (raw.contains('paid') || raw.contains('success')) return 'paid';
+    if (raw.contains('refund')) return 'refunded';
+    if (raw.contains('fail')) return 'failed';
+    return 'pending';
+  }
+
+  static String _statusLabel(String value) {
+    final v = value.trim().toLowerCase();
+    if (v.isEmpty) return '';
+    return '${v[0].toUpperCase()}${v.substring(1)}';
+  }
+
+  static num? _optionalAmountFromTotalLabel(String formattedTotal) {
+    final digits = formattedTotal.replaceAll(',', '').trim();
+    final match = RegExp(r'(-?\d+(?:\.\d+)?)').firstMatch(digits);
+    if (match == null) return null;
+    return num.tryParse(match.group(1)!);
+  }
+
+  @override
+  ConsumerState<OrderDetailScreen> createState() => _OrderDetailScreenState();
+}
+
+class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
+  Timer? _tumiziPollTimer;
+  DateTime? _tumiziPollStartedAt;
+  String _tumiziPollTrackedId = '';
+  bool _tumiziRefreshLoading = false;
+
+  @override
+  void dispose() {
+    _cancelTumiziPoll();
+    super.dispose();
+  }
+
+  void _cancelTumiziPoll() {
+    _tumiziPollTimer?.cancel();
+    _tumiziPollTimer = null;
+    _tumiziPollStartedAt = null;
+    _tumiziPollTrackedId = '';
+  }
+
+  void _configureTumiziPolling(_OrderDetailData data) {
+    final pay = OrderDetailScreen._normalizePaymentStatus(data.paymentStatus);
+    final shouldPoll = data.isTumiziOrder && pay == 'pending';
+    if (!shouldPoll) {
+      _cancelTumiziPoll();
+      return;
+    }
+    if (_tumiziPollTimer != null && _tumiziPollTrackedId == data.apiId) return;
+    _tumiziPollTrackedId = data.apiId;
+    _tumiziPollStartedAt = DateTime.now();
+    _tumiziPollTimer?.cancel();
+    _tumiziPollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _tumiziPollingTick());
+  }
+
+  Future<void> _tumiziPollingTick() async {
+    if (!mounted) return;
+    final startedAt = _tumiziPollStartedAt;
+    if (startedAt == null || _tumiziPollTrackedId.isEmpty) return;
+    if (DateTime.now().difference(startedAt) > const Duration(minutes: 2)) {
+      _cancelTumiziPoll();
+      return;
+    }
+    final api = ref.read(apiClientProvider);
+    final response = await api.syncTumiziOrderPayment(_tumiziPollTrackedId);
+    if (!mounted) return;
+    if (response.success) {
+      ref.invalidate(orderDetailProvider(widget.orderKey));
+    }
+  }
+
+  Future<void> _manualTumiziSync(String apiId) async {
+    if (_tumiziRefreshLoading || apiId.isEmpty) return;
+    setState(() => _tumiziRefreshLoading = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final response = await api.syncTumiziOrderPayment(apiId);
+      if (!mounted) return;
+      if (!response.success) {
+        _toast(context, response.error?.message ?? 'Could not refresh payment status');
+        return;
+      }
+      ref.invalidate(orderDetailProvider(widget.orderKey));
+      ref.invalidate(pendingOrdersCountProvider);
+      _toast(context, 'Payment status updated');
+    } catch (e) {
+      if (mounted) _toast(context, 'Could not refresh: $e');
+    } finally {
+      if (mounted) setState(() => _tumiziRefreshLoading = false);
+    }
+  }
+
+  Future<void> _openResendTumiziStkDialog(String apiId, _OrderDetailData data) async {
+    if (apiId.isEmpty || !mounted) return;
+    final phoneCtrl = TextEditingController(text: _tumiziPhonePrefill(data.customerPhone));
+    final narrationCtrl = TextEditingController();
+    var busy = false;
+    try {
+      final sent = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          return StatefulBuilder(
+            builder: (dialogContext, setDialogState) {
+              Future<void> sendStk() async {
+                final rawPhone = phoneCtrl.text.trim().replaceAll(RegExp(r'\s+'), '');
+                if (rawPhone.isEmpty) return;
+                setDialogState(() => busy = true);
+                try {
+                  final api = ref.read(apiClientProvider);
+                  final amount = OrderDetailScreen._optionalAmountFromTotalLabel(data.total);
+                  final nar = narrationCtrl.text.trim().isEmpty ? null : narrationCtrl.text.trim();
+                  final response = await api.initiateTumiziOrderPayment(
+                    apiId,
+                    phoneNumber: rawPhone,
+                    amount: amount,
+                    narration: nar,
+                  );
+                  if (!dialogContext.mounted) return;
+                  if (!response.success) {
+                    setDialogState(() => busy = false);
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      SnackBar(content: Text(response.error?.message ?? 'STK push failed')),
+                    );
+                    return;
+                  }
+                  Navigator.of(dialogContext).pop(true);
+                } catch (e) {
+                  if (dialogContext.mounted) setDialogState(() => busy = false);
+                  ScaffoldMessenger.maybeOf(dialogContext)?.showSnackBar(
+                    SnackBar(content: Text('$e')),
+                  );
+                }
+              }
+
+              final canSend = phoneCtrl.text.trim().isNotEmpty && !busy;
+              return AlertDialog(
+                title: Text(
+                  'Resend STK Push',
+                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                ),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Enter the phone number that should receive the M-Pesa STK prompt.',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: Theme.of(dialogContext).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: phoneCtrl,
+                        keyboardType: TextInputType.phone,
+                        autofocus: true,
+                        enabled: !busy,
+                        decoration: const InputDecoration(
+                          labelText: 'Phone number',
+                          hintText: 'e.g. 2547XXXXXXXX',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: narrationCtrl,
+                        maxLines: 2,
+                        enabled: !busy,
+                        decoration: const InputDecoration(
+                          labelText: 'Note (optional)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: busy ? null : () => Navigator.of(dialogContext).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: canSend ? sendStk : null,
+                    style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryDark),
+                    child: busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : Text(
+                            'Send STK',
+                            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                          ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+      if (sent == true && mounted) {
+        ref.invalidate(orderDetailProvider(widget.orderKey));
+        _toast(context, 'STK push sent');
+      }
+    } finally {
+      phoneCtrl.dispose();
+      narrationCtrl.dispose();
+    }
+  }
+
+  String _tumiziPhonePrefill(String phone) {
+    final p = phone.trim();
+    if (p.isEmpty || p == '—') return '';
+    return p;
+  }
+
+  Widget _tumiziPendingBanner(ThemeData theme, _OrderDetailData data) {
+    const accent = Color(0xFF9A3412);
+    const noteBg = Color(0xFFFFF7ED);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: noteBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: accent.withValues(alpha: 0.25)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.info_outline_rounded, color: accent, size: 22),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'M-Pesa payments through Tumizi are confirmed automatically '
+                    'when the customer completes the prompt. Use refresh to poll '
+                    'the latest status, or resend an STK if the customer missed it.',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      height: 1.45,
+                      fontWeight: FontWeight.w500,
+                      color: accent,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _tumiziRefreshLoading ? null : () => _manualTumiziSync(data.apiId),
+                icon: _tumiziRefreshLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.sync_rounded, size: 20),
+                label: Text(
+                  _tumiziRefreshLoading ? 'Refreshing…' : 'Refresh from Tumizi',
+                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _tumiziRefreshLoading ? null : () => _openResendTumiziStkDialog(data.apiId, data),
+                icon: const Icon(Icons.phone_android_outlined, size: 20),
+                label: Text(
+                  'Resend STK',
+                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   void _toast(BuildContext context, String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  void _returnToOrdersList(BuildContext context, WidgetRef ref) {
+  void _returnToOrdersList(BuildContext context) {
     ref.invalidate(pendingOrdersCountProvider);
     context.go('/orders');
   }
 
   Future<bool> _patchOrderStatus(
     BuildContext context,
-    WidgetRef ref,
     String status, {
     required String apiId,
   }) async {
@@ -423,7 +747,7 @@ class OrderDetailScreen extends ConsumerWidget {
       if (!r.success) {
         throw StateError(r.error?.message ?? 'Update failed');
       }
-      ref.invalidate(orderDetailProvider(orderKey));
+      ref.invalidate(orderDetailProvider(widget.orderKey));
       ref.invalidate(pendingOrdersCountProvider);
       if (context.mounted) {
         _toast(context, 'Order updated');
@@ -438,8 +762,7 @@ class OrderDetailScreen extends ConsumerWidget {
   }
 
   Future<bool> _patchOrderUpdate(
-    BuildContext context,
-    WidgetRef ref, {
+    BuildContext context, {
     required String apiId,
     required String status,
     required String paymentStatus,
@@ -454,7 +777,7 @@ class OrderDetailScreen extends ConsumerWidget {
       if (!r.success) {
         throw StateError(r.error?.message ?? 'Update failed');
       }
-      ref.invalidate(orderDetailProvider(orderKey));
+      ref.invalidate(orderDetailProvider(widget.orderKey));
       ref.invalidate(pendingOrdersCountProvider);
       if (context.mounted) {
         _toast(context, 'Order updated');
@@ -469,8 +792,7 @@ class OrderDetailScreen extends ConsumerWidget {
   }
 
   Future<bool> _submitOrderCancellation(
-    BuildContext context,
-    WidgetRef ref, {
+    BuildContext context, {
     required String apiId,
     required String reason,
   }) async {
@@ -480,7 +802,7 @@ class OrderDetailScreen extends ConsumerWidget {
       if (!r.success) {
         throw StateError(r.error?.message ?? 'Could not cancel order');
       }
-      ref.invalidate(orderDetailProvider(orderKey));
+      ref.invalidate(orderDetailProvider(widget.orderKey));
       ref.invalidate(pendingOrdersCountProvider);
       return true;
     } catch (e) {
@@ -493,7 +815,6 @@ class OrderDetailScreen extends ConsumerWidget {
 
   Future<void> _openCancelOrderDialog(
     BuildContext context,
-    WidgetRef ref,
     _OrderDetailData data,
   ) async {
     final confirmed = await showDialog<bool>(
@@ -572,65 +893,21 @@ class OrderDetailScreen extends ConsumerWidget {
 
     final cancelled = await _submitOrderCancellation(
       context,
-      ref,
       apiId: data.apiId,
       reason: reason.trim(),
     );
     if (!cancelled || !context.mounted) return;
 
     _toast(context, 'Order cancelled');
-    _returnToOrdersList(context, ref);
-  }
-
-  static const List<String> _orderStatusOptions = <String>[
-    'pending',
-    'processing',
-    'shipped',
-    'delivered',
-    'cancelled',
-    'refunded',
-  ];
-
-  static const List<String> _paymentStatusOptions = <String>[
-    'pending',
-    'paid',
-    'failed',
-    'refunded',
-  ];
-
-  String _normalizeOrderStatus(String value) {
-    final raw = value.trim().toLowerCase();
-    if (_orderStatusOptions.contains(raw)) return raw;
-    if (raw.contains('process')) return 'processing';
-    if (raw.contains('ship')) return 'shipped';
-    if (raw.contains('deliver')) return 'delivered';
-    if (raw.contains('cancel')) return 'cancelled';
-    if (raw.contains('refund')) return 'refunded';
-    return 'pending';
-  }
-
-  String _normalizePaymentStatus(String value) {
-    final raw = value.trim().toLowerCase();
-    if (_paymentStatusOptions.contains(raw)) return raw;
-    if (raw.contains('paid') || raw.contains('success')) return 'paid';
-    if (raw.contains('refund')) return 'refunded';
-    if (raw.contains('fail')) return 'failed';
-    return 'pending';
-  }
-
-  String _statusLabel(String value) {
-    final v = value.trim().toLowerCase();
-    if (v.isEmpty) return '';
-    return '${v[0].toUpperCase()}${v.substring(1)}';
+    _returnToOrdersList(context);
   }
 
   Future<void> _openProcessOrderDialog(
     BuildContext context,
-    WidgetRef ref,
     _OrderDetailData data,
   ) async {
-    var selectedStatus = _normalizeOrderStatus(data.status);
-    var selectedPaymentStatus = _normalizePaymentStatus(data.paymentStatus);
+    var selectedStatus = OrderDetailScreen._normalizeOrderStatus(data.status);
+    var selectedPaymentStatus = OrderDetailScreen._normalizePaymentStatus(data.paymentStatus);
     var isSaving = false;
     final isTumiziOrder = data.isTumiziOrder;
 
@@ -650,13 +927,11 @@ class OrderDetailScreen extends ConsumerWidget {
               final ok = isTumiziOrder
                   ? await _patchOrderStatus(
                       context,
-                      ref,
                       selectedStatus,
                       apiId: data.apiId,
                     )
                   : await _patchOrderUpdate(
                       context,
-                      ref,
                       apiId: data.apiId,
                       status: selectedStatus,
                       paymentStatus: selectedPaymentStatus,
@@ -664,7 +939,7 @@ class OrderDetailScreen extends ConsumerWidget {
               if (!context.mounted || !sheetContext.mounted) return;
               if (ok) {
                 Navigator.of(sheetContext).pop();
-                _returnToOrdersList(context, ref);
+                _returnToOrdersList(context);
               } else {
                 setSheetState(() => isSaving = false);
               }
@@ -729,8 +1004,13 @@ class OrderDetailScreen extends ConsumerWidget {
                         border: OutlineInputBorder(),
                         contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       ),
-                      items: _orderStatusOptions
-                          .map((s) => DropdownMenuItem(value: s, child: Text(_statusLabel(s))))
+                      items: OrderDetailScreen._orderStatusOptions
+                          .map(
+                            (s) => DropdownMenuItem(
+                              value: s,
+                              child: Text(OrderDetailScreen._statusLabel(s)),
+                            ),
+                          )
                           .toList(),
                       onChanged: isSaving
                           ? null
@@ -757,8 +1037,13 @@ class OrderDetailScreen extends ConsumerWidget {
                           border: OutlineInputBorder(),
                           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                         ),
-                        items: _paymentStatusOptions
-                            .map((s) => DropdownMenuItem(value: s, child: Text(_statusLabel(s))))
+                        items: OrderDetailScreen._paymentStatusOptions
+                            .map(
+                              (s) => DropdownMenuItem(
+                                value: s,
+                                child: Text(OrderDetailScreen._statusLabel(s)),
+                              ),
+                            )
                             .toList(),
                         onChanged: isSaving
                             ? null
@@ -809,9 +1094,31 @@ class OrderDetailScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    ref.listen<AsyncValue<Map<String, dynamic>?>>(
+      orderDetailProvider(widget.orderKey),
+      (previous, next) {
+        next.when(
+          data: (raw) {
+            if (!mounted) return;
+            if (raw == null) {
+              _cancelTumiziPoll();
+              return;
+            }
+            final detail =
+                OrderDetailScreen._mapApiOrderToDetail(raw, widget.orderKey);
+            _configureTumiziPolling(detail);
+          },
+          loading: () {},
+          error: (_, __) {
+            if (mounted) _cancelTumiziPoll();
+          },
+        );
+      },
+    );
+
     final theme = Theme.of(context);
-    final liveOrder = ref.watch(orderDetailProvider(orderKey));
+    final liveOrder = ref.watch(orderDetailProvider(widget.orderKey));
     final pendingOrdersCount = ref.watch(pendingOrdersCountProvider).maybeWhen(
           data: (count) => count,
           orElse: () => 0,
@@ -836,7 +1143,7 @@ class OrderDetailScreen extends ConsumerWidget {
                 Text('$err', textAlign: TextAlign.center),
                 const SizedBox(height: 16),
                 FilledButton(
-                  onPressed: () => ref.invalidate(orderDetailProvider(orderKey)),
+                  onPressed: () => ref.invalidate(orderDetailProvider(widget.orderKey)),
                   child: const Text('Retry'),
                 ),
               ],
@@ -858,7 +1165,7 @@ class OrderDetailScreen extends ConsumerWidget {
                     const Text('Order could not be loaded.'),
                     const SizedBox(height: 16),
                     FilledButton(
-                      onPressed: () => ref.invalidate(orderDetailProvider(orderKey)),
+                      onPressed: () => ref.invalidate(orderDetailProvider(widget.orderKey)),
                       child: const Text('Retry'),
                     ),
                   ],
@@ -867,10 +1174,10 @@ class OrderDetailScreen extends ConsumerWidget {
             ),
           );
         }
-        final data = _mapApiOrderToDetail(raw, orderKey);
+        final data =
+            OrderDetailScreen._mapApiOrderToDetail(raw, widget.orderKey);
         return _buildOrderScaffold(
           context,
-          ref,
           theme,
           data,
           true,
@@ -883,13 +1190,15 @@ class OrderDetailScreen extends ConsumerWidget {
 
   Widget _buildOrderScaffold(
     BuildContext context,
-    WidgetRef ref,
     ThemeData theme,
     _OrderDetailData data,
     bool isLiveData,
     int pendingOrdersCount,
     String badgeLabel,
   ) {
+    final showTumiziPending = data.isTumiziOrder &&
+        OrderDetailScreen._normalizePaymentStatus(data.paymentStatus) ==
+            'pending';
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: DashboardAppBar(
@@ -919,11 +1228,15 @@ class OrderDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _DataSourceBadge(isLiveData: isLiveData),
                 const SizedBox(height: 12),
+                if (showTumiziPending) ...[
+                  _tumiziPendingBanner(theme, data),
+                  const SizedBox(height: 16),
+                ],
                 _itemsCard(context, data),
                 const SizedBox(height: 16),
                 _timelineCard(context, data),
                 const SizedBox(height: 16),
-                _quickActionsCard(context, ref, data),
+                _quickActionsCard(context, data),
                 const SizedBox(height: 16),
                 _customerCard(context, data),
                 const SizedBox(height: 16),
@@ -935,7 +1248,7 @@ class OrderDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
-      bottomNavigationBar: _mobileBottomBar(context, ref, data),
+      bottomNavigationBar: _mobileBottomBar(context, data),
     );
   }
 
@@ -989,7 +1302,7 @@ class OrderDetailScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: _premiumBadgeBg,
+                    color: OrderDetailScreen._premiumBadgeBg,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -1050,7 +1363,7 @@ class OrderDetailScreen extends ConsumerWidget {
             imageUrl: item.imageUrl!,
             fit: BoxFit.cover,
             placeholder: (_, __) => ColoredBox(
-              color: _itemTileBg,
+              color: OrderDetailScreen._itemTileBg,
               child: const Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))),
             ),
             errorWidget: (_, __, ___) => ColoredBox(
@@ -1084,7 +1397,7 @@ class OrderDetailScreen extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _itemTileBg,
+        color: OrderDetailScreen._itemTileBg,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -1142,7 +1455,7 @@ class OrderDetailScreen extends ConsumerWidget {
           Text(
             label,
             style: GoogleFonts.plusJakartaSans(
-              color: _navyTitle,
+              color: OrderDetailScreen._navyTitle,
               fontWeight: FontWeight.w700,
               fontSize: 18,
             ),
@@ -1209,7 +1522,7 @@ class OrderDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _quickActionsCard(BuildContext context, WidgetRef ref, _OrderDetailData data) {
+  Widget _quickActionsCard(BuildContext context, _OrderDetailData data) {
     final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
@@ -1250,7 +1563,7 @@ class OrderDetailScreen extends ConsumerWidget {
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
-                onTap: () => _patchOrderStatus(context, ref, 'shipped', apiId: data.apiId),
+                onTap: () => _patchOrderStatus(context, 'shipped', apiId: data.apiId),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Row(
@@ -1274,7 +1587,7 @@ class OrderDetailScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           Material(
-            color: _surfaceContainerHigh,
+            color: OrderDetailScreen._surfaceContainerHigh,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
@@ -1304,7 +1617,7 @@ class OrderDetailScreen extends ConsumerWidget {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: () => _openCancelOrderDialog(context, ref, data),
+              onTap: () => _openCancelOrderDialog(context, data),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Row(
@@ -1352,7 +1665,7 @@ class OrderDetailScreen extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: _premiumBadgeBg,
+                  color: OrderDetailScreen._premiumBadgeBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(Icons.person_outline_rounded, color: AppTheme.primaryDark, size: 22),
@@ -1433,7 +1746,7 @@ class OrderDetailScreen extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: _premiumBadgeBg,
+                  color: OrderDetailScreen._premiumBadgeBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(Icons.location_on_outlined, color: AppTheme.primaryDark, size: 22),
@@ -1454,7 +1767,7 @@ class OrderDetailScreen extends ConsumerWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: _itemTileBg,
+              color: OrderDetailScreen._itemTileBg,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -1487,7 +1800,7 @@ class OrderDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget? _mobileBottomBar(BuildContext context, WidgetRef ref, _OrderDetailData data) {
+  Widget? _mobileBottomBar(BuildContext context, _OrderDetailData data) {
     final w = MediaQuery.sizeOf(context).width;
     if (w >= 840) return null;
 
@@ -1533,7 +1846,7 @@ class OrderDetailScreen extends ConsumerWidget {
                   ),
                   const Spacer(),
                   FilledButton(
-                    onPressed: () => _openProcessOrderDialog(context, ref, data),
+                    onPressed: () => _openProcessOrderDialog(context, data),
                     style: FilledButton.styleFrom(
                       backgroundColor: AppTheme.primaryDark,
                       foregroundColor: Colors.white,

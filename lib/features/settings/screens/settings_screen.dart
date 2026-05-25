@@ -139,6 +139,14 @@ class SettingsScreen extends ConsumerWidget {
             children: [
               _SettingsRow(
                 theme: theme,
+                icon: Icons.card_membership_outlined,
+                title: 'Subscription & billing',
+                subtitle: 'Plan, trials, M-Pesa, PesaPal',
+                onTap: () => context.push('/subscription'),
+              ),
+              _rowDivider(theme),
+              _SettingsRow(
+                theme: theme,
                 icon: Icons.payments_outlined,
                 title: 'Payments',
                 subtitle: 'Cash on delivery and M-Pesa',

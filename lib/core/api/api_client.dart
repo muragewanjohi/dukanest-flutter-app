@@ -157,7 +157,7 @@ class ApiClient {
     int limit = 20,
     String? startDate,
     String? endDate,
-    String? category,
+    String? categoryId,
   }) async {
     final response = await _dio.get(
       '/dashboard/expenses',
@@ -166,7 +166,8 @@ class ApiClient {
         'limit': limit,
         if (startDate != null && startDate.isNotEmpty) 'start_date': startDate,
         if (endDate != null && endDate.isNotEmpty) 'end_date': endDate,
-        if (category != null && category.isNotEmpty) 'category': category,
+        if (categoryId != null && categoryId.isNotEmpty)
+          'category_id': categoryId,
       },
     );
     return ApiResponse.fromJson(response.data, (json) => json);
@@ -642,6 +643,477 @@ class ApiClient {
         if (search.isNotEmpty) 'search': search,
         if (lowStockOnly) 'low_stock_only': 'true',
       },
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  // --- Orders: Tumizi payment sync ---
+
+  Future<ApiResponse<dynamic>> syncTumiziOrderPayment(String orderId) async {
+    final response =
+        await _dio.get('/dashboard/orders/$orderId/tumizi/sync-payment');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> initiateTumiziOrderPayment(
+    String orderId, {
+    required String phoneNumber,
+    num? amount,
+    String? narration,
+  }) async {
+    final response = await _dio.post(
+      '/dashboard/orders/$orderId/tumizi/initiate-payment',
+      data: {
+        'phoneNumber': phoneNumber,
+        if (amount != null) 'amount': amount,
+        if (narration != null && narration.trim().isNotEmpty)
+          'narration': narration.trim(),
+      },
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  // --- Subscription & billing ---
+
+  Future<ApiResponse<dynamic>> getSubscription() async {
+    final response = await _dio.get('/dashboard/subscription');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getSubscriptionBilling() async {
+    final response = await _dio.get('/dashboard/subscription/billing');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> activateSubscription(
+      Map<String, dynamic> body) async {
+    final response =
+        await _dio.post('/dashboard/subscription/activate', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> initiateSubscriptionMpesa(
+      Map<String, dynamic> body) async {
+    final response =
+        await _dio.post('/dashboard/subscription/mpesa/initiate', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getSubscriptionMpesaStatus(
+      String checkoutRequestId) async {
+    final response = await _dio.get(
+      '/dashboard/subscription/mpesa/status',
+      queryParameters: {'checkoutRequestId': checkoutRequestId},
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getPesapalConfig() async {
+    final response = await _dio.get('/dashboard/subscription/pesapal/config');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> initiatePesapalCheckout(
+      Map<String, dynamic> body) async {
+    final response =
+        await _dio.post('/dashboard/subscription/pesapal/initiate', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  // --- Dashboard reward checklist ---
+
+  Future<ApiResponse<dynamic>> getRewardChecklist() async {
+    final response = await _dio.get('/dashboard/reward-checklist');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  // --- Customers ---
+
+  Future<ApiResponse<dynamic>> updateCustomer(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await _dio.patch('/dashboard/customers/$id', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> deleteCustomer(String id) async {
+    final response = await _dio.delete('/dashboard/customers/$id');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<Response<dynamic>> exportCustomers({
+    String search = '',
+    String email = '',
+    String format = 'csv',
+  }) async {
+    return _dio.get(
+      '/dashboard/customers/export',
+      queryParameters: {
+        if (search.isNotEmpty) 'search': search,
+        if (email.isNotEmpty) 'email': email,
+        'format': format,
+      },
+      options: Options(responseType: ResponseType.bytes),
+    );
+  }
+
+  // --- Inventory mutations ---
+
+  Future<ApiResponse<dynamic>> adjustInventory(Map<String, dynamic> body) async {
+    final response = await _dio.post('/dashboard/inventory/adjust', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> bulkAdjustInventory(
+      Map<String, dynamic> body) async {
+    final response = await _dio.post('/dashboard/inventory/bulk', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getInventoryHistory({
+    int page = 1,
+    int limit = 20,
+    String? productId,
+    String? variantId,
+    String? adjustmentType,
+  }) async {
+    final response = await _dio.get(
+      '/dashboard/inventory/history',
+      queryParameters: {
+        'page': page,
+        'limit': limit,
+        if (productId != null && productId.isNotEmpty) 'productId': productId,
+        if (variantId != null && variantId.isNotEmpty) 'variantId': variantId,
+        if (adjustmentType != null && adjustmentType.isNotEmpty)
+          'adjustmentType': adjustmentType,
+      },
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getInventorySettings() async {
+    final response = await _dio.get('/dashboard/inventory/settings');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> updateInventorySettings(
+      Map<String, dynamic> body) async {
+    final response =
+        await _dio.put('/dashboard/inventory/settings', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getInventoryAlerts() async {
+    final response = await _dio.get('/dashboard/inventory/alerts');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  // --- Sales product assignments ---
+
+  Future<ApiResponse<dynamic>> getSaleProducts(String saleId) async {
+    final response = await _dio.get('/dashboard/sales/$saleId/products');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> addSaleProduct(
+    String saleId,
+    Map<String, dynamic> body,
+  ) async {
+    final response =
+        await _dio.post('/dashboard/sales/$saleId/products', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> updateSaleProduct(
+    String saleId,
+    Map<String, dynamic> body,
+  ) async {
+    final response =
+        await _dio.patch('/dashboard/sales/$saleId/products', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> removeSaleProduct(
+    String saleId,
+    String productId,
+  ) async {
+    final response = await _dio.delete(
+      '/dashboard/sales/$saleId/products',
+      queryParameters: {'productId': productId},
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  // --- Expense categories ---
+
+  Future<ApiResponse<dynamic>> getExpenseCategories() async {
+    final response = await _dio.get('/dashboard/expense-categories');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getExpenseCategory(String id) async {
+    final response = await _dio.get('/dashboard/expense-categories/$id');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> createExpenseCategory(
+      Map<String, dynamic> body) async {
+    final response =
+        await _dio.post('/dashboard/expense-categories', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> updateExpenseCategory(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
+    final response =
+        await _dio.patch('/dashboard/expense-categories/$id', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> deleteExpenseCategory(String id) async {
+    final response = await _dio.delete('/dashboard/expense-categories/$id');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  // --- Blog categories ---
+
+  Future<ApiResponse<dynamic>> getBlogCategories() async {
+    final response = await _dio.get('/dashboard/blogs/categories');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> createBlogCategory(
+      Map<String, dynamic> body) async {
+    final response =
+        await _dio.post('/dashboard/blogs/categories', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getBlogCategory(String id) async {
+    final response = await _dio.get('/dashboard/blogs/categories/$id');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> updateBlogCategory(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
+    final response =
+        await _dio.patch('/dashboard/blogs/categories/$id', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> deleteBlogCategory(String id) async {
+    final response = await _dio.delete('/dashboard/blogs/categories/$id');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  // --- Pages ---
+
+  Future<ApiResponse<dynamic>> createPage(Map<String, dynamic> body) async {
+    final response = await _dio.post('/dashboard/pages', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> deletePage(String id) async {
+    final response = await _dio.delete('/dashboard/pages/$id');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  // --- Media library ---
+
+  Future<ApiResponse<dynamic>> getMedia({
+    int limit = 50,
+    int offset = 0,
+    String search = '',
+    bool sync = false,
+  }) async {
+    final response = await _dio.get(
+      '/dashboard/media',
+      queryParameters: {
+        'limit': limit,
+        'offset': offset,
+        if (search.isNotEmpty) 'search': search,
+        if (sync) 'sync': 'true',
+      },
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> updateMedia(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await _dio.patch('/dashboard/media/$id', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> deleteMedia(String id) async {
+    final response = await _dio.delete('/dashboard/media/$id');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  // --- Forms ---
+
+  Future<ApiResponse<dynamic>> getForms({
+    int page = 1,
+    int limit = 20,
+    String search = '',
+  }) async {
+    final response = await _dio.get(
+      '/dashboard/forms',
+      queryParameters: {
+        'page': page,
+        'limit': limit,
+        if (search.isNotEmpty) 'search': search,
+      },
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> createForm(Map<String, dynamic> body) async {
+    final response = await _dio.post('/dashboard/forms', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getForm(String id) async {
+    final response = await _dio.get('/dashboard/forms/$id');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> updateForm(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await _dio.patch('/dashboard/forms/$id', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> deleteForm(String id) async {
+    final response = await _dio.delete('/dashboard/forms/$id');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getFormSubmissions(
+    String formId, {
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final response = await _dio.get(
+      '/dashboard/forms/$formId/submissions',
+      queryParameters: {'page': page, 'limit': limit},
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  // --- Themes ---
+
+  Future<ApiResponse<dynamic>> getThemes({
+    String? status,
+    bool? isPremium,
+  }) async {
+    final response = await _dio.get(
+      '/dashboard/themes',
+      queryParameters: {
+        if (status != null && status.isNotEmpty) 'status': status,
+        if (isPremium != null) 'is_premium': isPremium.toString(),
+      },
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getCurrentTheme() async {
+    final response = await _dio.get('/dashboard/themes/current');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> updateCurrentTheme(
+      Map<String, dynamic> body) async {
+    final response =
+        await _dio.patch('/dashboard/themes/current', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getInstalledThemes() async {
+    final response = await _dio.get('/dashboard/themes/installed');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getTheme(String id) async {
+    final response = await _dio.get('/dashboard/themes/$id');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> installTheme(Map<String, dynamic> body) async {
+    final response = await _dio.post('/dashboard/themes/install', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  // --- Analytics segments & scheduled reports ---
+
+  Future<ApiResponse<dynamic>> getAnalyticsSegment(
+    String segment, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final response = await _dio.get(
+      '/dashboard/analytics/$segment',
+      queryParameters: queryParameters,
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<Response<dynamic>> exportAnalytics({
+    required String type,
+    String format = 'csv',
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    return _dio.get(
+      '/dashboard/analytics/export',
+      queryParameters: {
+        'type': type,
+        'format': format,
+        ...?queryParameters,
+      },
+      options: Options(responseType: ResponseType.bytes),
+    );
+  }
+
+  Future<ApiResponse<dynamic>> getScheduledReports() async {
+    final response = await _dio.get('/dashboard/analytics/scheduled-reports');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> createScheduledReport(
+      Map<String, dynamic> body) async {
+    final response = await _dio.post(
+      '/dashboard/analytics/scheduled-reports',
+      data: body,
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> deleteScheduledReport(String id) async {
+    final response = await _dio.delete(
+      '/dashboard/analytics/scheduled-reports',
+      queryParameters: {'id': id},
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  // --- M-Pesa (generic mobile flow) ---
+
+  Future<ApiResponse<dynamic>> initiateMpesa(Map<String, dynamic> body) async {
+    final response = await _dio.post('/mpesa/initiate', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getMpesaStatus(String checkoutRequestId) async {
+    final response = await _dio.get(
+      '/mpesa/status',
+      queryParameters: {'checkoutRequestId': checkoutRequestId},
     );
     return ApiResponse.fromJson(response.data, (json) => json);
   }
