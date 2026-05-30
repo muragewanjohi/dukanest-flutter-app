@@ -37,14 +37,28 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
     _taxEnabled = settingsPickBool(tax, ['enabled', 'tax_enabled', 'taxEnabled'], fallback: true);
     final rate = settingsPick(tax, ['default_rate', 'defaultRate', 'rate', 'tax_rate', 'taxRate'], fallback: '0');
     _defaultRate.text = rate.isEmpty ? '0' : rate;
-    _taxInclusive = settingsPickBool(tax, [
-      'inclusive',
-      'tax_inclusive',
-      'taxInclusive',
-      'prices_include_tax',
-      'pricesIncludeTax',
-    ], fallback: true);
+    // Prefer the canonical `pricingType` (inclusive | exclusive); fall back to
+    // the legacy boolean aliases when the server only returns those.
+    final pricingType =
+        settingsPick(tax, ['pricingType', 'pricing_type']).toLowerCase();
+    if (pricingType == 'inclusive') {
+      _taxInclusive = true;
+    } else if (pricingType == 'exclusive') {
+      _taxInclusive = false;
+    } else {
+      _taxInclusive = settingsPickBool(tax, [
+        'includedInPrice',
+        'included_in_price',
+        'inclusive',
+        'tax_inclusive',
+        'taxInclusive',
+        'prices_include_tax',
+        'pricesIncludeTax',
+      ], fallback: true);
+    }
     _calculationBase = _displayTaxBasisFromApi(settingsPick(tax, [
+      'calculationBasedOn',
+      'calculation_based_on',
       'based_on',
       'basedOn',
       'calculate_tax_based_on',

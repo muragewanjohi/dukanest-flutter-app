@@ -1,10 +1,14 @@
 import 'dart:math' show pi;
+import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
 import '../analytics_parse.dart';
 import '../providers/dashboard_analytics_provider.dart';
@@ -21,7 +25,65 @@ class AnalyticsScreen extends ConsumerStatefulWidget {
 class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
     with SingleTickerProviderStateMixin {
   int _period = 1;
+  bool _exportingSummary = false;
   late final TabController _segmentTabs;
+
+  Map<String, dynamic> _exportRange() {
+    final now = DateTime.now();
+    final end = DateTime(now.year, now.month, now.day);
+    final start = end.subtract(Duration(days: _days - 1));
+    String fmt(DateTime d) =>
+        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    return {'startDate': fmt(start), 'endDate': fmt(end)};
+  }
+
+  Future<void> _exportSummary() async {
+    if (_exportingSummary) return;
+    setState(() => _exportingSummary = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final Response<dynamic> res = await api.exportAnalytics(
+        type: 'revenue',
+        format: 'csv',
+        queryParameters: _exportRange(),
+      );
+      final status = res.statusCode ?? 0;
+      if (status < 200 || status >= 300) {
+        throw DioException(
+          requestOptions: res.requestOptions,
+          response: res,
+          type: DioExceptionType.badResponse,
+        );
+      }
+      final payload = res.data;
+      Uint8List bytes;
+      if (payload is Uint8List) {
+        bytes = payload;
+      } else if (payload is List) {
+        bytes = Uint8List.fromList(List<int>.from(payload));
+      } else if (payload is String) {
+        bytes = Uint8List.fromList(payload.codeUnits);
+      } else {
+        throw FormatException('Unexpected export payload: ${payload.runtimeType}');
+      }
+      final file = XFile.fromData(
+        bytes,
+        name: 'analytics_export.csv',
+        mimeType: 'text/csv',
+      );
+      if (!mounted) return;
+      await SharePlus.instance.share(
+        ShareParams(subject: 'Analytics export', files: [file]),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Export failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _exportingSummary = false);
+    }
+  }
 
 
   int get _days => switch (_period) {
@@ -48,7 +110,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
   @override
   void initState() {
     super.initState();
-    _segmentTabs = TabController(length: 8, vsync: this);
+    _segmentTabs = TabController(length: 13, vsync: this);
   }
 
   @override
@@ -140,6 +202,11 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
                     Tab(text: 'Inventory'),
                     Tab(text: 'Traffic'),
                     Tab(text: 'Funnel'),
+                    Tab(text: 'Geographic'),
+                    Tab(text: 'Products'),
+                    Tab(text: 'Refunds'),
+                    Tab(text: 'Compare'),
+                    Tab(text: 'Realtime'),
                   ],
                 ),
               ],
@@ -212,7 +279,11 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
                       _CustomerLoyaltyCard(
                           returningShare: view.returningShare),
                       const SizedBox(height: 16),
-                      _TrafficSourcesCard(rows: view.trafficSources),
+                      _TrafficSourcesCard(
+                        rows: view.trafficSources,
+                        exporting: _exportingSummary,
+                        onExport: _exportSummary,
+                      ),
                     ],
                   ),
                 ),
@@ -225,6 +296,12 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
                     segment: 'traffic-sources', days: _days),
                 AnalyticsSegmentPane(
                     segment: 'conversion-funnel', days: _days),
+                AnalyticsSegmentPane(segment: 'geographic', days: _days),
+                AnalyticsSegmentPane(
+                    segment: 'product-performance', days: _days),
+                AnalyticsSegmentPane(segment: 'refunds', days: _days),
+                AnalyticsSegmentPane(segment: 'compare', days: _days),
+                AnalyticsSegmentPane(segment: 'realtime', days: _days),
               ],
             ),
           ),
@@ -1055,9 +1132,15 @@ class _DonutPainter extends CustomPainter {
 }
 
 class _TrafficSourcesCard extends StatelessWidget {
-  const _TrafficSourcesCard({required this.rows});
+  const _TrafficSourcesCard({
+    required this.rows,
+    required this.exporting,
+    required this.onExport,
+  });
 
   final List<({String label, double fraction})> rows;
+  final bool exporting;
+  final VoidCallback onExport;
 
   @override
   Widget build(BuildContext context) {
@@ -1091,12 +1174,18 @@ class _TrafficSourcesCard extends StatelessWidget {
                 ),
               ),
               TextButton.icon(
-                onPressed: () {},
+                onPressed: exporting ? null : onExport,
                 style: TextButton.styleFrom(
                   foregroundColor: AppTheme.primary,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
-                icon: const Icon(Icons.download_outlined, size: 18),
+                icon: exporting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download_outlined, size: 18),
                 label: Text(
                   'Export Report',
                   style: theme.textTheme.labelLarge?.copyWith(

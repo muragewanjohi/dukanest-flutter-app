@@ -60,7 +60,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     _mpesaEnabled = settingsPickBool(p, ['mpesa_enabled', 'mpesaEnabled', 'mpesa'], fallback: true);
     _tumiziEnabled = _readTumiziEnabled(p);
     _timing = _parsePayTiming(
-      settingsPick(p, ['payment_timing', 'paymentTiming', 'pay_timing', 'when_to_pay', 'whenToPay']),
+      settingsPick(p, ['payment_timing', 'paymentTiming', 'timing', 'pay_timing', 'when_to_pay', 'whenToPay']),
     );
     // Prefer camelCase keys — legacy snake_case `payment_method: cash` must not override `paymentMethod: tumizi`.
     _defaultMethod = _parseDefaultMethod(
@@ -72,19 +72,21 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
       ]),
     );
     _mpesaMethod = _parseMpesa(
-      settingsPick(p, ['mpesa_method', 'mpesaMethod', 'mpesa_type', 'mpesaType', 'lipa_method']),
+      settingsPick(p, ['mpesaOption', 'mpesa_option', 'mpesa_method', 'mpesaMethod', 'mpesa_type', 'mpesaType', 'lipa_method']),
     );
     _sendMoneyPhone.text = settingsPick(p, [
+      'mpesaSendMoneyNumber',
+      'mpesa_send_money_number',
       'mpesa_phone',
       'mpesaPhone',
       'phone',
       'send_money_phone',
       'lipa_phone',
     ]);
-    _tillNumber.text = settingsPick(p, ['till_number', 'tillNumber', 'till']);
-    _paybillNumber.text = settingsPick(p, ['paybill_number', 'paybillNumber', 'paybill']);
-    _accountNumber.text = settingsPick(p, ['account_number', 'accountNumber', 'paybill_account', 'paybillAccount']);
-    _pochiPhone.text = settingsPick(p, ['pochi_phone', 'pochiPhone', 'pochi']);
+    _tillNumber.text = settingsPick(p, ['mpesaBuyGoodsTill', 'mpesa_buy_goods_till', 'till_number', 'tillNumber', 'till']);
+    _paybillNumber.text = settingsPick(p, ['mpesaPaybillNumber', 'mpesa_paybill_number', 'paybill_number', 'paybillNumber', 'paybill']);
+    _accountNumber.text = settingsPick(p, ['mpesaPaybillAccount', 'mpesa_paybill_account', 'account_number', 'accountNumber', 'paybill_account', 'paybillAccount']);
+    _pochiPhone.text = settingsPick(p, ['mpesaPochiPhone', 'mpesa_pochi_phone', 'pochi_phone', 'pochiPhone', 'pochi']);
     _applyTumiziPreferredDefault();
   }
 
@@ -188,7 +190,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
       case _PayTiming.beforeDelivery:
         return 'before_delivery';
       case _PayTiming.either:
-        return 'either';
+        return 'user_choice';
       case _PayTiming.afterDelivery:
         return 'after_delivery';
     }
@@ -315,6 +317,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
           'paymentTiming': timing,
           'payment_timing': timing,
           'timing': timing,
+          'mpesaOption': mpesaMethod,
+          'mpesa_option': mpesaMethod,
           'mpesaMethod': mpesaMethod,
           'mpesa_method': mpesaMethod,
           'mpesaPhone': mpesaPhone,

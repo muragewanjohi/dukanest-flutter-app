@@ -11,6 +11,7 @@ import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
 import '../providers/inventory_providers.dart';
 import '../widgets/adjust_stock_sheet.dart';
+import '../widgets/bulk_adjust_sheet.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
@@ -423,6 +424,24 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                   },
                 ),
                 actions: [
+                  IconButton(
+                    tooltip: 'Bulk adjust',
+                    icon: Icon(Icons.checklist_rounded,
+                        color: theme.colorScheme.onSurfaceVariant),
+                    onPressed: _stockItems.isEmpty
+                        ? null
+                        : () => showBulkAdjustSheet(
+                              context,
+                              ref,
+                              rows: _stockItems.map(_rowFromStockMap).toList(),
+                              onSuccess: () {
+                                _loadStock(page: _stockPage, refreshAlerts: true);
+                                if (_historyItems.isNotEmpty) {
+                                  _loadHistory(page: 1);
+                                }
+                              },
+                            ),
+                  ),
                   IconButton(
                     tooltip: 'Refresh',
                     icon: Icon(Icons.refresh_rounded,

@@ -12,7 +12,9 @@ import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/auth/token_storage.dart';
+import '../../../core/util/store_media_url.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../../media/screens/media_library_screen.dart';
 import '../data/attribute_value_format.dart';
 import '../data/attributes_repository.dart';
 import '../data/categories_repository.dart';
@@ -2318,10 +2320,48 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       );
       return;
     }
-    final source = await _showPhotoSourcePicker();
-    if (source != null) {
-      await _pickPhoto(source);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppTheme.surfaceContainerLowest,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take Photo'),
+              onTap: () => Navigator.pop(ctx, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from Gallery'),
+              onTap: () => Navigator.pop(ctx, 'gallery'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.collections_outlined),
+              title: const Text('Choose from media library'),
+              onTap: () => Navigator.pop(ctx, 'library'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'library') {
+      final url = await MediaLibraryScreen.pick(context);
+      if (url == null || url.trim().isEmpty || !mounted) return;
+      setState(() {
+        if (_totalPhotoSlotsUsed < 5) {
+          _remoteImageUrls.add(normalizeStoreMediaUrl(url));
+        }
+      });
+      return;
     }
+    await _pickPhoto(
+        choice == 'camera' ? ImageSource.camera : ImageSource.gallery);
   }
 
   @override

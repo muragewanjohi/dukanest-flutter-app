@@ -5,10 +5,27 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/util/store_media_url.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
+import '../media_item.dart';
 
 class MediaLibraryScreen extends ConsumerStatefulWidget {
-  const MediaLibraryScreen({super.key});
+  const MediaLibraryScreen({super.key, this.pickMode = false});
+
+  /// When true, tapping a tile pops with the selected (normalized) media URL
+  /// instead of opening the edit dialog.
+  final bool pickMode;
+
+  /// Opens the library as a picker and resolves to the chosen media URL (or
+  /// null if dismissed).
+  static Future<String?> pick(BuildContext context) {
+    return Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const MediaLibraryScreen(pickMode: true),
+      ),
+    );
+  }
 
   @override
   ConsumerState<MediaLibraryScreen> createState() =>
@@ -23,21 +40,9 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
   static const _limit = 40;
   bool _end = false;
 
-  String _pickId(Map<String, dynamic> m) {
-    for (final k in ['id', '_id']) {
-      final v = m[k];
-      if (v != null && v.toString().trim().isNotEmpty) return '$v'.trim();
-    }
-    return '';
-  }
+  String _pickId(Map<String, dynamic> m) => mediaItemId(m);
 
-  String _pickUrl(Map<String, dynamic> m) {
-    for (final k in ['url', 'publicUrl', 'public_url', 'path', 'src']) {
-      final v = m[k];
-      if (v is String && v.trim().isNotEmpty) return v.trim();
-    }
-    return '';
-  }
+  String _pickUrl(Map<String, dynamic> m) => mediaItemUrl(m);
 
   @override
   void initState() {
@@ -216,11 +221,19 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                   8,
                 ),
                 child: DashboardPageHeader(
-                  title: 'Media library',
-                  subtitle: 'Images and files uploaded to your store.',
+                  title: widget.pickMode ? 'Choose media' : 'Media library',
+                  subtitle: widget.pickMode
+                      ? 'Tap an image to use it.'
+                      : 'Images and files uploaded to your store.',
                   leading: IconButton(
                     icon: const Icon(Icons.arrow_back_rounded),
-                    onPressed: () => context.pop(),
+                    onPressed: () {
+                      if (widget.pickMode) {
+                        Navigator.of(context).pop();
+                      } else {
+                        context.pop();
+                      }
+                    },
                   ),
                   storeNameOverride: 'Content',
                 ),
@@ -261,8 +274,17 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
                       borderRadius: BorderRadius.circular(12),
                       clipBehavior: Clip.antiAlias,
                       child: InkWell(
-                        onTap: () => _editItem(item),
-                        onLongPress: () => _deleteItem(item),
+                        onTap: () {
+                          if (widget.pickMode) {
+                            final selected = normalizeStoreMediaUrl(url);
+                            if (selected.isEmpty) return;
+                            Navigator.of(context).pop(selected);
+                          } else {
+                            _editItem(item);
+                          }
+                        },
+                        onLongPress:
+                            widget.pickMode ? null : () => _deleteItem(item),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [

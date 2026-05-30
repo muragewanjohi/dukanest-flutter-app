@@ -1,68 +1,211 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
+import '../../../core/providers/store_identity_provider.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../providers/content_hub_provider.dart';
+import '../data/page_content.dart';
 
-/// Page Editor (home & storefront sections) — Stitch: Page Editor (Full Mobile)
-/// (193cf9f46f214b38ab8e5ca84d6a5192). No duplicate tab bar; bottom bar is in-screen actions only.
-class PageEditorScreen extends StatefulWidget {
+/// Page Editor (home & storefront sections). Loads the real page row via the
+/// Pages API, lets the merchant toggle sections + edit SEO, and saves/publishes
+/// back to `PUT /dashboard/pages/:id`.
+class PageEditorScreen extends ConsumerStatefulWidget {
   const PageEditorScreen({super.key, required this.pageSlug});
 
   final String pageSlug;
 
   @override
-  State<PageEditorScreen> createState() => _PageEditorScreenState();
+  ConsumerState<PageEditorScreen> createState() => _PageEditorScreenState();
 }
 
-class _SectionItem {
-  _SectionItem({
-    required this.emoji,
-    required this.title,
-    required this.subtitle,
-  });
+class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
+  PageContent? _pc;
+  List<PageSection> _sections = [];
+  final _metaTitle = TextEditingController();
+  final _metaDescription = TextEditingController();
 
-  final String emoji;
-  final String title;
-  final String subtitle;
-  bool enabled = true;
-}
-
-class _PageEditorScreenState extends State<PageEditorScreen> {
-  late final List<_SectionItem> _sections;
+  bool _loading = true;
+  String? _error;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _sections = [
-      _SectionItem(emoji: '🎯', title: 'Hero #1', subtitle: 'Step into Style: Elevate...'),
-      _SectionItem(emoji: '📁', title: 'Categories #2', subtitle: '8 categories'),
-      _SectionItem(emoji: '🎨', title: 'Banners #3', subtitle: '3 banners'),
-      _SectionItem(emoji: '⚡', title: 'Sales Tab #4', subtitle: 'Super Flash Sale'),
-      _SectionItem(emoji: '✨', title: 'Features #5', subtitle: '6 features'),
-      _SectionItem(emoji: '🛍️', title: 'Product Tabs #6', subtitle: '3 tabs'),
-      _SectionItem(emoji: '🌓', title: 'Split Layout #7', subtitle: '50-50'),
-      _SectionItem(emoji: '📰', title: 'Blogs #8', subtitle: '6 posts'),
-      _SectionItem(emoji: '📢', title: 'CTA #9', subtitle: 'Continue Your Shopping'),
-    ];
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _metaTitle.dispose();
+    _metaDescription.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = ref.read(apiClientProvider);
+      final pc = await loadPageBySlug(api, widget.pageSlug);
+      if (!mounted) return;
+      if (pc == null) {
+        setState(() {
+          _loading = false;
+          _error = 'Page "${widget.pageSlug}" was not found.';
+        });
+        return;
+      }
+      final seo = pc.content['seo'];
+      final seoMap = seo is Map ? Map<String, dynamic>.from(seo) : const {};
+      _metaTitle.text = (seoMap['meta_title'] ??
+              seoMap['metaTitle'] ??
+              pc.raw['meta_title'] ??
+              pc.raw['metaTitle'] ??
+              '')
+          .toString();
+      _metaDescription.text = (seoMap['meta_description'] ??
+              seoMap['metaDescription'] ??
+              pc.raw['meta_description'] ??
+              pc.raw['metaDescription'] ??
+              '')
+          .toString();
+      setState(() {
+        _pc = pc;
+        _sections = parseSections(pc.content);
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = '$e';
+      });
+    }
   }
 
   String get _headline {
     if (widget.pageSlug == 'home') return 'Home Page Design';
+    final title = _pc?.title ?? '';
+    if (title.isNotEmpty) return '$title Page Design';
     final parts = widget.pageSlug.split('-').where((e) => e.isNotEmpty);
     if (parts.isEmpty) return 'Page Design';
     return '${parts.map((p) => p[0].toUpperCase() + p.substring(1)).join(' ')} Page Design';
   }
 
   void _toast(String msg) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Map<String, dynamic> _buildContentForSave() {
+    final pc = _pc!;
+    final content = Map<String, dynamic>.from(pc.content);
+    for (final s in _sections) {
+      applySectionEnabled(content, s);
+    }
+    final seo = <String, dynamic>{
+      if (content['seo'] is Map) ...Map<String, dynamic>.from(content['seo']),
+      'meta_title': _metaTitle.text.trim(),
+      'meta_description': _metaDescription.text.trim(),
+    };
+    content['seo'] = seo;
+    return content;
+  }
+
+  Future<void> _save({required bool publish}) async {
+    final pc = _pc;
+    if (pc == null || _saving) return;
+    setState(() => _saving = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final err = await savePageContent(
+        api,
+        id: pc.id,
+        content: _buildContentForSave(),
+        metaTitle: _metaTitle.text.trim(),
+        metaDescription: _metaDescription.text.trim(),
+        publish: publish,
+      );
+      if (!mounted) return;
+      if (err != null) {
+        _toast(err);
+        return;
+      }
+      ref.invalidate(contentHubProvider);
+      _toast(publish ? 'Page published' : 'Draft saved');
+    } catch (e) {
+      _toast('Save failed: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _preview() async {
+    final identity = ref.read(storeIdentityProvider).valueOrNull;
+    final base = (identity?.storeUrl ?? '').trim();
+    if (base.isEmpty) {
+      _toast('Store URL is not available yet.');
+      return;
+    }
+    final slug = widget.pageSlug;
+    final path = slug == 'home' ? '' : '/$slug';
+    final uri = Uri.tryParse('$base$path');
+    if (uri == null) {
+      _toast('Could not open the storefront.');
+      return;
+    }
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      _toast('Could not open the storefront.');
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    final pc = _pc;
+    if (pc == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete page?'),
+        content: Text('This permanently removes the "${pc.title}" page.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.deletePage(pc.id);
+      if (!mounted) return;
+      if (!r.success) {
+        _toast(r.error?.message ?? 'Could not delete page');
+        return;
+      }
+      ref.invalidate(contentHubProvider);
+      _toast('Page deleted');
+      if (context.canPop()) context.pop();
+    } catch (e) {
+      _toast('Delete failed: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final canDelete = _pc != null && !_pc!.isProtectedSlug;
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
@@ -70,78 +213,104 @@ class _PageEditorScreenState extends State<PageEditorScreen> {
         title: 'Page Editor',
         showDivider: true,
         actions: [
-          IconButton(
-            icon: Icon(Icons.settings_outlined, color: theme.colorScheme.primary),
-            onPressed: () => _toast('Page settings (demo)'),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.fromLTRB(24, 24, 24, 16 + bottomInset + 72),
-              children: [
-                Text(
-                  'STOREFRONT',
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.primary,
-                    letterSpacing: 1.6,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _headline,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    height: 1.15,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Curate your customer experience by managing page components.',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    height: 1.4,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 28),
-                ...List.generate(_sections.length, (i) => _sectionTile(context, theme, i)),
-                const SizedBox(height: 20),
-                _AddSectionCard(theme: theme, onTap: () => _toast('Add section (demo)')),
-                const SizedBox(height: 28),
-                _SeoExpansionCard(
-                  theme: theme,
-                  title: 'SEO Settings',
-                  subtitle: 'Meta tags for search engine optimization',
-                ),
-                const SizedBox(height: 10),
-                _SeoExpansionCard(
-                  theme: theme,
-                  title: 'SEO Preview',
-                  subtitle: 'How your page will appear in search engine results',
-                ),
-              ],
+          if (canDelete)
+            IconButton(
+              icon: Icon(Icons.delete_outline_rounded, color: theme.colorScheme.error),
+              onPressed: _confirmDelete,
             ),
-          ),
-          _BottomActionBar(
-            bottomPadding: bottomInset,
-            onPreview: () => _toast('Preview (demo)'),
-            onSaveDraft: () => _toast('Draft saved (demo)'),
-            onPublish: () => _toast('Page published (demo)'),
-          ),
         ],
       ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(_error!, textAlign: TextAlign.center),
+                        const SizedBox(height: 16),
+                        FilledButton(onPressed: _load, child: const Text('Retry')),
+                      ],
+                    ),
+                  ),
+                )
+              : Column(
+                  children: [
+                    Expanded(
+                      child: ListView(
+                        padding: EdgeInsets.fromLTRB(24, 24, 24, 16 + bottomInset + 72),
+                        children: [
+                          Text(
+                            'STOREFRONT',
+                            style: GoogleFonts.inter(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: theme.colorScheme.primary,
+                              letterSpacing: 1.6,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _headline,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              height: 1.15,
+                              color: theme.colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Curate your customer experience by managing page components.',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              height: 1.4,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+                          if (_sections.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              child: Text(
+                                'This page has no configurable sections yet.',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            )
+                          else
+                            ...List.generate(
+                              _sections.length,
+                              (i) => _sectionTile(context, theme, i),
+                            ),
+                          const SizedBox(height: 28),
+                          _SeoEditorCard(
+                            theme: theme,
+                            metaTitle: _metaTitle,
+                            metaDescription: _metaDescription,
+                          ),
+                        ],
+                      ),
+                    ),
+                    _BottomActionBar(
+                      bottomPadding: bottomInset,
+                      saving: _saving,
+                      onPreview: _preview,
+                      onSaveDraft: () => _save(publish: false),
+                      onPublish: () => _save(publish: true),
+                    ),
+                  ],
+                ),
     );
   }
 
   Widget _sectionTile(BuildContext context, ThemeData theme, int i) {
     final s = _sections[i];
+    final isHero = s.key.toLowerCase() == 'hero';
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
@@ -150,7 +319,7 @@ class _PageEditorScreenState extends State<PageEditorScreen> {
         shadowColor: Colors.black12,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
-          onTap: i == 0 ? () => context.push('/hero-section/edit') : null,
+          onTap: isHero ? () => context.push('/hero-section/edit') : null,
           borderRadius: BorderRadius.circular(12),
           child: Container(
             decoration: BoxDecoration(
@@ -166,107 +335,56 @@ class _PageEditorScreenState extends State<PageEditorScreen> {
             ),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             child: Row(
-            children: [
-              Icon(Icons.drag_indicator_rounded, color: theme.colorScheme.outline, size: 22),
-              const SizedBox(width: 8),
-              Text(s.emoji, style: const TextStyle(fontSize: 20)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      s.title,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.onSurface,
-                        height: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      s.subtitle,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Transform.scale(
-                scale: 0.82,
-                child: Switch(
-                  value: s.enabled,
-                  onChanged: (v) => setState(() => s.enabled = v),
-                  activeTrackColor: theme.colorScheme.primary,
-                  activeThumbColor: Colors.white,
-                  inactiveTrackColor: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
-                ),
-              ),
-              IconButton(
-                icon: Icon(Icons.edit_outlined, color: theme.colorScheme.onSurfaceVariant, size: 22),
-                onPressed: () {
-                  if (i == 0) {
-                    context.push('/hero-section/edit');
-                  } else {
-                    _toast('Edit ${s.title} (demo)');
-                  }
-                },
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-              ),
-            ],
-          ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AddSectionCard extends StatelessWidget {
-  const _AddSectionCard({required this.theme, required this.onTap});
-
-  final ThemeData theme;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: CustomPaint(
-          foregroundPainter: _DashedRectPainter(
-            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
-            strokeWidth: 2,
-          ),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            child: Column(
               children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
+                Icon(Icons.drag_indicator_rounded, color: theme.colorScheme.outline, size: 22),
+                const SizedBox(width: 8),
+                Text(s.emoji, style: const TextStyle(fontSize: 20)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        s.label,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurface,
+                          height: 1.2,
+                        ),
+                      ),
+                      if (s.subtitle.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          s.subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  child: Icon(Icons.add, color: theme.colorScheme.primary, size: 22),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Add New Section',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: theme.colorScheme.primary,
+                Transform.scale(
+                  scale: 0.82,
+                  child: Switch(
+                    value: s.enabled,
+                    onChanged: (v) => setState(() => s.enabled = v),
+                    activeTrackColor: theme.colorScheme.primary,
+                    activeThumbColor: Colors.white,
+                    inactiveTrackColor: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
                   ),
                 ),
+                if (isHero)
+                  IconButton(
+                    icon: Icon(Icons.edit_outlined, color: theme.colorScheme.onSurfaceVariant, size: 22),
+                    onPressed: () => context.push('/hero-section/edit'),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                  ),
               ],
             ),
           ),
@@ -276,56 +394,30 @@ class _AddSectionCard extends StatelessWidget {
   }
 }
 
-class _DashedRectPainter extends CustomPainter {
-  _DashedRectPainter({required this.color, required this.strokeWidth});
-
-  final Color color;
-  final double strokeWidth;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final r = RRect.fromRectAndRadius(
-      Rect.fromLTWH(strokeWidth / 2, strokeWidth / 2, size.width - strokeWidth, size.height - strokeWidth),
-      const Radius.circular(12),
-    );
-    final path = Path()..addRRect(r);
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
-    _drawDashedPath(canvas, path, paint);
-  }
-
-  void _drawDashedPath(Canvas canvas, Path path, Paint paint) {
-    for (final metric in path.computeMetrics()) {
-      double len = 0;
-      while (len < metric.length) {
-        final double end = (len + 6).clamp(0.0, metric.length);
-        final extract = metric.extractPath(len, end);
-        canvas.drawPath(extract, paint);
-        len += 12;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DashedRectPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.strokeWidth != strokeWidth;
-}
-
-class _SeoExpansionCard extends StatelessWidget {
-  const _SeoExpansionCard({
+class _SeoEditorCard extends StatelessWidget {
+  const _SeoEditorCard({
     required this.theme,
-    required this.title,
-    required this.subtitle,
+    required this.metaTitle,
+    required this.metaDescription,
   });
 
   final ThemeData theme;
-  final String title;
-  final String subtitle;
+  final TextEditingController metaTitle;
+  final TextEditingController metaDescription;
 
   @override
   Widget build(BuildContext context) {
+    InputDecoration deco(String hint) => InputDecoration(
+          hintText: hint,
+          filled: true,
+          fillColor: theme.colorScheme.surfaceContainerLow,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        );
+
     return Material(
       color: theme.colorScheme.surfaceContainerLowest,
       borderRadius: BorderRadius.circular(12),
@@ -343,7 +435,7 @@ class _SeoExpansionCard extends StatelessWidget {
             side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.25)),
           ),
           title: Text(
-            title,
+            'SEO Settings',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -351,16 +443,17 @@ class _SeoExpansionCard extends StatelessWidget {
             ),
           ),
           subtitle: Text(
-            subtitle,
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            'Meta tags for search engine optimization',
+            style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
           ),
           children: [
-            Text(
-              'Configure in a future build.',
-              style: GoogleFonts.inter(fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
+            TextField(controller: metaTitle, decoration: deco('Meta title')),
+            const SizedBox(height: 12),
+            TextField(
+              controller: metaDescription,
+              minLines: 2,
+              maxLines: 4,
+              decoration: deco('Meta description'),
             ),
           ],
         ),
@@ -372,12 +465,14 @@ class _SeoExpansionCard extends StatelessWidget {
 class _BottomActionBar extends StatelessWidget {
   const _BottomActionBar({
     required this.bottomPadding,
+    required this.saving,
     required this.onPreview,
     required this.onSaveDraft,
     required this.onPublish,
   });
 
   final double bottomPadding;
+  final bool saving;
   final VoidCallback onPreview;
   final VoidCallback onSaveDraft;
   final VoidCallback onPublish;
@@ -399,7 +494,7 @@ class _BottomActionBar extends StatelessWidget {
                   theme,
                   label: 'Preview',
                   filled: false,
-                  onPressed: onPreview,
+                  onPressed: saving ? null : onPreview,
                 ),
               ),
               const SizedBox(width: 8),
@@ -408,7 +503,7 @@ class _BottomActionBar extends StatelessWidget {
                   theme,
                   label: 'Save Draft',
                   filled: false,
-                  onPressed: onSaveDraft,
+                  onPressed: saving ? null : onSaveDraft,
                 ),
               ),
               const SizedBox(width: 8),
@@ -416,9 +511,9 @@ class _BottomActionBar extends StatelessWidget {
                 flex: 2,
                 child: _barButton(
                   theme,
-                  label: 'Publish Page',
+                  label: saving ? 'Saving…' : 'Publish Page',
                   filled: true,
-                  onPressed: onPublish,
+                  onPressed: saving ? null : onPublish,
                 ),
               ),
             ],
@@ -432,7 +527,7 @@ class _BottomActionBar extends StatelessWidget {
     ThemeData theme, {
     required String label,
     required bool filled,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
   }) {
     final style = GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800);
     if (filled) {

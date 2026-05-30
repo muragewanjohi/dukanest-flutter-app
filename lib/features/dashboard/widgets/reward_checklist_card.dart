@@ -4,39 +4,24 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
 import '../providers/dashboard_reward_checklist_provider.dart';
+import '../reward_checklist_data.dart';
 
 /// Progress card for the onboarding reward (free month) program.
 class RewardChecklistCard extends ConsumerWidget {
   const RewardChecklistCard({super.key});
 
-  static Map<String, dynamic>? _rewardMap(Map<String, dynamic>? data) {
-    if (data == null) return null;
-    final r = data['reward'];
-    if (r is! Map) return null;
-    return Map<String, dynamic>.from(r);
-  }
-
-  static bool _bool(dynamic v) => v == true;
-
-  static bool shouldShow(Map<String, dynamic>? data) {
-    final reward = _rewardMap(data);
-    if (reward == null) return false;
-    if (!_bool(reward['enabled'])) return false;
-    final eligible = _bool(reward['eligible']);
-    final granted = _bool(reward['granted']);
-    return eligible || granted;
-  }
+  static bool shouldShow(Map<String, dynamic>? data) => shouldShowReward(data);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(dashboardRewardChecklistProvider);
     final data = async.valueOrNull;
-    if (data == null || !shouldShow(data)) {
+    if (data == null || !shouldShowReward(data)) {
       return const SizedBox.shrink();
     }
-    final reward = _rewardMap(data)!;
+    final reward = rewardMap(data)!;
     final theme = Theme.of(context);
-    final granted = _bool(reward['granted']);
+    final granted = rewardBool(reward['granted']);
     final progress = (data['progressPercent'] is num)
         ? (data['progressPercent'] as num).toDouble().clamp(0.0, 100.0) / 100.0
         : 0.0;
@@ -127,6 +112,10 @@ class RewardChecklistCard extends ConsumerWidget {
               ),
             ),
           ],
+          if (rewardSteps(data).isNotEmpty) ...[
+            const SizedBox(height: 14),
+            ...rewardSteps(data).map((s) => _StepRow(step: s)),
+          ],
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
@@ -140,6 +129,59 @@ class RewardChecklistCard extends ConsumerWidget {
                 ),
               ),
               child: const Text('View subscription & plan'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepRow extends StatelessWidget {
+  const _StepRow({required this.step});
+
+  final ({String title, String subtitle, bool done}) step;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            step.done
+                ? Icons.check_circle_rounded
+                : Icons.radio_button_unchecked_rounded,
+            size: 20,
+            color: step.done
+                ? Colors.green.shade600
+                : theme.colorScheme.outline,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  step.title,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: step.done
+                        ? theme.colorScheme.onSurfaceVariant
+                        : AppTheme.primaryDark,
+                    decoration: step.done ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+                if (step.subtitle.isNotEmpty)
+                  Text(
+                    step.subtitle,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
             ),
           ),
         ],

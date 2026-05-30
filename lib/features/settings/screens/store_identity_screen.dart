@@ -20,6 +20,7 @@ import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
 import '../../dashboard/providers/dashboard_getting_started_provider.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
+import '../../media/screens/media_library_screen.dart';
 import '../../onboarding/providers/auth_provider.dart';
 import '../providers/dashboard_settings_provider.dart';
 
@@ -50,6 +51,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
   final _decimalPlaces = TextEditingController(text: '0');
   final _thousandSeparator = TextEditingController(text: ',');
   final _decimalSeparator = TextEditingController(text: '.');
+  String _symbolPosition = 'left';
   final _picker = ImagePicker();
 
   List<String> _countryOptions = const [];
@@ -172,6 +174,10 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     final currency = settingsSection(data, 'currency') ?? {};
     _currencyCode.text = settingsPick(currency, ['code'], fallback: 'KES');
     _currencySymbol.text = settingsPick(currency, ['symbol'], fallback: 'KSh');
+    final symbolPosition =
+        settingsPick(currency, ['symbolPosition', 'symbol_position'], fallback: 'left')
+            .toLowerCase();
+    _symbolPosition = symbolPosition == 'right' ? 'right' : 'left';
     _decimalPlaces.text = settingsPick(currency, ['decimalPlaces', 'decimal_places'], fallback: '0');
     _thousandSeparator.text = settingsPick(currency, ['thousandSeparator', 'thousand_separator'], fallback: ',');
     _decimalSeparator.text = settingsPick(currency, ['decimalSeparator', 'decimal_separator'], fallback: '.');
@@ -253,6 +259,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       'name': _storeName.text.trim(),
       'domain': _domain.text.trim(),
       'phone': phoneDigits,
+      'phone2': _normalizeLocalPhone(_phone2Local.text),
+      'phone3': _normalizeLocalPhone(_phone3Local.text),
       'line1': _address1.text.trim(),
       'city': _city.text.trim(),
       'state': _state.text.trim(),
@@ -262,6 +270,12 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       'description': _description.text.trim(),
       'businessType': _businessType,
       'selling': _sellingCategory,
+      'currencyCode': _currencyCode.text.trim(),
+      'currencySymbol': _currencySymbol.text.trim(),
+      'symbolPosition': _symbolPosition,
+      'decimalPlaces': _decimalPlaces.text.trim(),
+      'thousandSeparator': _thousandSeparator.text.trim(),
+      'decimalSeparator': _decimalSeparator.text.trim(),
       'logo': normalizeStoreMediaUrl(_logoImageUrl ?? ''),
       'pendingLogo': _pendingLogoLocalPath ?? '',
       'logoCleared': _logoClearedByUser,
@@ -589,15 +603,28 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       final phoneE164 = _toE164(_phoneLocal.text);
       final phone2E164 = _toE164(_phone2Local.text);
       final phone3E164 = _toE164(_phone3Local.text);
+      final city = _city.text.trim();
+      final stateRegion = _state.text.trim();
+      final country = _country.text.trim();
+      final postal = _postal.text.trim();
       final storePatch = <String, dynamic>{
         'name': name,
         'line1': line1,
         'address_line_1': line1,
-        'city': _city.text.trim(),
-        'state': _state.text.trim(),
-        'country': _country.text.trim(),
-        'postalCode': _postal.text.trim(),
-        'postal_code': _postal.text.trim(),
+        'city': city,
+        'state': stateRegion,
+        'country': country,
+        'postalCode': postal,
+        'postal_code': postal,
+        // Canonical nested address object (mirrors the doc DTO) alongside the
+        // flat keys for servers that read either shape.
+        'address': {
+          'line1': line1,
+          'city': city,
+          'state': stateRegion,
+          'country': country,
+          'postalCode': postal,
+        },
         'contactEmail': _supportEmail.text.trim(),
         'contact_email': _supportEmail.text.trim(),
         'description': _description.text.trim(),
@@ -606,8 +633,9 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
         storePatch['phone'] = phoneE164;
         storePatch['store_phone'] = phoneE164;
       }
-      if (phone2E164.isNotEmpty) storePatch['phone2'] = phone2E164;
-      if (phone3E164.isNotEmpty) storePatch['phone3'] = phone3E164;
+      // Send phone2/phone3 even when cleared so the server drops the old value.
+      storePatch['phone2'] = phone2E164;
+      storePatch['phone3'] = phone3E164;
       var logo = normalizeStoreMediaUrl(_logoImageUrl ?? '');
       String? uploadedFromLocalPath;
       if (_pendingLogoLocalPath != null && !_logoClearedByUser) {
@@ -633,6 +661,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
         'currency': {
           'code': _currencyCode.text.trim(),
           'symbol': _currencySymbol.text.trim(),
+          'symbolPosition': _symbolPosition,
+          'symbol_position': _symbolPosition,
           'decimalPlaces': int.tryParse(_decimalPlaces.text.trim()) ?? 0,
           'thousandSeparator': _thousandSeparator.text.trim(),
           'decimalSeparator': _decimalSeparator.text.trim(),
@@ -795,7 +825,20 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     if (_uploadingLogo || _saving) return;
     final source = await _showLogoSourcePicker();
     if (!mounted || source == null) return;
-    final file = await _picker.pickImage(source: source, maxWidth: 2048);
+    if (source == 'library') {
+      final url = await MediaLibraryScreen.pick(context);
+      if (!mounted || url == null || url.trim().isEmpty) return;
+      setState(() {
+        _logoImageUrl = normalizeStoreMediaUrl(url);
+        _pendingLogoLocalPath = null;
+        _logoClearedByUser = false;
+        _logoCacheEpoch++;
+      });
+      return;
+    }
+    final imgSource =
+        source == 'camera' ? ImageSource.camera : ImageSource.gallery;
+    final file = await _picker.pickImage(source: imgSource, maxWidth: 2048);
     if (!mounted || file == null) return;
     setState(() {
       _pendingLogoLocalPath = file.path;
@@ -804,8 +847,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     });
   }
 
-  Future<ImageSource?> _showLogoSourcePicker() async {
-    return showModalBottomSheet<ImageSource>(
+  Future<String?> _showLogoSourcePicker() async {
+    return showModalBottomSheet<String>(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -817,12 +860,17 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
               title: const Text('Take photo'),
-              onTap: () => Navigator.of(ctx).pop(ImageSource.camera),
+              onTap: () => Navigator.of(ctx).pop('camera'),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
               title: const Text('Upload from gallery'),
-              onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
+              onTap: () => Navigator.of(ctx).pop('gallery'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.collections_outlined),
+              title: const Text('Choose from media library'),
+              onTap: () => Navigator.of(ctx).pop('library'),
             ),
           ],
         ),
@@ -1085,6 +1133,40 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                           _label(theme, 'Symbol'),
                           TextField(controller: _currencySymbol, decoration: _fieldDeco(theme)),
                         ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _label(theme, 'Symbol position'),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _symbolPosition,
+                          isExpanded: true,
+                          icon: Icon(Icons.expand_more_rounded,
+                              color: theme.colorScheme.onSurfaceVariant),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'left',
+                              child: Text('Before amount (KSh 1,000)'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'right',
+                              child: Text('After amount (1,000 KSh)'),
+                            ),
+                          ],
+                          onChanged: (v) =>
+                              setState(() => _symbolPosition = v ?? 'left'),
+                        ),
                       ),
                     ),
                   ],

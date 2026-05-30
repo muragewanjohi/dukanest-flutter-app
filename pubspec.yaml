@@ -63,6 +63,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
   build_runner: any
   riverpod_generator: any
   mockito: any
@@ -77,6 +79,8 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.7
   image: ^4.8.0
+  mocktail: ^1.0.5
+  http_mock_adapter: ^0.6.1
 
 flutter_native_splash:
   color: "#FAF9F9"

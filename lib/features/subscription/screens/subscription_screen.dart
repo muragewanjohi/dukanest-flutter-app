@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../subscription_plan.dart';
 import '../providers/subscription_provider.dart';
 import '../widgets/mpesa_checkout_sheet.dart';
 import '../widgets/pesapal_checkout_webview.dart';
@@ -145,6 +146,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                             currentId != null && _planId(p) == currentId,
                         onMpesa: () => _onMpesa(p),
                         onPesapal: () => _onPesapal(data, p),
+                        onActivateFree: () => _onActivateFree(p),
                         onDowngrade: () =>
                             _confirmDowngrade(plans, currentId ?? '', p),
                       ),
@@ -341,6 +343,55 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
             suffix != null ? 'Plan change noted: $suffix' : 'Plan change submitted.',
           ),
         ),
+      );
+      await _refreshAll();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
+  Future<void> _onActivateFree(Map<String, dynamic> plan) async {
+    final id = _planId(plan);
+    if (id == null || id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Missing plan identifier.')),
+      );
+      return;
+    }
+    final title = _planTitle(plan) ?? 'this plan';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Activate plan'),
+        content: Text('Switch to $title now? No payment is required for this plan.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Activate')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      final api = ref.read(apiClientProvider);
+      final res = await api.activateSubscription({
+        'plan_id': id,
+        'planId': id,
+        'action': 'activate',
+        'billingCycle': _billingCycle,
+        'billing_cycle': _billingCycle,
+      });
+      if (!mounted) return;
+      if (!res.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res.error?.message ?? 'Could not activate plan')),
+        );
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Plan activated.')),
       );
       await _refreshAll();
     } catch (e) {
@@ -582,6 +633,7 @@ class _PlanCard extends StatelessWidget {
     required this.isCurrent,
     required this.onMpesa,
     required this.onPesapal,
+    required this.onActivateFree,
     required this.onDowngrade,
   });
 
@@ -592,6 +644,7 @@ class _PlanCard extends StatelessWidget {
   final bool isCurrent;
   final VoidCallback onMpesa;
   final VoidCallback onPesapal;
+  final VoidCallback onActivateFree;
   final VoidCallback onDowngrade;
 
   @override
@@ -683,34 +736,45 @@ class _PlanCard extends StatelessWidget {
                   onBillingCycleChanged(s.first),
             ),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton(
-                    style: _btn(theme),
-                    onPressed: isCurrent ? null : onMpesa,
-                    child: const Text('M-Pesa'),
-                  ),
+            if (_isFreeActivatable(plan) && !isCurrent)
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: _btn(theme),
+                  onPressed: onActivateFree,
+                  icon: const Icon(Icons.check_circle_outline, size: 18),
+                  label: const Text('Activate (no payment)'),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.primaryDark,
-                      side:
-                          BorderSide(color: theme.colorScheme.outlineVariant),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      style: _btn(theme),
+                      onPressed: isCurrent ? null : onMpesa,
+                      child: const Text('M-Pesa'),
                     ),
-                    onPressed: isCurrent ? null : onPesapal,
-                    child: const Text('PesaPal'),
                   ),
-                ),
-              ],
-            ),
-            if (!isCurrent) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primaryDark,
+                        side:
+                            BorderSide(color: theme.colorScheme.outlineVariant),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: isCurrent ? null : onPesapal,
+                      child: const Text('PesaPal'),
+                    ),
+                  ),
+                ],
+              ),
+            if (!isCurrent && !_isFreeActivatable(plan)) ...[
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerLeft,
@@ -843,6 +907,8 @@ num? _pickNum(Map<String, dynamic> m, List<String> keys) {
   }
   return null;
 }
+
+bool _isFreeActivatable(Map<String, dynamic> p) => isPlanFreeActivatable(p);
 
 String? _planId(Map<String, dynamic> p) =>
     _pickString(p, ['id', 'planId', 'plan_id', 'pricePlanId']);

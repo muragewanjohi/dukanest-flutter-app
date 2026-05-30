@@ -5,8 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../providers/content_hub_provider.dart';
+import '../../settings/providers/dashboard_settings_provider.dart';
 
 /// Content Manager — Stitch: Content Management (Updated Nav & Sales)
 /// (c0999576f9e44e32945d93fb39de9be4). No duplicate bottom nav.
@@ -27,6 +29,95 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _createPage() async {
+    final titleCtrl = TextEditingController();
+    final slugCtrl = TextEditingController();
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('New page'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Title'),
+              onChanged: (v) {
+                if (slugCtrl.text.trim().isEmpty || _looksAutoSlug(slugCtrl.text, titleCtrl.text)) {
+                  slugCtrl.text = _slugify(v);
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: slugCtrl,
+              decoration: const InputDecoration(labelText: 'Slug', prefixText: '/'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Create')),
+        ],
+      ),
+    );
+    if (created != true) {
+      titleCtrl.dispose();
+      slugCtrl.dispose();
+      return;
+    }
+    final title = titleCtrl.text.trim();
+    final slug = _slugify(slugCtrl.text.trim().isEmpty ? title : slugCtrl.text.trim());
+    titleCtrl.dispose();
+    slugCtrl.dispose();
+    if (title.isEmpty || slug.isEmpty) {
+      _toast('Enter a page title.');
+      return;
+    }
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.createPage({
+        'title': title,
+        'slug': slug,
+        'status': 'draft',
+        'content': <String, dynamic>{},
+      });
+      if (!mounted) return;
+      if (!r.success) {
+        _toast(r.error?.message ?? 'Could not create page');
+        return;
+      }
+      ref.invalidate(contentHubProvider);
+      _toast('Page "$title" created');
+    } catch (e) {
+      _toast('Create failed: $e');
+    }
+  }
+
+  static bool _looksAutoSlug(String slug, String title) =>
+      slug == _slugify(title);
+
+  static String _slugify(String input) => input
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
+
+  Future<void> _manageBlogCategories() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => const _BlogCategoriesSheet(),
+    );
   }
 
   @override
@@ -94,6 +185,11 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
                   onPressed: () => context.push('/media-library'),
                   icon: const Icon(Icons.photo_library_outlined, size: 18),
                   label: const Text('Media'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _manageBlogCategories,
+                  icon: const Icon(Icons.sell_outlined, size: 18),
+                  label: const Text('Blog categories'),
                 ),
               ],
             ),
@@ -166,7 +262,7 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
                 ),
                 const Spacer(),
                 IconButton(
-                  onPressed: () {},
+                  onPressed: _createPage,
                   icon: Icon(Icons.add_circle, color: theme.colorScheme.primary),
                 ),
               ],
@@ -514,6 +610,207 @@ class _PageRow extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _BlogCategoriesSheet extends ConsumerStatefulWidget {
+  const _BlogCategoriesSheet();
+
+  @override
+  ConsumerState<_BlogCategoriesSheet> createState() => _BlogCategoriesSheetState();
+}
+
+class _BlogCategoriesSheetState extends ConsumerState<_BlogCategoriesSheet> {
+  final _nameCtrl = TextEditingController();
+  List<Map<String, dynamic>> _categories = [];
+  bool _loading = true;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.getBlogCategories();
+      if (!mounted) return;
+      if (!r.success) {
+        setState(() {
+          _loading = false;
+          _error = r.error?.message ?? 'Could not load categories';
+        });
+        return;
+      }
+      final root = unwrapSettingsData(r.data) ?? r.data;
+      final items = (root is Map ? (root['items'] ?? root['data'] ?? root['categories']) : null);
+      setState(() {
+        _categories = items is List
+            ? items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+            : [];
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = '$e';
+      });
+    }
+  }
+
+  Future<void> _create() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty || _busy) return;
+    setState(() => _busy = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.createBlogCategory({'name': name});
+      if (!mounted) return;
+      if (!r.success) {
+        _toast(r.error?.message ?? 'Could not create category');
+        return;
+      }
+      _nameCtrl.clear();
+      await _load();
+    } catch (e) {
+      _toast('Create failed: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _delete(Map<String, dynamic> category) async {
+    final id = settingsPick(category, ['id', '_id']);
+    if (id.isEmpty || _busy) return;
+    setState(() => _busy = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.deleteBlogCategory(id);
+      if (!mounted) return;
+      if (!r.success) {
+        _toast(r.error?.message ?? 'Could not delete category');
+        return;
+      }
+      await _load();
+    } catch (e) {
+      _toast('Delete failed: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        4,
+        20,
+        20 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Blog categories',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.primaryDark,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _nameCtrl,
+                  decoration: const InputDecoration(
+                    hintText: 'New category name',
+                    isDense: true,
+                  ),
+                  onSubmitted: (_) => _create(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: _busy ? null : _create,
+                child: const Text('Add'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_error != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  Expanded(child: Text(_error!)),
+                  TextButton(onPressed: _load, child: const Text('Retry')),
+                ],
+              ),
+            )
+          else if (_categories.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'No blog categories yet.',
+                style: GoogleFonts.inter(fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
+              ),
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 320),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: _categories.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (_, i) {
+                  final c = _categories[i];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(settingsPick(c, ['name', 'title'], fallback: 'Untitled')),
+                    subtitle: () {
+                      final slug = settingsPick(c, ['slug']);
+                      return slug.isEmpty ? null : Text(slug);
+                    }(),
+                    trailing: IconButton(
+                      icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
+                      onPressed: _busy ? null : () => _delete(c),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
       ),
     );
   }
