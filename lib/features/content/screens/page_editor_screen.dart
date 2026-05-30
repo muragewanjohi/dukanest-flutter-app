@@ -175,10 +175,13 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
         title: const Text('Delete page?'),
         content: Text('This permanently removes the "${pc.title}" page.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error),
             child: const Text('Delete'),
           ),
         ],
@@ -215,7 +218,8 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
         actions: [
           if (canDelete)
             IconButton(
-              icon: Icon(Icons.delete_outline_rounded, color: theme.colorScheme.error),
+              icon: Icon(Icons.delete_outline_rounded,
+                  color: theme.colorScheme.error),
               onPressed: _confirmDelete,
             ),
         ],
@@ -231,7 +235,8 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
                       children: [
                         Text(_error!, textAlign: TextAlign.center),
                         const SizedBox(height: 16),
-                        FilledButton(onPressed: _load, child: const Text('Retry')),
+                        FilledButton(
+                            onPressed: _load, child: const Text('Retry')),
                       ],
                     ),
                   ),
@@ -240,7 +245,8 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
                   children: [
                     Expanded(
                       child: ListView(
-                        padding: EdgeInsets.fromLTRB(24, 24, 24, 16 + bottomInset + 72),
+                        padding: EdgeInsets.fromLTRB(
+                            24, 24, 24, 16 + bottomInset + 72),
                         children: [
                           Text(
                             'STOREFRONT',
@@ -324,7 +330,9 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.25)),
+              border: Border.all(
+                  color:
+                      theme.colorScheme.outlineVariant.withValues(alpha: 0.25)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.04),
@@ -336,7 +344,8 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             child: Row(
               children: [
-                Icon(Icons.drag_indicator_rounded, color: theme.colorScheme.outline, size: 22),
+                Icon(Icons.drag_indicator_rounded,
+                    color: theme.colorScheme.outline, size: 22),
                 const SizedBox(width: 8),
                 Text(s.emoji, style: const TextStyle(fontSize: 20)),
                 const SizedBox(width: 10),
@@ -375,15 +384,18 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
                     onChanged: (v) => setState(() => s.enabled = v),
                     activeTrackColor: theme.colorScheme.primary,
                     activeThumbColor: Colors.white,
-                    inactiveTrackColor: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+                    inactiveTrackColor: theme.colorScheme.outlineVariant
+                        .withValues(alpha: 0.45),
                   ),
                 ),
                 if (isHero)
                   IconButton(
-                    icon: Icon(Icons.edit_outlined, color: theme.colorScheme.onSurfaceVariant, size: 22),
+                    icon: Icon(Icons.edit_outlined,
+                        color: theme.colorScheme.onSurfaceVariant, size: 22),
                     onPressed: () => context.push('/hero-section/edit'),
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                    constraints:
+                        const BoxConstraints(minWidth: 40, minHeight: 40),
                   ),
               ],
             ),
@@ -415,7 +427,8 @@ class _SeoEditorCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         );
 
     return Material(
@@ -428,11 +441,15 @@ class _SeoEditorCard extends StatelessWidget {
           childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.25)),
+            side: BorderSide(
+                color:
+                    theme.colorScheme.outlineVariant.withValues(alpha: 0.25)),
           ),
           collapsedShape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.25)),
+            side: BorderSide(
+                color:
+                    theme.colorScheme.outlineVariant.withValues(alpha: 0.25)),
           ),
           title: Text(
             'SEO Settings',
@@ -444,7 +461,8 @@ class _SeoEditorCard extends StatelessWidget {
           ),
           subtitle: Text(
             'Meta tags for search engine optimization',
-            style: GoogleFonts.inter(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+            style: GoogleFonts.inter(
+                fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
           ),
           children: [
             TextField(controller: metaTitle, decoration: deco('Meta title')),
@@ -486,7 +504,8 @@ class _BottomActionBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + (bottomPadding > 0 ? 0 : 8)),
+          padding:
+              EdgeInsets.fromLTRB(16, 12, 16, 12 + (bottomPadding > 0 ? 0 : 8)),
           child: Row(
             children: [
               Expanded(
@@ -529,7 +548,8 @@ class _BottomActionBar extends StatelessWidget {
     required bool filled,
     required VoidCallback? onPressed,
   }) {
-    final style = GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800);
+    final style =
+        GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800);
     if (filled) {
       return FilledButton(
         onPressed: onPressed,
@@ -537,7 +557,8 @@ class _BottomActionBar extends StatelessWidget {
           backgroundColor: theme.colorScheme.primary,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           elevation: 2,
         ),
         child: Text(label, style: style),
@@ -548,7 +569,8 @@ class _BottomActionBar extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         foregroundColor: theme.colorScheme.onSurface,
         backgroundColor: theme.colorScheme.surfaceContainerHigh,
-        side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.25)),
+        side: BorderSide(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.25)),
         padding: const EdgeInsets.symmetric(vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),

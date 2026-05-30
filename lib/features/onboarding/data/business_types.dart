@@ -74,6 +74,7 @@ const List<BusinessTypeOption> kBusinessTypeOptions = [
   ),
   BusinessTypeOption(
     value: 'Other',
-    description: 'Choose this if your business does not fit the categories above.',
+    description:
+        'Choose this if your business does not fit the categories above.',
   ),
 ];

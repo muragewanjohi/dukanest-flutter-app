@@ -17,7 +17,8 @@ void main() {
     });
 
     test('true when all discoverable prices are zero', () {
-      expect(isPlanFreeActivatable({'monthlyPrice': 0, 'yearlyPrice': 0}), isTrue);
+      expect(
+          isPlanFreeActivatable({'monthlyPrice': 0, 'yearlyPrice': 0}), isTrue);
       expect(isPlanFreeActivatable({'price': 0}), isTrue);
       expect(isPlanFreeActivatable({'price': '0'}), isTrue);
     });
@@ -35,7 +36,8 @@ void main() {
       );
     });
 
-    test('false when no price and no flags are present (cannot infer free)', () {
+    test('false when no price and no flags are present (cannot infer free)',
+        () {
       expect(isPlanFreeActivatable({'name': 'Mystery'}), isFalse);
       expect(isPlanFreeActivatable(<String, dynamic>{}), isFalse);
     });

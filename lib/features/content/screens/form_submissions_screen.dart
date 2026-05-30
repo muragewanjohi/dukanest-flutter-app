@@ -105,8 +105,7 @@ class _FormSubmissionsScreenState extends ConsumerState<FormSubmissionsScreen> {
                   )
                 : ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    itemCount:
-                        _items.length + (_page > 1 ? 3 : 2),
+                    itemCount: _items.length + (_page > 1 ? 3 : 2),
                     padding: const EdgeInsets.all(16),
                     itemBuilder: (context, i) {
                       if (i == 0) {
@@ -126,8 +125,7 @@ class _FormSubmissionsScreenState extends ConsumerState<FormSubmissionsScreen> {
                           label: const Text('Previous page'),
                         );
                       }
-                      final idx =
-                          _page > 1 ? i - 2 : i - 1;
+                      final idx = _page > 1 ? i - 2 : i - 1;
                       if (idx >= _items.length) {
                         if (_items.length >= 20) {
                           return TextButton.icon(

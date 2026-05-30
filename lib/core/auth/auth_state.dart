@@ -1,6 +1,7 @@
 enum AuthStatus {
   /// Secure storage + optional `/auth/me` not finished yet.
   initial,
+
   /// Access token present; validating with `GET /auth/me`.
   sessionRestoring,
   unauthenticated,
@@ -15,6 +16,7 @@ class AuthUser {
   final String role;
   final String? tenantId;
   final bool isMfaEnabled;
+
   /// Display name from auth (`name`, `fullName`, Supabase metadata, etc.).
   final String? name;
 
@@ -55,8 +57,9 @@ class AuthUser {
       email: json['email'] as String,
       role: json['role'] as String? ?? 'user',
       tenantId: json['tenant_id'] as String? ?? json['tenantId'] as String?,
-      isMfaEnabled:
-          json['is_mfa_enabled'] as bool? ?? json['mfaEnabled'] as bool? ?? false,
+      isMfaEnabled: json['is_mfa_enabled'] as bool? ??
+          json['mfaEnabled'] as bool? ??
+          false,
       name: pickName(),
     );
   }

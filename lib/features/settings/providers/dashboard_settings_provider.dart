@@ -20,7 +20,8 @@ Map<String, dynamic>? settingsSection(Map<String, dynamic>? root, String key) {
   return null;
 }
 
-String settingsPick(Map<String, dynamic>? m, List<String> keys, {String fallback = ''}) {
+String settingsPick(Map<String, dynamic>? m, List<String> keys,
+    {String fallback = ''}) {
   if (m == null) return fallback;
   for (final k in keys) {
     final v = m[k];
@@ -50,11 +51,13 @@ String readStoreLogoFromSettings(Map<String, dynamic> data) {
       return normalizeStoreMediaUrl(fromStatic);
     }
   }
-  final top = settingsPick(data, ['store_logo', 'storeLogo', 'logoUrl', 'logo']);
+  final top =
+      settingsPick(data, ['store_logo', 'storeLogo', 'logoUrl', 'logo']);
   return normalizeStoreMediaUrl(top);
 }
 
-bool settingsPickBool(Map<String, dynamic>? m, List<String> keys, {bool fallback = false}) {
+bool settingsPickBool(Map<String, dynamic>? m, List<String> keys,
+    {bool fallback = false}) {
   if (m == null) return fallback;
   for (final k in keys) {
     final v = m[k];
@@ -69,7 +72,8 @@ bool settingsPickBool(Map<String, dynamic>? m, List<String> keys, {bool fallback
 }
 
 /// Cached GET `/dashboard/settings` for store / payment / tax / shipping editors.
-final dashboardSettingsProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((ref) async {
+final dashboardSettingsProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>?>((ref) async {
   final api = ref.watch(apiClientProvider);
   final r = await api.getDashboardSettings();
   if (!r.success || r.data == null) {

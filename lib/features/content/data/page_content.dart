@@ -60,7 +60,8 @@ Future<PageContent?> loadPageBySlug(ApiClient api, String slug) async {
     throw StateError(listResp.error?.message ?? 'Could not load pages');
   }
   final listRoot = unwrapSettingsData(listResp.data) ?? listResp.data;
-  final items = (listRoot is Map ? (listRoot['items'] ?? listRoot['data']) : null);
+  final items =
+      (listRoot is Map ? (listRoot['items'] ?? listRoot['data']) : null);
   String? id;
   if (items is List) {
     for (final e in items.whereType<Map>()) {
@@ -161,8 +162,10 @@ List<PageSection> parseSections(Map<String, dynamic> content) {
     final meta = kSectionLabels[key.toLowerCase()];
     final emoji = meta?.emoji ?? '📄';
     final label = meta?.label ?? _humanize(key);
-    final section = value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
-    final subtitle = settingsPick(section, ['title', 'heading', 'subtitle', 'description']);
+    final section =
+        value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
+    final subtitle =
+        settingsPick(section, ['title', 'heading', 'subtitle', 'description']);
     result.add(PageSection(
       key: key,
       emoji: emoji,
@@ -177,7 +180,8 @@ List<PageSection> parseSections(Map<String, dynamic> content) {
       final s = sections[i];
       if (s is Map) {
         final m = Map<String, dynamic>.from(s);
-        final key = settingsPick(m, ['type', 'key', 'id', 'name'], fallback: 'section_$i');
+        final key = settingsPick(m, ['type', 'key', 'id', 'name'],
+            fallback: 'section_$i');
         addFromKey(key, m, index: i);
       }
     }
@@ -239,7 +243,7 @@ void writeHero(Map<String, dynamic> content, Map<String, dynamic> hero) {
     for (final s in sections) {
       if (s is Map) {
         final key = settingsPick(
-            Map<String, dynamic>.from(s), ['type', 'key', 'id', 'name'])
+                Map<String, dynamic>.from(s), ['type', 'key', 'id', 'name'])
             .toLowerCase();
         if (key == 'hero') {
           s.addAll(hero);

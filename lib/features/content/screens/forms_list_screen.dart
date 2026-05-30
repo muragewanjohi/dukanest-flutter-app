@@ -71,7 +71,8 @@ class _FormsListScreenState extends ConsumerState<FormsListScreen> {
         _page = page;
         _totalPages = (pMap['totalPages'] ?? pMap['total_pages'] ?? 1) is int
             ? (pMap['totalPages'] ?? pMap['total_pages']) as int
-            : int.tryParse('${pMap['totalPages'] ?? pMap['total_pages'] ?? 1}') ??
+            : int.tryParse(
+                    '${pMap['totalPages'] ?? pMap['total_pages'] ?? 1}') ??
                 1;
         _loading = false;
       });
@@ -133,38 +134,31 @@ class _FormsListScreenState extends ConsumerState<FormsListScreen> {
                   ? const Center(child: CircularProgressIndicator())
                   : _error != null
                       ? Center(
-                          child:
-                              Text(_error!, textAlign: TextAlign.center),
+                          child: Text(_error!, textAlign: TextAlign.center),
                         )
                       : ListView.builder(
-                          itemCount:
-                              _items.length + (_totalPages > 1 ? 1 : 0),
+                          itemCount: _items.length + (_totalPages > 1 ? 1 : 0),
                           itemBuilder: (context, i) {
                             if (i >= _items.length) {
                               return Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.center,
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   IconButton(
-                                    onPressed:
-                                        _page > 1 && !_loading
-                                            ? () => _load(
-                                                page: _page - 1,
-                                              )
-                                            : null,
-                                    icon:
-                                        const Icon(Icons.chevron_left),
+                                    onPressed: _page > 1 && !_loading
+                                        ? () => _load(
+                                              page: _page - 1,
+                                            )
+                                        : null,
+                                    icon: const Icon(Icons.chevron_left),
                                   ),
                                   Text('$_page / $_totalPages'),
                                   IconButton(
-                                    onPressed: _page < _totalPages &&
-                                            !_loading
+                                    onPressed: _page < _totalPages && !_loading
                                         ? () => _load(
                                               page: _page + 1,
                                             )
                                         : null,
-                                    icon:
-                                        const Icon(Icons.chevron_right),
+                                    icon: const Icon(Icons.chevron_right),
                                   ),
                                 ],
                               );

@@ -38,8 +38,8 @@ mixin FormErrorHighlightMixin<T extends StatefulWidget> on State<T> {
   /// Return (and lazily create) a stable GlobalKey for the given [fieldId].
   /// Attach this key to a `KeyedSubtree`/widget that wraps the field so it can
   /// be scrolled into view.
-  GlobalKey keyFor(String fieldId) =>
-      _fieldKeys.putIfAbsent(fieldId, () => GlobalKey(debugLabel: 'field:$fieldId'));
+  GlobalKey keyFor(String fieldId) => _fieldKeys.putIfAbsent(
+      fieldId, () => GlobalKey(debugLabel: 'field:$fieldId'));
 
   /// True when [fieldId] is currently the highlighted error field.
   bool isFieldInvalid(String fieldId) => _errorFieldId == fieldId;

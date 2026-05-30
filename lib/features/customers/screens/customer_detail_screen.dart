@@ -50,8 +50,7 @@ class CustomerDetailScreen extends ConsumerWidget {
           customerId: customerId,
           data: raw,
           allowDelete: allowDelete,
-          onAfterEdit: () =>
-              ref.invalidate(customerDetailProvider(customerId)),
+          onAfterEdit: () => ref.invalidate(customerDetailProvider(customerId)),
           theme: theme,
         ),
       ),
@@ -163,24 +162,22 @@ class _CustomerDetailBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final name = _pickString(data,
-        ['name', 'fullName', 'full_name', 'displayName', 'display_name']);
+    final name = _pickString(
+        data, ['name', 'fullName', 'full_name', 'displayName', 'display_name']);
     final email = _pickString(data, ['email']);
     final phone =
         _pickString(data, ['phone', 'phoneNumber', 'phone_number', 'mobile']);
-    final orders = _pickInt(data,
-        ['orderCount', 'ordersCount', 'totalOrders', 'total_orders']);
+    final orders = _pickInt(
+        data, ['orderCount', 'ordersCount', 'totalOrders', 'total_orders']);
     final spentRaw = data['totalSpent'] ??
         data['lifetimeValue'] ??
         data['total_spent'] ??
         data['lifetime_value'];
-    final avgRaw = data['averageOrderValue'] ??
-        data['average_order_value'] ??
-        data['aov'];
+    final avgRaw =
+        data['averageOrderValue'] ?? data['average_order_value'] ?? data['aov'];
 
-    final lastOrder = data['lastOrderAt'] ??
-        data['last_order_at'] ??
-        data['lastOrder'];
+    final lastOrder =
+        data['lastOrderAt'] ?? data['last_order_at'] ?? data['lastOrder'];
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -298,14 +295,12 @@ class _CustomerDetailBody extends ConsumerWidget {
           const SizedBox(height: 10),
           _InfoTile(
               label: 'Customer ID',
-              value:
-                  customerId.isNotEmpty ? customerId : '(missing id)',
+              value: customerId.isNotEmpty ? customerId : '(missing id)',
               monospace: true),
           if (_pickString(data, ['createdAt', 'created_at']).isNotEmpty)
             _InfoTile(
               label: 'Joined',
-              value:
-                  _formatDate(data['createdAt'] ?? data['created_at']),
+              value: _formatDate(data['createdAt'] ?? data['created_at']),
             ),
           if (_pickString(data, ['notes', 'internal_notes']).isNotEmpty)
             _InfoTile(
@@ -346,9 +341,7 @@ class _AggregateCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon,
-                  size: 18,
-                  color: theme.colorScheme.onSurfaceVariant),
+              Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
               const SizedBox(width: 6),
               Text(
                 label.toUpperCase(),

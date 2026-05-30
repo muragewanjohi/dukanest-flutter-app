@@ -66,7 +66,8 @@ class DashboardAppBar extends StatelessWidget implements PreferredSizeWidget {
                 preferredSize: const Size.fromHeight(1),
                 child: Divider(
                   height: 1,
-                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+                  color:
+                      theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
                 ),
               )
             : null);

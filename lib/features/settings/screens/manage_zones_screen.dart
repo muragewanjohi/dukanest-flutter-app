@@ -44,7 +44,9 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
       returnToTutorialOnCreate: inTutorialFlow,
     );
     await ctx.push(
-      inTutorialFlow ? '/shipping-zone-editor?tutorial=1' : '/shipping-zone-editor',
+      inTutorialFlow
+          ? '/shipping-zone-editor?tutorial=1'
+          : '/shipping-zone-editor',
       extra: nextArgs,
     );
     if (!mounted) return;
@@ -100,16 +102,16 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
         if (zones.isNotEmpty) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
-            ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(
+            ref
+                .read(dashboardLocalStepCompletionsProvider.notifier)
+                .markComplete(
                   DashboardOnboardingStepKeys.shipping,
                 );
           });
         }
         final filtered = q.isEmpty
             ? zones
-            : zones
-                .where((z) => _zoneMatchesQuery(z, q))
-                .toList();
+            : zones.where((z) => _zoneMatchesQuery(z, q)).toList();
 
         return Scaffold(
           backgroundColor: AppTheme.surface,
@@ -166,15 +168,18 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
                 controller: _searchController,
                 decoration: InputDecoration(
                   hintText: 'Search zones…',
-                  hintStyle: GoogleFonts.inter(color: theme.colorScheme.outlineVariant),
-                  prefixIcon: Icon(Icons.search_rounded, color: theme.colorScheme.onSurfaceVariant),
+                  hintStyle: GoogleFonts.inter(
+                      color: theme.colorScheme.outlineVariant),
+                  prefixIcon: Icon(Icons.search_rounded,
+                      color: theme.colorScheme.onSurfaceVariant),
                   filled: true,
                   fillColor: theme.colorScheme.surfaceContainerLow,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide.none,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                 ),
                 onChanged: (_) => setState(() {}),
               ),
@@ -182,16 +187,19 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withValues(alpha: 0.12),
+                  color: theme.colorScheme.primaryContainer
+                      .withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: theme.colorScheme.primaryContainer.withValues(alpha: 0.25),
+                    color: theme.colorScheme.primaryContainer
+                        .withValues(alpha: 0.25),
                   ),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline_rounded, color: theme.colorScheme.primary, size: 22),
+                    Icon(Icons.info_outline_rounded,
+                        color: theme.colorScheme.primary, size: 22),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -244,7 +252,8 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
                           initialName: name,
                           initialAreas: List<String>.from(areas),
                           initialFeeKes: fee.toStringAsFixed(0),
-                          initialFreeOverKes: zoneFreeOver(z).toStringAsFixed(0),
+                          initialFreeOverKes:
+                              zoneFreeOver(z).toStringAsFixed(0),
                           initialHandlingDays: zoneHandlingDays(z).toString(),
                           initialIsDefault: zoneIsDefault(z),
                         ),
@@ -253,7 +262,9 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
                       child: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                          border: Border.all(
+                              color: theme.colorScheme.outlineVariant
+                                  .withValues(alpha: 0.3)),
                         ),
                         padding: const EdgeInsets.all(16),
                         child: Row(
@@ -266,7 +277,8 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
                                 color: theme.colorScheme.surfaceContainerHigh,
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Icon(Icons.map_outlined, color: AppTheme.primaryDark, size: 26),
+                              child: Icon(Icons.map_outlined,
+                                  color: AppTheme.primaryDark, size: 26),
                             ),
                             const SizedBox(width: 14),
                             Expanded(
@@ -287,17 +299,21 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
                                       ),
                                       if (zoneIsDefault(z))
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 3),
                                           decoration: BoxDecoration(
-                                            color: theme.colorScheme.secondaryContainer,
-                                            borderRadius: BorderRadius.circular(999),
+                                            color: theme
+                                                .colorScheme.secondaryContainer,
+                                            borderRadius:
+                                                BorderRadius.circular(999),
                                           ),
                                           child: Text(
                                             'DEFAULT',
                                             style: GoogleFonts.inter(
                                               fontSize: 10,
                                               fontWeight: FontWeight.w800,
-                                              color: theme.colorScheme.onSecondaryContainer,
+                                              color: theme.colorScheme
+                                                  .onSecondaryContainer,
                                             ),
                                           ),
                                         ),
@@ -324,7 +340,8 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
                                 ],
                               ),
                             ),
-                            Icon(Icons.chevron_right_rounded, color: theme.colorScheme.outlineVariant),
+                            Icon(Icons.chevron_right_rounded,
+                                color: theme.colorScheme.outlineVariant),
                           ],
                         ),
                       ),
@@ -338,13 +355,16 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
                 icon: Icon(Icons.add_rounded, color: AppTheme.primaryDark),
                 label: Text(
                   'Add delivery zone',
-                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, color: AppTheme.primaryDark),
+                  style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w700, color: AppTheme.primaryDark),
                 ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppTheme.primaryDark,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: BorderSide(color: AppTheme.primaryDark.withValues(alpha: 0.35)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  side: BorderSide(
+                      color: AppTheme.primaryDark.withValues(alpha: 0.35)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                 ),
               ),
             ],

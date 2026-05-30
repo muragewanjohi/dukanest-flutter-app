@@ -27,7 +27,8 @@ class AttributeEditorScreen extends ConsumerStatefulWidget {
   bool get isNew => attributeId == null;
 
   @override
-  ConsumerState<AttributeEditorScreen> createState() => _AttributeEditorScreenState();
+  ConsumerState<AttributeEditorScreen> createState() =>
+      _AttributeEditorScreenState();
 }
 
 class _DraftColorRow {
@@ -42,7 +43,8 @@ class _DraftColorRow {
 }
 
 class _DraftPlainRow {
-  _DraftPlainRow([String text = '']) : value = TextEditingController(text: text);
+  _DraftPlainRow([String text = ''])
+      : value = TextEditingController(text: text);
 
   final TextEditingController value;
 
@@ -74,7 +76,8 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
   Future<void> _loadRemote() async {
     setState(() => _loadingRemote = true);
     try {
-      final detail = await ref.read(dashboardAttributeDetailProvider(widget.attributeId!).future);
+      final detail = await ref
+          .read(dashboardAttributeDetailProvider(widget.attributeId!).future);
       if (!mounted || detail == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -106,7 +109,9 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
   }
 
   Iterable<String> _collectValueIds(Map<String, dynamic> detail) sync* {
-    final vals = detail['values'] ?? detail['attributeValues'] ?? detail['attribute_values'];
+    final vals = detail['values'] ??
+        detail['attributeValues'] ??
+        detail['attribute_values'];
     if (vals is! List) return;
     for (final v in vals) {
       if (v is Map && v['id'] != null) {
@@ -123,7 +128,9 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
       if (label.isEmpty) label = 'Option';
       return {
         'value': label,
-        if (col != null) 'color_code': AttributeValueFormat.encodeColor(label, col).split('|').last,
+        if (col != null)
+          'color_code':
+              AttributeValueFormat.encodeColor(label, col).split('|').last,
       };
     }
     return {'value': AttributeValueFormat.toPlainEditorText(serialized)};
@@ -155,7 +162,10 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
     }
     _plainRows = values.isEmpty
         ? [_DraftPlainRow()]
-        : values.map((s) => _DraftPlainRow(AttributeValueFormat.toPlainEditorText(s))).toList();
+        : values
+            .map((s) =>
+                _DraftPlainRow(AttributeValueFormat.toPlainEditorText(s)))
+            .toList();
     _colorRows = [];
   }
 
@@ -192,7 +202,10 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
           .whereType<String>()
           .toList();
     }
-    return _plainRows.map((r) => r.value.text.trim()).where((s) => s.isNotEmpty).toList();
+    return _plainRows
+        .map((r) => r.value.text.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
   }
 
   void _onDisplayTypeChanged(AttributeDisplayType next) {
@@ -209,7 +222,8 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
         _colorRows = stored.map((s) {
           if (s.contains('|')) {
             final (lab, c) = AttributeValueFormat.parse(s);
-            return _DraftColorRow(label: lab, color: c ?? const Color(0xFF9E9E9E));
+            return _DraftColorRow(
+                label: lab, color: c ?? const Color(0xFF9E9E9E));
           }
           final (lab, col) = AttributeValueFormat.fromPlainEditorText(s);
           return _DraftColorRow(label: lab, color: col);
@@ -220,7 +234,10 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
       if (stored.isEmpty) {
         _plainRows = [_DraftPlainRow()];
       } else {
-        _plainRows = stored.map((s) => _DraftPlainRow(AttributeValueFormat.toPlainEditorText(s))).toList();
+        _plainRows = stored
+            .map((s) =>
+                _DraftPlainRow(AttributeValueFormat.toPlainEditorText(s)))
+            .toList();
       }
       _colorRows = [];
     }
@@ -255,7 +272,9 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, scratch),
               child: const Text('Use color'),
@@ -323,7 +342,10 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
     setState(() => _saving = true);
     try {
       final api = ref.read(apiClientProvider);
-      final slug = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'^-|-$'), '');
+      final slug = name
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+          .replaceAll(RegExp(r'^-|-$'), '');
       final safeSlug = slug.isEmpty ? 'attribute' : slug;
 
       if (widget.isNew) {
@@ -335,13 +357,17 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
         if (!cr.success) throw StateError(cr.error?.message ?? 'Create failed');
         final root = unwrapSettingsData(cr.data) ?? cr.data;
         final attrMap = root is Map<String, dynamic>
-            ? Map<String, dynamic>.from(root['attribute'] ?? root['item'] ?? root)
+            ? Map<String, dynamic>.from(
+                root['attribute'] ?? root['item'] ?? root)
             : <String, dynamic>{};
         final newId = attrMap['id']?.toString() ?? '';
         if (newId.isEmpty) throw StateError('Missing attribute id');
         for (final v in values) {
-          final vr = await api.createAttributeValue(newId, _apiBodyForSerializedValue(v));
-          if (!vr.success) throw StateError(vr.error?.message ?? 'Value create failed');
+          final vr = await api.createAttributeValue(
+              newId, _apiBodyForSerializedValue(v));
+          if (!vr.success) {
+            throw StateError(vr.error?.message ?? 'Value create failed');
+          }
         }
       } else {
         final id = widget.attributeId!;
@@ -355,8 +381,11 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
         }
         _remoteValueIds.clear();
         for (final v in values) {
-          final vr = await api.createAttributeValue(id, _apiBodyForSerializedValue(v));
-          if (!vr.success) throw StateError(vr.error?.message ?? 'Value create failed');
+          final vr =
+              await api.createAttributeValue(id, _apiBodyForSerializedValue(v));
+          if (!vr.success) {
+            throw StateError(vr.error?.message ?? 'Value create failed');
+          }
         }
       }
       ref.invalidate(dashboardAttributesProvider);
@@ -403,10 +432,13 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
           'This removes the attribute from the catalog. Product variants using it may need updates.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Delete', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+            child: Text('Delete',
+                style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
           ),
         ],
       ),
@@ -525,10 +557,14 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
                     onSelected: (_) => _onDisplayTypeChanged(t),
                     selectedColor: AppTheme.primary.withValues(alpha: 0.22),
                     labelStyle: GoogleFonts.inter(
-                      color: _displayType == t ? AppTheme.primaryDark : AppTheme.onSurfaceVariant,
+                      color: _displayType == t
+                          ? AppTheme.primaryDark
+                          : AppTheme.onSurfaceVariant,
                     ),
                     side: BorderSide(
-                      color: _displayType == t ? AppTheme.primary : AppTheme.outlineVariant.withValues(alpha: 0.5),
+                      color: _displayType == t
+                          ? AppTheme.primary
+                          : AppTheme.outlineVariant.withValues(alpha: 0.5),
                     ),
                     showCheckmark: false,
                   ),
@@ -643,11 +679,13 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
                     backgroundColor: AppTheme.primaryDark,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   child: Text(
                     widget.isNew ? 'Create attribute' : 'Save changes',
-                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                    style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -692,7 +730,8 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppTheme.outlineVariant),
                 ),
-                child: Icon(Icons.palette_outlined, color: _contrastOn(row.color)),
+                child:
+                    Icon(Icons.palette_outlined, color: _contrastOn(row.color)),
               ),
             ),
           ),
@@ -727,7 +766,9 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
           Expanded(
             child: TextField(
               controller: row.value,
-              keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+              keyboardType: isNumber
+                  ? const TextInputType.numberWithOptions(decimal: true)
+                  : TextInputType.text,
               inputFormatters: isNumber
                   ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))]
                   : null,
@@ -809,12 +850,18 @@ class _AttributeEditorScreenState extends ConsumerState<AttributeEditorScreen>
             ),
           ),
           const SizedBox(height: 10),
-          _exampleAttribute(name: 'Size', values: const ['Small', 'Medium', 'Large']),
+          _exampleAttribute(
+              name: 'Size', values: const ['Small', 'Medium', 'Large']),
           _exampleAttribute(
             name: 'Colour',
-            values: const ['Red (#FF0000)', 'Blue (#0000FF)', 'Green (#00FF00)'],
+            values: const [
+              'Red (#FF0000)',
+              'Blue (#0000FF)',
+              'Green (#00FF00)'
+            ],
           ),
-          _exampleAttribute(name: 'Weight', values: const ['200g', '500g', '1kg']),
+          _exampleAttribute(
+              name: 'Weight', values: const ['200g', '500g', '1kg']),
           const SizedBox(height: 12),
           Text(
             'Attributes are reusable across products. Once created, you can use them when creating product variants.',

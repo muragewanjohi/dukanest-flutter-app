@@ -109,7 +109,8 @@ class TokenStorage {
   }
 
   Future<void> saveFirstRunTutorialSeen(bool seen) async {
-    await _storage.write(key: _firstRunTutorialSeenKey, value: seen ? '1' : '0');
+    await _storage.write(
+        key: _firstRunTutorialSeenKey, value: seen ? '1' : '0');
   }
 
   Future<bool> hasFirstRunTutorialSeenFlag() async {

@@ -111,7 +111,9 @@ class _MfaScreenState extends ConsumerState<MfaScreen> {
 
   Future<void> _resend() async {
     setState(() => _isResending = true);
-    await ref.read(authProvider.notifier).resendMfaCode(includeSmsFallback: true);
+    await ref
+        .read(authProvider.notifier)
+        .resendMfaCode(includeSmsFallback: true);
     if (!mounted) return;
     setState(() => _isResending = false);
 
@@ -248,8 +250,8 @@ class _MfaScreenState extends ConsumerState<MfaScreen> {
                           color: AppTheme.surfaceContainerLow,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: AppTheme.outlineVariant
-                                .withValues(alpha: 0.1),
+                            color:
+                                AppTheme.outlineVariant.withValues(alpha: 0.1),
                           ),
                           boxShadow: [
                             BoxShadow(
@@ -265,8 +267,10 @@ class _MfaScreenState extends ConsumerState<MfaScreen> {
                             LayoutBuilder(
                               builder: (context, constraints) {
                                 const fixedSpacing = 8.0 * 4 + 20.0;
-                                final available = constraints.maxWidth - fixedSpacing;
-                                final fieldWidth = (available / 6).clamp(40.0, 48.0);
+                                final available =
+                                    constraints.maxWidth - fixedSpacing;
+                                final fieldWidth =
+                                    (available / 6).clamp(40.0, 48.0);
                                 return Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
@@ -276,13 +280,15 @@ class _MfaScreenState extends ConsumerState<MfaScreen> {
                                     const SizedBox(width: 8),
                                     _digitField(context, 2, width: fieldWidth),
                                     Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 6),
                                       child: Container(
                                         width: 8,
                                         height: 4,
                                         decoration: BoxDecoration(
                                           color: AppTheme.outlineVariant,
-                                          borderRadius: BorderRadius.circular(4),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
                                         ),
                                       ),
                                     ),
@@ -344,15 +350,17 @@ class _MfaScreenState extends ConsumerState<MfaScreen> {
                                       ],
                                     ),
                                     child: ElevatedButton(
-                                      onPressed: (_isVerifying || _code.length != 6)
-                                          ? null
-                                          : _submit,
+                                      onPressed:
+                                          (_isVerifying || _code.length != 6)
+                                              ? null
+                                              : _submit,
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.transparent,
                                         shadowColor: Colors.transparent,
                                         foregroundColor: Colors.white,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                         ),
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 20,
@@ -369,7 +377,8 @@ class _MfaScreenState extends ConsumerState<MfaScreen> {
                                             )
                                           : Text(
                                               'Verify and login',
-                                              style: GoogleFonts.plusJakartaSans(
+                                              style:
+                                                  GoogleFonts.plusJakartaSans(
                                                 fontSize: 15,
                                                 fontWeight: FontWeight.w600,
                                                 color: Colors.white,
@@ -390,7 +399,8 @@ class _MfaScreenState extends ConsumerState<MfaScreen> {
                                         foregroundColor: colorScheme.onSurface,
                                         side: BorderSide.none,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                         ),
                                       ),
                                       child: _isResending
@@ -404,7 +414,8 @@ class _MfaScreenState extends ConsumerState<MfaScreen> {
                                             )
                                           : Text(
                                               'Resend code',
-                                              style: GoogleFonts.plusJakartaSans(
+                                              style:
+                                                  GoogleFonts.plusJakartaSans(
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.w600,
                                               ),
@@ -479,8 +490,7 @@ class _MfaScreenState extends ConsumerState<MfaScreen> {
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        colorScheme.secondaryContainer
-                            .withValues(alpha: 0.12),
+                        colorScheme.secondaryContainer.withValues(alpha: 0.12),
                         Colors.transparent,
                       ],
                     ),

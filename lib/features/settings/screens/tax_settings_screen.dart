@@ -34,8 +34,12 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
 
   void _hydrateFrom(Map<String, dynamic>? root) {
     final tax = settingsSection(root, 'tax') ?? {};
-    _taxEnabled = settingsPickBool(tax, ['enabled', 'tax_enabled', 'taxEnabled'], fallback: true);
-    final rate = settingsPick(tax, ['default_rate', 'defaultRate', 'rate', 'tax_rate', 'taxRate'], fallback: '0');
+    _taxEnabled = settingsPickBool(
+        tax, ['enabled', 'tax_enabled', 'taxEnabled'],
+        fallback: true);
+    final rate = settingsPick(
+        tax, ['default_rate', 'defaultRate', 'rate', 'tax_rate', 'taxRate'],
+        fallback: '0');
     _defaultRate.text = rate.isEmpty ? '0' : rate;
     // Prefer the canonical `pricingType` (inclusive | exclusive); fall back to
     // the legacy boolean aliases when the server only returns those.
@@ -46,15 +50,18 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
     } else if (pricingType == 'exclusive') {
       _taxInclusive = false;
     } else {
-      _taxInclusive = settingsPickBool(tax, [
-        'includedInPrice',
-        'included_in_price',
-        'inclusive',
-        'tax_inclusive',
-        'taxInclusive',
-        'prices_include_tax',
-        'pricesIncludeTax',
-      ], fallback: true);
+      _taxInclusive = settingsPickBool(
+          tax,
+          [
+            'includedInPrice',
+            'included_in_price',
+            'inclusive',
+            'tax_inclusive',
+            'taxInclusive',
+            'prices_include_tax',
+            'pricesIncludeTax',
+          ],
+          fallback: true);
     }
     _calculationBase = _displayTaxBasisFromApi(settingsPick(tax, [
       'calculationBasedOn',
@@ -120,7 +127,8 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
       if (!mounted) return;
       if (!r.success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(r.error?.message ?? 'Could not save tax settings')),
+          SnackBar(
+              content: Text(r.error?.message ?? 'Could not save tax settings')),
         );
         return;
       }
@@ -218,7 +226,8 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
         title: 'Tax Settings',
         actions: [
           IconButton(
-            icon: Icon(Icons.more_vert_rounded, color: theme.colorScheme.outline),
+            icon:
+                Icon(Icons.more_vert_rounded, color: theme.colorScheme.outline),
             onPressed: () {},
           ),
         ],
@@ -253,7 +262,9 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
                   decoration: BoxDecoration(
                     color: theme.colorScheme.surfaceContainerLowest,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.25)),
+                    border: Border.all(
+                        color: theme.colorScheme.outlineVariant
+                            .withValues(alpha: 0.25)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,7 +303,8 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
                             Switch(
                               value: _taxEnabled,
                               onChanged: (v) => setState(() => _taxEnabled = v),
-                              activeTrackColor: theme.colorScheme.primaryContainer,
+                              activeTrackColor:
+                                  theme.colorScheme.primaryContainer,
                               activeThumbColor: Colors.white,
                             ),
                           ],
@@ -312,14 +324,16 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
                         key: keyFor('defaultRate'),
                         child: TextField(
                           controller: _defaultRate,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
                           onChanged: (_) => clearFieldError('defaultRate'),
                           decoration: _fieldDeco(
                             theme,
                             isInvalid: isFieldInvalid('defaultRate'),
                           ).copyWith(
                             suffix: Padding(
-                              padding: const EdgeInsets.only(right: 16, top: 14),
+                              padding:
+                                  const EdgeInsets.only(right: 16, top: 14),
                               child: Text(
                                 '%',
                                 style: GoogleFonts.inter(
@@ -373,7 +387,10 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
                           decoration: BoxDecoration(
                             color: theme.colorScheme.surfaceContainer,
                             border: Border(
-                              left: BorderSide(color: theme.colorScheme.primaryContainer.withValues(alpha: 0.55), width: 4),
+                              left: BorderSide(
+                                  color: theme.colorScheme.primaryContainer
+                                      .withValues(alpha: 0.55),
+                                  width: 4),
                             ),
                             borderRadius: const BorderRadius.only(
                               topRight: Radius.circular(8),
@@ -410,15 +427,21 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
                           child: DropdownButton<String>(
                             value: _calculationBase,
                             isExpanded: true,
-                            icon: Icon(Icons.expand_more_rounded, color: theme.colorScheme.onSurfaceVariant),
+                            icon: Icon(Icons.expand_more_rounded,
+                                color: theme.colorScheme.onSurfaceVariant),
                             items: const [
                               'Billing Address',
                               'Shipping Address',
                               'Store Location',
                             ]
-                                .map((e) => DropdownMenuItem(value: e, child: Text(e, style: GoogleFonts.inter(fontSize: 14))))
+                                .map((e) => DropdownMenuItem(
+                                    value: e,
+                                    child: Text(e,
+                                        style:
+                                            GoogleFonts.inter(fontSize: 14))))
                                 .toList(),
-                            onChanged: (v) => setState(() => _calculationBase = v ?? 'Billing Address'),
+                            onChanged: (v) => setState(() =>
+                                _calculationBase = v ?? 'Billing Address'),
                           ),
                         ),
                       ),
@@ -429,14 +452,18 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryFixed.withValues(alpha: 0.35),
+                    color:
+                        theme.colorScheme.primaryFixed.withValues(alpha: 0.35),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: theme.colorScheme.primaryFixed.withValues(alpha: 0.8)),
+                    border: Border.all(
+                        color: theme.colorScheme.primaryFixed
+                            .withValues(alpha: 0.8)),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.info_outline_rounded, color: theme.colorScheme.primaryContainer, size: 22),
+                      Icon(Icons.info_outline_rounded,
+                          color: theme.colorScheme.primaryContainer, size: 22),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -506,7 +533,8 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
                               const SizedBox(
                                 height: 22,
                                 width: 22,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white),
                               )
                             else ...[
                               Text(
@@ -518,7 +546,8 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              const Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 20),
+                              const Icon(Icons.check_circle_outline_rounded,
+                                  color: Colors.white, size: 20),
                             ],
                           ],
                         ),
@@ -555,7 +584,9 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               width: 2,
-              color: selected ? theme.colorScheme.primaryContainer.withValues(alpha: 0.45) : Colors.transparent,
+              color: selected
+                  ? theme.colorScheme.primaryContainer.withValues(alpha: 0.45)
+                  : Colors.transparent,
             ),
           ),
           child: Column(
@@ -579,17 +610,22 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: selected ? theme.colorScheme.primaryContainer : theme.colorScheme.outline,
+                        color: selected
+                            ? theme.colorScheme.primaryContainer
+                            : theme.colorScheme.outline,
                         width: 2,
                       ),
-                      color: selected ? theme.colorScheme.primaryContainer : Colors.transparent,
+                      color: selected
+                          ? theme.colorScheme.primaryContainer
+                          : Colors.transparent,
                     ),
                     child: selected
                         ? Center(
                             child: Container(
                               width: 6,
                               height: 6,
-                              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                              decoration: const BoxDecoration(
+                                  color: Colors.white, shape: BoxShape.circle),
                             ),
                           )
                         : null,

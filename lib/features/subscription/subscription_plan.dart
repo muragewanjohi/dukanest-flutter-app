@@ -23,8 +23,13 @@ bool isPlanFreeActivatable(Map<String, dynamic> p) {
     return -1;
   }
 
-  final monthly = price(
-      ['monthlyPrice', 'price_monthly', 'monthly_price', 'priceMonthly', 'price']);
+  final monthly = price([
+    'monthlyPrice',
+    'price_monthly',
+    'monthly_price',
+    'priceMonthly',
+    'price'
+  ]);
   final yearly =
       price(['yearlyPrice', 'price_yearly', 'yearly_price', 'annualPrice']);
   // Only treat as free when at least one price was found and all found are 0.

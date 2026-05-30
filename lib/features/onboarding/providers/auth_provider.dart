@@ -31,11 +31,13 @@ Map<String, dynamic>? _pickMap(Map<String, dynamic> m, List<String> keys) {
 ({String? access, String? refresh}) _extractTokens(Map<String, dynamic> data) {
   final session = _pickMap(data, ['session', 'tempSession']);
   final access = _pickString(session ?? data, ['access_token', 'accessToken']);
-  final refresh = _pickString(session ?? data, ['refresh_token', 'refreshToken']);
+  final refresh =
+      _pickString(session ?? data, ['refresh_token', 'refreshToken']);
   return (access: access, refresh: refresh);
 }
 
-({String? access, String? refresh}) _extractDirectTokens(Map<String, dynamic> data) {
+({String? access, String? refresh}) _extractDirectTokens(
+    Map<String, dynamic> data) {
   final access = _pickString(data, ['access_token', 'accessToken']);
   final refresh = _pickString(data, ['refresh_token', 'refreshToken']);
   if (access != null) {
@@ -62,17 +64,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   String _storeUrlFromSubdomain(String subdomain) {
-    final host = Uri.tryParse(AppConfig.publicApiBaseUrl)?.host ?? 'dukanest.com';
+    final host =
+        Uri.tryParse(AppConfig.publicApiBaseUrl)?.host ?? 'dukanest.com';
     final rootHost = host.startsWith('www.') ? host.substring(4) : host;
     return 'https://$subdomain.$rootHost';
   }
 
-  Future<void> _saveStoreIdentityFromTenantMap(Map<String, dynamic>? tenantMap) async {
+  Future<void> _saveStoreIdentityFromTenantMap(
+      Map<String, dynamic>? tenantMap) async {
     if (tenantMap == null) return;
     final name = _pickString(tenantMap, ['name', 'storeName']);
     final subdomain = _pickString(tenantMap, ['subdomain', 'storeSubdomain']);
     final storeUrl = _pickString(tenantMap, ['storeUrl', 'url']);
-    final logoUrl = _pickString(tenantMap, ['logoUrl', 'logo', 'storeLogo', 'logo_url']);
+    final logoUrl =
+        _pickString(tenantMap, ['logoUrl', 'logo', 'storeLogo', 'logo_url']);
     if (name == null || name.isEmpty) return;
     if (subdomain != null && subdomain.isNotEmpty) {
       await _tokenStorage.saveStoreIdentity(
@@ -96,7 +101,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> _hydrateStoreIdentityPostAuth(Map<String, dynamic> data) async {
     final tenantRaw = data['tenant'] ?? data['store'];
     if (tenantRaw is Map) {
-      await _saveStoreIdentityFromTenantMap(Map<String, dynamic>.from(tenantRaw));
+      await _saveStoreIdentityFromTenantMap(
+          Map<String, dynamic>.from(tenantRaw));
       return;
     }
     try {
@@ -124,7 +130,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (kDemoMode) {
       final token = await _tokenStorage.getAccessToken();
       state = state.copyWith(
-        status: token != null ? AuthStatus.authenticated : AuthStatus.unauthenticated,
+        status: token != null
+            ? AuthStatus.authenticated
+            : AuthStatus.unauthenticated,
       );
       return;
     }
@@ -159,7 +167,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
                 name: name,
                 subdomain: subdomain,
                 storeUrl: _storeUrlFromSubdomain(subdomain),
-                logoUrl: _pickString(t, ['logoUrl', 'logo', 'storeLogo', 'logo_url']),
+                logoUrl: _pickString(
+                    t, ['logoUrl', 'logo', 'storeLogo', 'logo_url']),
               );
             }
           }
@@ -471,7 +480,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         clearError: true,
       );
     } else {
-      state = state.copyWith(error: response.error?.message ?? 'Google Sign In failed');
+      state = state.copyWith(
+          error: response.error?.message ?? 'Google Sign In failed');
     }
   }
 

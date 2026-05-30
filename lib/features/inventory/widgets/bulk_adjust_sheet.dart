@@ -106,7 +106,8 @@ class _BulkAdjustBodyState extends State<_BulkAdjustBody> {
     }
     if (adjustments.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a quantity for at least one product')),
+        const SnackBar(
+            content: Text('Enter a quantity for at least one product')),
       );
       return;
     }
@@ -215,7 +216,8 @@ class _BulkAdjustBodyState extends State<_BulkAdjustBody> {
                           ),
                           Text(
                             [
-                              if (row.skuLabel.isNotEmpty) 'SKU ${row.skuLabel}',
+                              if (row.skuLabel.isNotEmpty)
+                                'SKU ${row.skuLabel}',
                               if (row.currentStockLabel.isNotEmpty)
                                 'Stock ${row.currentStockLabel}',
                             ].join(' • '),
@@ -267,7 +269,8 @@ class _BulkAdjustBodyState extends State<_BulkAdjustBody> {
                   ? const SizedBox(
                       height: 22,
                       width: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
                     )
                   : const Text('Apply bulk adjustment'),
             ),

@@ -41,16 +41,19 @@ class AuthService {
     } on DioException catch (e) {
       final errMap = _asObjectMap(e.response?.data);
       if (errMap != null) {
-        return ApiResponse.fromJson(errMap, (json) => json as Map<String, dynamic>);
+        return ApiResponse.fromJson(
+            errMap, (json) => json as Map<String, dynamic>);
       }
       return ApiResponse(
         success: false,
-        error: ApiError(code: 'NETWORK_ERROR', message: e.message ?? 'Network error'),
+        error: ApiError(
+            code: 'NETWORK_ERROR', message: e.message ?? 'Network error'),
       );
     }
   }
 
-  Future<ApiResponse<Map<String, dynamic>>> login(String email, String password) async {
+  Future<ApiResponse<Map<String, dynamic>>> login(
+      String email, String password) async {
     try {
       final response = await _dio.post('/auth/login', data: {
         'email': email,
@@ -62,9 +65,13 @@ class AuthService {
     } on DioException catch (e) {
       final errMap = _asObjectMap(e.response?.data);
       if (errMap != null) {
-        return ApiResponse.fromJson(errMap, (json) => json as Map<String, dynamic>);
+        return ApiResponse.fromJson(
+            errMap, (json) => json as Map<String, dynamic>);
       }
-      return ApiResponse(success: false, error: ApiError(code: 'NETWORK_ERROR', message: e.message ?? 'Network error'));
+      return ApiResponse(
+          success: false,
+          error: ApiError(
+              code: 'NETWORK_ERROR', message: e.message ?? 'Network error'));
     }
   }
 
@@ -99,7 +106,8 @@ class AuthService {
       }
       return ApiResponse(
         success: false,
-        error: ApiError(code: 'NETWORK_ERROR', message: e.message ?? 'Network error'),
+        error: ApiError(
+            code: 'NETWORK_ERROR', message: e.message ?? 'Network error'),
       );
     }
   }
@@ -140,7 +148,8 @@ class AuthService {
       }
       return ApiResponse(
         success: false,
-        error: ApiError(code: 'NETWORK_ERROR', message: e.message ?? 'Network error'),
+        error: ApiError(
+            code: 'NETWORK_ERROR', message: e.message ?? 'Network error'),
       );
     }
   }
@@ -195,7 +204,8 @@ class AuthService {
         '/auth/google',
         data: {
           if (idToken != null && idToken.isNotEmpty) 'idToken': idToken,
-          if (accessToken != null && accessToken.isNotEmpty) 'accessToken': accessToken,
+          if (accessToken != null && accessToken.isNotEmpty)
+            'accessToken': accessToken,
         },
       );
       final map = _asObjectMap(response.data);
@@ -204,9 +214,13 @@ class AuthService {
     } on DioException catch (e) {
       final errMap = _asObjectMap(e.response?.data);
       if (errMap != null) {
-        return ApiResponse.fromJson(errMap, (json) => json as Map<String, dynamic>);
+        return ApiResponse.fromJson(
+            errMap, (json) => json as Map<String, dynamic>);
       }
-      return ApiResponse(success: false, error: ApiError(code: 'NETWORK_ERROR', message: e.message ?? 'Network error'));
+      return ApiResponse(
+          success: false,
+          error: ApiError(
+              code: 'NETWORK_ERROR', message: e.message ?? 'Network error'));
     }
   }
 

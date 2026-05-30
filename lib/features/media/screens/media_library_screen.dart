@@ -28,8 +28,7 @@ class MediaLibraryScreen extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<MediaLibraryScreen> createState() =>
-      _MediaLibraryScreenState();
+  ConsumerState<MediaLibraryScreen> createState() => _MediaLibraryScreenState();
 }
 
 class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {

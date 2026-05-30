@@ -168,7 +168,8 @@ class _OnboardingCarouselScreenState
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: AppTheme.primary.withValues(alpha: 0.12),
+                                        color: AppTheme.primary
+                                            .withValues(alpha: 0.12),
                                         blurRadius: 100,
                                         spreadRadius: 30,
                                       ),
@@ -192,7 +193,8 @@ class _OnboardingCarouselScreenState
                                 );
                               },
                               child: ConstrainedBox(
-                                constraints: const BoxConstraints(maxWidth: 360),
+                                constraints:
+                                    const BoxConstraints(maxWidth: 360),
                                 child: slide.showcase,
                               ),
                             ),
@@ -204,7 +206,10 @@ class _OnboardingCarouselScreenState
                           style: theme.textTheme.headlineMedium?.copyWith(
                             fontWeight: FontWeight.w800,
                             color: colorScheme.secondary,
-                            fontSize: (theme.textTheme.headlineMedium?.fontSize ?? 28) * 1.15,
+                            fontSize:
+                                (theme.textTheme.headlineMedium?.fontSize ??
+                                        28) *
+                                    1.15,
                             letterSpacing: -0.5,
                           ),
                           textAlign: TextAlign.center,
@@ -530,12 +535,14 @@ class _AnalyticsShowcaseState extends State<_AnalyticsShowcase> {
             ),
             const SizedBox(height: 4),
             TweenAnimationBuilder<double>(
-              tween: Tween<double>(begin: 30000.0, end: _animateChart ? 92450.0 : 30000.0),
+              tween: Tween<double>(
+                  begin: 30000.0, end: _animateChart ? 92450.0 : 30000.0),
               duration: const Duration(milliseconds: 1400),
               curve: Curves.easeOutCubic,
               builder: (context, value, child) {
                 final mainPortion = (value / 1000).floor();
-                final remainder = (value % 1000).toInt().toString().padLeft(3, '0');
+                final remainder =
+                    (value % 1000).toInt().toString().padLeft(3, '0');
                 return Text(
                   'KSh $mainPortion,$remainder',
                   style: GoogleFonts.plusJakartaSans(
@@ -563,7 +570,8 @@ class _AnalyticsShowcaseState extends State<_AnalyticsShowcase> {
                     horizontalInterval: 10,
                     getDrawingHorizontalLine: (value) {
                       return FlLine(
-                        color: colorScheme.outlineVariant.withValues(alpha: 0.15),
+                        color:
+                            colorScheme.outlineVariant.withValues(alpha: 0.15),
                         strokeWidth: 1,
                       );
                     },
@@ -830,10 +838,15 @@ class _OrderCard extends StatelessWidget {
                 width: dense ? 28 : 32,
                 height: dense ? 28 : 32,
                 decoration: BoxDecoration(
-                  gradient: avatarColors != null 
-                    ? LinearGradient(colors: avatarColors!, begin: Alignment.topLeft, end: Alignment.bottomRight)
-                    : null,
-                  color: avatarColors == null ? AppTheme.primary.withValues(alpha: 0.1) : null,
+                  gradient: avatarColors != null
+                      ? LinearGradient(
+                          colors: avatarColors!,
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight)
+                      : null,
+                  color: avatarColors == null
+                      ? AppTheme.primary.withValues(alpha: 0.1)
+                      : null,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(

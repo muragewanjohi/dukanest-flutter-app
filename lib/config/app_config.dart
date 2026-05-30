@@ -30,6 +30,7 @@ class AppConfig {
     'GOOGLE_SERVER_CLIENT_ID',
     // OAuth client IDs are public identifiers. Keep this as a fallback so
     // release builds cannot accidentally ship without Google Sign-In enabled.
-    defaultValue: '772287815251-eb8r1f4bqpudek9pubvnrm36tnv9js05.apps.googleusercontent.com',
+    defaultValue:
+        '772287815251-eb8r1f4bqpudek9pubvnrm36tnv9js05.apps.googleusercontent.com',
   );
 }

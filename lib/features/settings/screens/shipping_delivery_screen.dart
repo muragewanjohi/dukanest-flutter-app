@@ -19,7 +19,8 @@ class ShippingDeliveryScreen extends ConsumerStatefulWidget {
   const ShippingDeliveryScreen({super.key});
 
   @override
-  ConsumerState<ShippingDeliveryScreen> createState() => _ShippingDeliveryScreenState();
+  ConsumerState<ShippingDeliveryScreen> createState() =>
+      _ShippingDeliveryScreenState();
 }
 
 enum _ShippingRateMode { zones, flatRate }
@@ -108,13 +109,25 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
 
     _allowDelivery = _pickBoolFromSources(
       sources,
-      ['enabled', 'shipping_enabled', 'shippingEnabled', 'local_delivery', 'localDelivery'],
+      [
+        'enabled',
+        'shipping_enabled',
+        'shippingEnabled',
+        'local_delivery',
+        'localDelivery'
+      ],
     );
     final pickup = settingsSection(root, 'pickup') ?? {};
     final pickupSources = [pickup, s, staticOpts];
     _storePickup = _pickBoolFromSources(
       pickupSources,
-      ['enabled', 'pickupEnabled', 'pickup_enabled', 'store_pickup', 'storePickup'],
+      [
+        'enabled',
+        'pickupEnabled',
+        'pickup_enabled',
+        'store_pickup',
+        'storePickup'
+      ],
     );
     _pickupLocation.text = _pickFromSources(
       pickupSources,
@@ -204,7 +217,8 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
       if (useFlat) {
         shipping['flatRateAmount'] = flatRate;
         shipping['freeShippingEnabled'] = freeThreshold > 0;
-        shipping['freeShippingThreshold'] = freeThreshold > 0 ? freeThreshold : null;
+        shipping['freeShippingThreshold'] =
+            freeThreshold > 0 ? freeThreshold : null;
       } else {
         shipping['flatRateAmount'] = null;
         shipping['freeShippingEnabled'] = false;
@@ -218,9 +232,11 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
       'shipping': shipping,
       'pickup': {
         'enabled': storePickup,
-        'locationName': pickupLocation.trim().isEmpty ? null : pickupLocation.trim(),
-        'instructions':
-            pickupInstructions.trim().isEmpty ? null : pickupInstructions.trim(),
+        'locationName':
+            pickupLocation.trim().isEmpty ? null : pickupLocation.trim(),
+        'instructions': pickupInstructions.trim().isEmpty
+            ? null
+            : pickupInstructions.trim(),
         'hours': pickupHours.trim().isEmpty ? null : pickupHours.trim(),
       },
     };
@@ -296,7 +312,9 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
       if (!mounted) return;
       if (!r.success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(r.error?.message ?? 'Could not save shipping settings')),
+          SnackBar(
+              content:
+                  Text(r.error?.message ?? 'Could not save shipping settings')),
         );
         return;
       }
@@ -307,16 +325,19 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
             _shippingSectionSignature(settingsSection(patched, 'shipping'));
       }
       try {
-        final refreshedRoot = await ref.refresh(dashboardSettingsProvider.future);
+        final refreshedRoot =
+            await ref.refresh(dashboardSettingsProvider.future);
         if (refreshedRoot != null) {
-          _lastHydratedShippingSignature =
-              _shippingSectionSignature(settingsSection(refreshedRoot, 'shipping'));
+          _lastHydratedShippingSignature = _shippingSectionSignature(
+              settingsSection(refreshedRoot, 'shipping'));
         }
       } catch (_) {
         // PATCH response already hydrated local state; ignore refresh timeout.
       }
       ref.invalidate(dashboardGettingStartedProvider);
-      ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(DashboardOnboardingStepKeys.shipping);
+      ref
+          .read(dashboardLocalStepCompletionsProvider.notifier)
+          .markComplete(DashboardOnboardingStepKeys.shipping);
       if (!mounted) return;
       setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
@@ -341,7 +362,8 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     bool isInvalid = false,
   }) {
     final errorColor = theme.colorScheme.error;
-    final idleOutline = theme.colorScheme.outlineVariant.withValues(alpha: 0.55);
+    final idleOutline =
+        theme.colorScheme.outlineVariant.withValues(alpha: 0.55);
     final enabledBorder = OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
       borderSide: isInvalid
@@ -408,7 +430,8 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
 
   Widget _buildScaffold(ThemeData theme) {
     final showZonesUi = _allowDelivery && _rateMode == _ShippingRateMode.zones;
-    final showFlatRateUi = _allowDelivery && _rateMode == _ShippingRateMode.flatRate;
+    final showFlatRateUi =
+        _allowDelivery && _rateMode == _ShippingRateMode.flatRate;
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
@@ -493,7 +516,8 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                       _switchRow(
                         theme,
                         title: 'Store pickup',
-                        subtitle: 'Let customers collect orders at your location',
+                        subtitle:
+                            'Let customers collect orders at your location',
                         value: _storePickup,
                         onChanged: (v) => setState(() => _storePickup = v),
                       ),
@@ -501,13 +525,15 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                         const SizedBox(height: 16),
                         TextField(
                           controller: _pickupLocation,
-                          decoration: _fieldDeco(theme, hint: 'Pickup location name'),
+                          decoration:
+                              _fieldDeco(theme, hint: 'Pickup location name'),
                         ),
                         const SizedBox(height: 12),
                         TextField(
                           controller: _pickupInstructions,
                           maxLines: 2,
-                          decoration: _fieldDeco(theme, hint: 'Pickup instructions'),
+                          decoration:
+                              _fieldDeco(theme, hint: 'Pickup instructions'),
                         ),
                         const SizedBox(height: 12),
                         TextField(
@@ -551,7 +577,8 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                               hint: 'e.g. 250',
                               isInvalid: isFieldInvalid('flatRate'),
                               prefixIcon: Padding(
-                                padding: const EdgeInsets.only(left: 12, right: 4),
+                                padding:
+                                    const EdgeInsets.only(left: 12, right: 4),
                                 child: Center(
                                   widthFactor: 1,
                                   child: Text(
@@ -621,16 +648,19 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer.withValues(alpha: 0.12),
+                    color: theme.colorScheme.primaryContainer
+                        .withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.25),
+                      color: theme.colorScheme.primaryContainer
+                          .withValues(alpha: 0.25),
                     ),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.info_outline_rounded, color: theme.colorScheme.primary, size: 22),
+                      Icon(Icons.info_outline_rounded,
+                          color: theme.colorScheme.primary, size: 22),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
@@ -674,7 +704,8 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                               ? const SizedBox(
                                   height: 22,
                                   width: 22,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white),
                                 )
                               : Text(
                                   'Save Changes',
@@ -761,7 +792,8 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                 : null,
             icon: const Icon(Icons.add_rounded),
             style: IconButton.styleFrom(
-              backgroundColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
+              backgroundColor:
+                  theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
               foregroundColor: AppTheme.primaryDark,
             ),
           ),
@@ -841,10 +873,14 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: selected ? AppTheme.primaryDark : theme.colorScheme.outlineVariant,
+          color: selected
+              ? AppTheme.primaryDark
+              : theme.colorScheme.outlineVariant,
           width: 2,
         ),
-        color: selected ? AppTheme.primaryDark.withValues(alpha: 0.12) : Colors.transparent,
+        color: selected
+            ? AppTheme.primaryDark.withValues(alpha: 0.12)
+            : Colors.transparent,
       ),
       child: selected
           ? Center(
@@ -861,13 +897,15 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     );
   }
 
-  Widget _section(ThemeData theme, {required IconData icon, required String title, required Widget child}) {
+  Widget _section(ThemeData theme,
+      {required IconData icon, required String title, required Widget child}) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35)),
+        border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -925,7 +963,8 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                    fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -1008,7 +1047,8 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.primary,
                     borderRadius: BorderRadius.circular(999),

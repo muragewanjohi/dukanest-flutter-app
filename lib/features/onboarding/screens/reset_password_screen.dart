@@ -149,8 +149,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
               ),
               Expanded(
                 child: SingleChildScrollView(
-                  padding:
-                      const EdgeInsets.fromLTRB(32, 12, 32, 96),
+                  padding: const EdgeInsets.fromLTRB(32, 12, 32, 96),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -372,8 +371,8 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                         const SizedBox(height: 32),
                         Divider(
                           height: 1,
-                          color: colorScheme.outlineVariant
-                              .withValues(alpha: 0.5),
+                          color:
+                              colorScheme.outlineVariant.withValues(alpha: 0.5),
                         ),
                         const SizedBox(height: 24),
                         Center(

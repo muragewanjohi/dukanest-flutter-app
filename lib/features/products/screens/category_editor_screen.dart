@@ -23,7 +23,8 @@ class CategoryEditorScreen extends ConsumerStatefulWidget {
   bool get isNew => categoryId == null;
 
   @override
-  ConsumerState<CategoryEditorScreen> createState() => _CategoryEditorScreenState();
+  ConsumerState<CategoryEditorScreen> createState() =>
+      _CategoryEditorScreenState();
 }
 
 class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
@@ -54,7 +55,8 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
       if (!mounted) return;
       if (!r.success || r.data == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(r.error?.message ?? 'Failed to load category')),
+          SnackBar(
+              content: Text(r.error?.message ?? 'Failed to load category')),
         );
         return;
       }
@@ -114,9 +116,7 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
         value: null,
         child: Text('No parent'),
       ),
-      ...entries
-          .where((e) => e.id != excludeId)
-          .map(
+      ...entries.where((e) => e.id != excludeId).map(
             (e) => DropdownMenuItem<String?>(
               value: e.id,
               child: Text(e.name),
@@ -171,13 +171,16 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
       ref.invalidate(categoriesListProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(widget.isNew ? 'Category created' : 'Category updated')),
+          SnackBar(
+              content:
+                  Text(widget.isNew ? 'Category created' : 'Category updated')),
         );
         context.pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -193,7 +196,9 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
           'Products in this category may need to be reassigned.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
@@ -215,7 +220,8 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
       if (mounted) context.pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
       }
     }
   }
@@ -225,7 +231,8 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final bottom = MediaQuery.of(context).padding.bottom;
-    final parentList = ref.watch(categoriesListProvider).valueOrNull ?? <CategoryEntry>[];
+    final parentList =
+        ref.watch(categoriesListProvider).valueOrNull ?? <CategoryEntry>[];
     String? parentName;
     if (_parentId != null) {
       try {
@@ -246,7 +253,8 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
             child: Row(
               children: [
                 IconButton(
-                  icon: Icon(Icons.arrow_back_rounded, color: AppTheme.primaryDark),
+                  icon: Icon(Icons.arrow_back_rounded,
+                      color: AppTheme.primaryDark),
                   onPressed: () => context.pop(),
                 ),
                 Expanded(
@@ -363,7 +371,8 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: colorScheme.secondaryContainer.withValues(alpha: 0.35),
+                      color: colorScheme.secondaryContainer
+                          .withValues(alpha: 0.35),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -449,16 +458,19 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
                                       size: 48,
                                     ),
                                   ),
-                                if (_localImagePath != null || _imageUrl != null)
+                                if (_localImagePath != null ||
+                                    _imageUrl != null)
                                   Positioned(
                                     top: 10,
                                     right: 10,
                                     child: Material(
-                                      color: Colors.white.withValues(alpha: 0.92),
+                                      color:
+                                          Colors.white.withValues(alpha: 0.92),
                                       shape: const CircleBorder(),
                                       clipBehavior: Clip.antiAlias,
                                       child: IconButton(
-                                        icon: Icon(Icons.delete_outline, color: colorScheme.error, size: 20),
+                                        icon: Icon(Icons.delete_outline,
+                                            color: colorScheme.error, size: 20),
                                         onPressed: _clearImage,
                                       ),
                                     ),
@@ -481,10 +493,12 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            icon: const Icon(Icons.photo_library_outlined, size: 18),
+                            icon: const Icon(Icons.photo_library_outlined,
+                                size: 18),
                             label: Text(
                               'Change Image',
-                              style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14),
+                              style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w500, fontSize: 14),
                             ),
                           ),
                         ),
@@ -571,7 +585,9 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
                           Text(
                             _saving
                                 ? 'Saving…'
-                                : (widget.isNew ? 'Create Category' : 'Update Category'),
+                                : (widget.isNew
+                                    ? 'Create Category'
+                                    : 'Update Category'),
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
@@ -579,7 +595,8 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
                             ),
                           ),
                           const SizedBox(width: 8),
-                          const Icon(Icons.check_circle_outline, color: Colors.white, size: 22),
+                          const Icon(Icons.check_circle_outline,
+                              color: Colors.white, size: 22),
                         ],
                       ),
                     ),
@@ -599,7 +616,8 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.delete_outline, color: Colors.white, size: 22),
+                          const Icon(Icons.delete_outline,
+                              color: Colors.white, size: 22),
                           const SizedBox(width: 8),
                           Text(
                             'Delete Category',

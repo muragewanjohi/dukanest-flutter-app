@@ -40,8 +40,7 @@ Future<void> showAdjustStockSheet(
     ),
     builder: (ctx) {
       return Padding(
-        padding:
-            EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
+        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
         child: _AdjustStockSheetBody(
           row: row,
           ref: ref,
@@ -151,8 +150,7 @@ class _AdjustStockSheetBodyState extends State<_AdjustStockSheetBody> {
     final metaParts = [
       if (r.skuLabel.isNotEmpty) 'SKU: ${r.skuLabel}',
       if (r.variantId.trim().isNotEmpty) 'Variant: ${r.variantId}',
-      if (r.currentStockLabel.isNotEmpty)
-        'Current: ${r.currentStockLabel}',
+      if (r.currentStockLabel.isNotEmpty) 'Current: ${r.currentStockLabel}',
     ];
 
     return SingleChildScrollView(

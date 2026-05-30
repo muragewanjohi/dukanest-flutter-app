@@ -74,11 +74,19 @@ void main() {
 
   group('currentThemeId', () {
     test('reads from data envelope', () {
-      expect(currentThemeId({'data': {'id': 'active'}}), 'active');
+      expect(
+          currentThemeId({
+            'data': {'id': 'active'}
+          }),
+          'active');
     });
 
     test('reads from theme key', () {
-      expect(currentThemeId({'theme': {'slug': 'current'}}), 'current');
+      expect(
+          currentThemeId({
+            'theme': {'slug': 'current'}
+          }),
+          'current');
     });
 
     test('reads from a flat map', () {
@@ -87,7 +95,11 @@ void main() {
 
     test('null when no resolvable id', () {
       expect(currentThemeId(null), isNull);
-      expect(currentThemeId({'data': {'name': 'no-id'}}), isNull);
+      expect(
+          currentThemeId({
+            'data': {'name': 'no-id'}
+          }),
+          isNull);
     });
   });
 }

@@ -18,7 +18,8 @@ import '../providers/pending_orders_count_provider.dart';
 /// & local export `02-order-details/screen.html` (Quick Actions + Customer + Shipping + Notes + bottom bar).
 ///
 /// Note: Stitch project may show a newer screen id; layout follows the DukaNest Tenant App Plan export.
-final orderDetailProvider = FutureProvider.family<Map<String, dynamic>?, String>((
+final orderDetailProvider =
+    FutureProvider.family<Map<String, dynamic>?, String>((
   ref,
   orderKey,
 ) async {
@@ -45,15 +46,18 @@ final orderDetailProvider = FutureProvider.family<Map<String, dynamic>?, String>
       if (!lookupResponse.success || lookupResponse.data == null) return null;
       final lookupPayload = lookupResponse.data;
       final list = lookupPayload is Map<String, dynamic>
-          ? (lookupPayload['items'] ?? lookupPayload['orders'] ?? lookupPayload['data'])
+          ? (lookupPayload['items'] ??
+              lookupPayload['orders'] ??
+              lookupPayload['data'])
           : lookupPayload;
       if (list is! List || list.isEmpty) return null;
 
       for (final raw in list.whereType<Map>()) {
         final map = Map<String, dynamic>.from(raw);
-        final code = (map['code'] ?? map['orderNumber'] ?? map['order_number'] ?? '')
-            .toString()
-            .trim();
+        final code =
+            (map['code'] ?? map['orderNumber'] ?? map['order_number'] ?? '')
+                .toString()
+                .trim();
         final id = (map['id'] ?? '').toString().trim();
         if (id.isEmpty) continue;
         if (code == key || key == id) return id;
@@ -117,7 +121,8 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
   static const Color _premiumBadgeBg = Color(0xFFDFE0FF);
   static const Color _surfaceContainerHigh = Color(0xFFE9E8E8);
 
-  static String _pickString(Map<String, dynamic> map, List<String> keys, {String fallback = ''}) {
+  static String _pickString(Map<String, dynamic> map, List<String> keys,
+      {String fallback = ''}) {
     for (final key in keys) {
       final value = map[key];
       if (value is String && value.trim().isNotEmpty) return value;
@@ -179,7 +184,8 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
     return '$currency 0.00';
   }
 
-  static _OrderDetailData _mapApiOrderToDetail(Map<String, dynamic> raw, String fallbackCode) {
+  static _OrderDetailData _mapApiOrderToDetail(
+      Map<String, dynamic> raw, String fallbackCode) {
     final customerRaw = raw['customer'] ?? raw['buyer'] ?? raw['user'];
     final customer = customerRaw is Map<String, dynamic>
         ? Map<String, dynamic>.from(customerRaw)
@@ -191,13 +197,16 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
     final shipping = shippingRaw is Map<String, dynamic>
         ? Map<String, dynamic>.from(shippingRaw)
         : <String, dynamic>{};
-    final currency = _pickString(raw, ['currencyCode', 'currency_code', 'currency'], fallback: 'KES');
+    final currency = _pickString(
+        raw, ['currencyCode', 'currency_code', 'currency'],
+        fallback: 'KES');
     final code = _pickString(
       raw,
       ['code', 'orderNumber', 'order_number', 'orderCode', 'id'],
       fallback: fallbackCode,
     );
-    final apiId = _pickString(raw, ['id', 'orderId', 'order_id', '_id'], fallback: '');
+    final apiId =
+        _pickString(raw, ['id', 'orderId', 'order_id', '_id'], fallback: '');
 
     final itemsRaw = raw['items'] ??
         raw['lineItems'] ??
@@ -250,7 +259,8 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
         fallback: '',
       );
       final nestedName = flatName.isEmpty
-          ? _pickFirstPath(item, ['product.name', 'product.title', 'variant.name'])
+          ? _pickFirstPath(
+              item, ['product.name', 'product.title', 'variant.name'])
           : flatName;
       return _LineItem(
         name: nestedName.isEmpty ? 'Item' : nestedName,
@@ -261,7 +271,8 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
       );
     }).toList();
 
-    final status = _pickString(raw, ['status'], fallback: 'pending').toLowerCase();
+    final status =
+        _pickString(raw, ['status'], fallback: 'pending').toLowerCase();
     final paymentStatus = _pickString(
       raw,
       ['paymentStatus', 'payment_status', 'payment'],
@@ -308,7 +319,13 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
     final totals = totalsRaw is Map<String, dynamic>
         ? Map<String, dynamic>.from(totalsRaw)
         : <String, dynamic>{};
-    final subtotal = _pickNum(raw, ['subtotal', 'subTotal', 'sub_total', 'totalBeforeTax', 'total_before_tax']) ??
+    final subtotal = _pickNum(raw, [
+          'subtotal',
+          'subTotal',
+          'sub_total',
+          'totalBeforeTax',
+          'total_before_tax'
+        ]) ??
         _pickNum(totals, ['subtotal', 'subTotal', 'sub_total']) ??
         0;
     final shippingAmount = _pickNum(raw, [
@@ -324,7 +341,8 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
         // Only treat a bare `shipping` key as an amount when it isn't the
         // nested address object above.
         (raw['shipping'] is num ? raw['shipping'] as num : 0);
-    final tax = _pickNum(raw, ['tax', 'taxAmount', 'tax_amount', 'totalTax', 'total_tax']) ??
+    final tax = _pickNum(
+            raw, ['tax', 'taxAmount', 'tax_amount', 'totalTax', 'total_tax']) ??
         _pickNum(totals, ['tax', 'taxAmount']) ??
         0;
     final total = _pickNum(raw, [
@@ -349,37 +367,78 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
       ['name', 'fullName', 'full_name', 'displayName', 'display_name'],
       fallback: _pickString(
         raw,
-        ['customerName', 'customer_name', 'buyerName', 'buyer_name', 'billingName', 'billing_name'],
-        fallback: _pickFirstPath(raw, ['billingAddress.name', 'shippingAddress.name']).isNotEmpty
-            ? _pickFirstPath(raw, ['billingAddress.name', 'shippingAddress.name'])
-            : 'Customer',
+        [
+          'customerName',
+          'customer_name',
+          'buyerName',
+          'buyer_name',
+          'billingName',
+          'billing_name'
+        ],
+        fallback:
+            _pickFirstPath(raw, ['billingAddress.name', 'shippingAddress.name'])
+                    .isNotEmpty
+                ? _pickFirstPath(
+                    raw, ['billingAddress.name', 'shippingAddress.name'])
+                : 'Customer',
       ),
     );
     final customerEmail = _pickString(
       customer,
       ['email', 'emailAddress', 'email_address'],
-      fallback: _pickString(raw, ['customerEmail', 'customer_email', 'email'], fallback: '—'),
+      fallback: _pickString(raw, ['customerEmail', 'customer_email', 'email'],
+          fallback: '—'),
     );
     final customerPhone = _pickString(
       customer,
-      ['phone', 'phoneNumber', 'phone_number', 'mobile', 'mobileNumber', 'mobile_number'],
+      [
+        'phone',
+        'phoneNumber',
+        'phone_number',
+        'mobile',
+        'mobileNumber',
+        'mobile_number'
+      ],
       fallback: _pickString(
         raw,
-        ['customerPhone', 'customer_phone', 'phone', 'phoneNumber', 'phone_number', 'contactPhone', 'contact_phone'],
+        [
+          'customerPhone',
+          'customer_phone',
+          'phone',
+          'phoneNumber',
+          'phone_number',
+          'contactPhone',
+          'contact_phone'
+        ],
         fallback: '—',
       ),
     );
 
     final address = [
-      _pickString(shipping, ['name', 'fullName', 'full_name'], fallback: customerName),
-      _pickString(shipping, ['line1', 'address1', 'address_1', 'address', 'street', 'streetAddress', 'street_address'], fallback: ''),
+      _pickString(shipping, ['name', 'fullName', 'full_name'],
+          fallback: customerName),
+      _pickString(
+          shipping,
+          [
+            'line1',
+            'address1',
+            'address_1',
+            'address',
+            'street',
+            'streetAddress',
+            'street_address'
+          ],
+          fallback: ''),
       _pickString(shipping, ['line2', 'address2', 'address_2'], fallback: ''),
       [
         _pickString(shipping, ['city', 'town'], fallback: ''),
         _pickString(shipping, ['state', 'region', 'province'], fallback: ''),
-        _pickString(shipping, ['postalCode', 'postal_code', 'zip', 'zipCode', 'zip_code'], fallback: ''),
+        _pickString(shipping,
+            ['postalCode', 'postal_code', 'zip', 'zipCode', 'zip_code'],
+            fallback: ''),
       ].where((e) => e.isNotEmpty).join(', '),
-      _pickString(shipping, ['country', 'countryCode', 'country_code'], fallback: ''),
+      _pickString(shipping, ['country', 'countryCode', 'country_code'],
+          fallback: ''),
     ].where((e) => e.isNotEmpty).join('\n');
 
     return _OrderDetailData(
@@ -486,7 +545,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     _tumiziPollTrackedId = data.apiId;
     _tumiziPollStartedAt = DateTime.now();
     _tumiziPollTimer?.cancel();
-    _tumiziPollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _tumiziPollingTick());
+    _tumiziPollTimer =
+        Timer.periodic(const Duration(seconds: 5), (_) => _tumiziPollingTick());
   }
 
   Future<void> _tumiziPollingTick() async {
@@ -513,7 +573,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       final response = await api.syncTumiziOrderPayment(apiId);
       if (!mounted) return;
       if (!response.success) {
-        _toast(context, response.error?.message ?? 'Could not refresh payment status');
+        _toast(context,
+            response.error?.message ?? 'Could not refresh payment status');
         return;
       }
       ref.invalidate(orderDetailProvider(widget.orderKey));
@@ -526,9 +587,11 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     }
   }
 
-  Future<void> _openResendTumiziStkDialog(String apiId, _OrderDetailData data) async {
+  Future<void> _openResendTumiziStkDialog(
+      String apiId, _OrderDetailData data) async {
     if (apiId.isEmpty || !mounted) return;
-    final phoneCtrl = TextEditingController(text: _tumiziPhonePrefill(data.customerPhone));
+    final phoneCtrl =
+        TextEditingController(text: _tumiziPhonePrefill(data.customerPhone));
     final narrationCtrl = TextEditingController();
     var busy = false;
     try {
@@ -538,13 +601,18 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           return StatefulBuilder(
             builder: (dialogContext, setDialogState) {
               Future<void> sendStk() async {
-                final rawPhone = phoneCtrl.text.trim().replaceAll(RegExp(r'\s+'), '');
+                final rawPhone =
+                    phoneCtrl.text.trim().replaceAll(RegExp(r'\s+'), '');
                 if (rawPhone.isEmpty) return;
                 setDialogState(() => busy = true);
                 try {
                   final api = ref.read(apiClientProvider);
-                  final amount = OrderDetailScreen._optionalAmountFromTotalLabel(data.total);
-                  final nar = narrationCtrl.text.trim().isEmpty ? null : narrationCtrl.text.trim();
+                  final amount =
+                      OrderDetailScreen._optionalAmountFromTotalLabel(
+                          data.total);
+                  final nar = narrationCtrl.text.trim().isEmpty
+                      ? null
+                      : narrationCtrl.text.trim();
                   final response = await api.initiateTumiziOrderPayment(
                     apiId,
                     phoneNumber: rawPhone,
@@ -555,7 +623,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                   if (!response.success) {
                     setDialogState(() => busy = false);
                     ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      SnackBar(content: Text(response.error?.message ?? 'STK push failed')),
+                      SnackBar(
+                          content: Text(
+                              response.error?.message ?? 'STK push failed')),
                     );
                     return;
                   }
@@ -572,7 +642,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               return AlertDialog(
                 title: Text(
                   'Resend STK Push',
-                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                  style:
+                      GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
                 ),
                 content: SingleChildScrollView(
                   child: Column(
@@ -584,7 +655,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           height: 1.4,
-                          color: Theme.of(dialogContext).colorScheme.onSurfaceVariant,
+                          color: Theme.of(dialogContext)
+                              .colorScheme
+                              .onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: 14),
@@ -615,21 +688,26 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 ),
                 actions: [
                   TextButton(
-                    onPressed: busy ? null : () => Navigator.of(dialogContext).pop(false),
+                    onPressed: busy
+                        ? null
+                        : () => Navigator.of(dialogContext).pop(false),
                     child: const Text('Cancel'),
                   ),
                   FilledButton(
                     onPressed: canSend ? sendStk : null,
-                    style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryDark),
+                    style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.primaryDark),
                     child: busy
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
                           )
                         : Text(
                             'Send STK',
-                            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                            style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w700),
                           ),
                   ),
                 ],
@@ -696,7 +774,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: _tumiziRefreshLoading ? null : () => _manualTumiziSync(data.apiId),
+                onPressed: _tumiziRefreshLoading
+                    ? null
+                    : () => _manualTumiziSync(data.apiId),
                 icon: _tumiziRefreshLoading
                     ? const SizedBox(
                         width: 16,
@@ -706,18 +786,22 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                     : const Icon(Icons.sync_rounded, size: 20),
                 label: Text(
                   _tumiziRefreshLoading ? 'Refreshing…' : 'Refresh from Tumizi',
-                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13),
+                  style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w600, fontSize: 13),
                 ),
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: _tumiziRefreshLoading ? null : () => _openResendTumiziStkDialog(data.apiId, data),
+                onPressed: _tumiziRefreshLoading
+                    ? null
+                    : () => _openResendTumiziStkDialog(data.apiId, data),
                 icon: const Icon(Icons.phone_android_outlined, size: 20),
                 label: Text(
                   'Resend STK',
-                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 13),
+                  style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w600, fontSize: 13),
                 ),
               ),
             ),
@@ -872,10 +956,12 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                   ),
                   FilledButton(
                     onPressed: canSubmit
-                        ? () => Navigator.of(dialogContext).pop(reasonController.text.trim())
+                        ? () => Navigator.of(dialogContext)
+                            .pop(reasonController.text.trim())
                         : null,
                     style: FilledButton.styleFrom(
-                      backgroundColor: Theme.of(dialogContext).colorScheme.error,
+                      backgroundColor:
+                          Theme.of(dialogContext).colorScheme.error,
                     ),
                     child: const Text('Cancel order'),
                   ),
@@ -907,7 +993,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     _OrderDetailData data,
   ) async {
     var selectedStatus = OrderDetailScreen._normalizeOrderStatus(data.status);
-    var selectedPaymentStatus = OrderDetailScreen._normalizePaymentStatus(data.paymentStatus);
+    var selectedPaymentStatus =
+        OrderDetailScreen._normalizePaymentStatus(data.paymentStatus);
     var isSaving = false;
     final isTumiziOrder = data.isTumiziOrder;
 
@@ -1002,7 +1089,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                       isExpanded: true,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       ),
                       items: OrderDetailScreen._orderStatusOptions
                           .map(
@@ -1035,7 +1123,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                         isExpanded: true,
                         decoration: const InputDecoration(
                           border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
                         ),
                         items: OrderDetailScreen._paymentStatusOptions
                             .map(
@@ -1060,17 +1149,20 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                         backgroundColor: AppTheme.primaryDark,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       child: isSaving
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
                             )
                           : Text(
                               'Confirm Update',
-                              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontWeight: FontWeight.w700),
                             ),
                     ),
                   ],
@@ -1143,7 +1235,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 Text('$err', textAlign: TextAlign.center),
                 const SizedBox(height: 16),
                 FilledButton(
-                  onPressed: () => ref.invalidate(orderDetailProvider(widget.orderKey)),
+                  onPressed: () =>
+                      ref.invalidate(orderDetailProvider(widget.orderKey)),
                   child: const Text('Retry'),
                 ),
               ],
@@ -1165,7 +1258,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                     const Text('Order could not be loaded.'),
                     const SizedBox(height: 16),
                     FilledButton(
-                      onPressed: () => ref.invalidate(orderDetailProvider(widget.orderKey)),
+                      onPressed: () =>
+                          ref.invalidate(orderDetailProvider(widget.orderKey)),
                       child: const Text('Retry'),
                     ),
                   ],
@@ -1300,7 +1394,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               ),
               if (data.premiumCustomer)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: OrderDetailScreen._premiumBadgeBg,
                     borderRadius: BorderRadius.circular(20),
@@ -1331,18 +1426,23 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
             ),
             child: Column(
               children: [
-                _priceRow(theme, 'Subtotal', data.subtotal, isTotal: false, onCard: onCard),
+                _priceRow(theme, 'Subtotal', data.subtotal,
+                    isTotal: false, onCard: onCard),
                 const SizedBox(height: 10),
-                _priceRow(theme, 'Shipping (Standard)', data.shipping, isTotal: false, onCard: onCard),
+                _priceRow(theme, 'Shipping (Standard)', data.shipping,
+                    isTotal: false, onCard: onCard),
                 const SizedBox(height: 10),
-                _priceRow(theme, 'Estimated Tax', data.tax, isTotal: false, onCard: onCard),
+                _priceRow(theme, 'Estimated Tax', data.tax,
+                    isTotal: false, onCard: onCard),
                 const SizedBox(height: 12),
                 Divider(
                   height: 1,
-                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+                  color:
+                      theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
                 ),
                 const SizedBox(height: 12),
-                _priceRow(theme, 'Total', data.total, isTotal: true, onCard: onCard),
+                _priceRow(theme, 'Total', data.total,
+                    isTotal: true, onCard: onCard),
               ],
             ),
           ),
@@ -1364,11 +1464,16 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
             fit: BoxFit.cover,
             placeholder: (_, __) => ColoredBox(
               color: OrderDetailScreen._itemTileBg,
-              child: const Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))),
+              child: const Center(
+                  child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2))),
             ),
             errorWidget: (_, __, ___) => ColoredBox(
               color: item.thumbColor,
-              child: Icon(Icons.image_not_supported_outlined, color: Colors.white.withValues(alpha: 0.9)),
+              child: Icon(Icons.image_not_supported_outlined,
+                  color: Colors.white.withValues(alpha: 0.9)),
             ),
           ),
         ),
@@ -1389,7 +1494,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               ],
             ),
           ),
-          child: Icon(Icons.inventory_2_outlined, color: Colors.white.withValues(alpha: 0.9), size: 26),
+          child: Icon(Icons.inventory_2_outlined,
+              color: Colors.white.withValues(alpha: 0.9), size: 26),
         ),
       );
     }
@@ -1563,13 +1669,15 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
-                onTap: () => _patchOrderStatus(context, 'shipped', apiId: data.apiId),
+                onTap: () =>
+                    _patchOrderStatus(context, 'shipped', apiId: data.apiId),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.local_shipping_outlined, color: Colors.white, size: 22),
+                      const Icon(Icons.local_shipping_outlined,
+                          color: Colors.white, size: 22),
                       const SizedBox(width: 10),
                       Text(
                         'Mark as Shipped',
@@ -1597,7 +1705,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.print_outlined, color: theme.colorScheme.onSurface, size: 22),
+                    Icon(Icons.print_outlined,
+                        color: theme.colorScheme.onSurface, size: 22),
                     const SizedBox(width: 10),
                     Text(
                       'Print Packing Slip',
@@ -1623,7 +1732,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.cancel_outlined, color: theme.colorScheme.error, size: 22),
+                    Icon(Icons.cancel_outlined,
+                        color: theme.colorScheme.error, size: 22),
                     const SizedBox(width: 10),
                     Text(
                       'Cancel Order',
@@ -1668,7 +1778,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                   color: OrderDetailScreen._premiumBadgeBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(Icons.person_outline_rounded, color: AppTheme.primaryDark, size: 22),
+                child: Icon(Icons.person_outline_rounded,
+                    color: AppTheme.primaryDark, size: 22),
               ),
               const SizedBox(width: 12),
               Text(
@@ -1682,11 +1793,14 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
             ],
           ),
           const SizedBox(height: 20),
-          _labeledBlock(context, 'Contact Name', data.customerName, primaryValue: false),
+          _labeledBlock(context, 'Contact Name', data.customerName,
+              primaryValue: false),
           const SizedBox(height: 14),
-          _labeledBlock(context, 'Email Address', data.customerEmail, primaryValue: true),
+          _labeledBlock(context, 'Email Address', data.customerEmail,
+              primaryValue: true),
           const SizedBox(height: 14),
-          _labeledBlock(context, 'Phone', data.customerPhone, primaryValue: false),
+          _labeledBlock(context, 'Phone', data.customerPhone,
+              primaryValue: false),
         ],
       ),
     );
@@ -1749,7 +1863,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                   color: OrderDetailScreen._premiumBadgeBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(Icons.location_on_outlined, color: AppTheme.primaryDark, size: 22),
+                child: Icon(Icons.location_on_outlined,
+                    color: AppTheme.primaryDark, size: 22),
               ),
               const SizedBox(width: 12),
               Text(
@@ -1787,7 +1902,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                   style: TextButton.styleFrom(
                     foregroundColor: AppTheme.primary,
                     padding: EdgeInsets.zero,
-                    textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
+                    textStyle: GoogleFonts.inter(
+                        fontWeight: FontWeight.w600, fontSize: 13),
                   ),
                   icon: const Icon(Icons.map_outlined, size: 18),
                   label: const Text('View on Map'),
@@ -1850,14 +1966,17 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                     style: FilledButton.styleFrom(
                       backgroundColor: AppTheme.primaryDark,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       elevation: 4,
                       shadowColor: AppTheme.primaryDark.withValues(alpha: 0.35),
                     ),
                     child: Text(
                       'Process Order',
-                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14),
+                      style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w700, fontSize: 14),
                     ),
                   ),
                 ],
@@ -2173,7 +2292,8 @@ class _Timeline extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                         fontSize: 15,
                         color: step.state == _StepState.upcoming
-                            ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.55)
+                            ? theme.colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.55)
                             : step.state == _StepState.current
                                 ? AppTheme.primary
                                 : OrderDetailScreen._navyTitle,
@@ -2186,7 +2306,8 @@ class _Timeline extends StatelessWidget {
                           line,
                           style: GoogleFonts.inter(
                             color: step.state == _StepState.upcoming
-                                ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.45)
+                                ? theme.colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.45)
                                 : theme.colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w500,
                             fontSize: 13,
@@ -2250,7 +2371,8 @@ class _StepDot extends StatelessWidget {
             child: Container(
               width: 9,
               height: 9,
-              decoration: const BoxDecoration(color: _blue, shape: BoxShape.circle),
+              decoration:
+                  const BoxDecoration(color: _blue, shape: BoxShape.circle),
             ),
           ),
         );

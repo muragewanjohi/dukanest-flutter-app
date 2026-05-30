@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 
 /// Unwrapped `data` from `GET /api/v1/mobile/dashboard/getting-started`.
-final dashboardGettingStartedProvider = FutureProvider.autoDispose<Map<String, dynamic>?>((ref) async {
+final dashboardGettingStartedProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>?>((ref) async {
   try {
     final api = ref.read(apiClientProvider);
     final response = await api.getGettingStarted();

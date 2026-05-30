@@ -477,7 +477,9 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(categoriesListProvider).whenData(_syncCategoryAfterCategoriesLoad);
+      ref
+          .read(categoriesListProvider)
+          .whenData(_syncCategoryAfterCategoriesLoad);
     });
   }
 
@@ -547,8 +549,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     final rootContext = context;
     final attrsAsync = ref.read(dashboardAttributesProvider);
     final all = attrsAsync.valueOrNull ?? [];
-    final attrs =
-        all.where((a) => a.values.isNotEmpty).toList(growable: false);
+    final attrs = all.where((a) => a.values.isNotEmpty).toList(growable: false);
     if (attrs.isEmpty) {
       if (!mounted) return;
       if (attrsAsync.hasError) {
@@ -698,75 +699,68 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                               : null,
                         ),
                         child: Column(
-                          children: attrs
-                              .map((a) {
-                                return Padding(
-                                  padding:
-                                      const EdgeInsets.only(bottom: 14),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        a.name,
-                                        style: GoogleFonts.inter(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13,
-                                          color: AppTheme.onSurfaceVariant,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Wrap(
-                                        spacing: 10,
-                                        runSpacing: 10,
-                                        children:
-                                            a.values.map((raw) {
-                                          final label =
-                                              _valueLabel(a, raw);
-                                          final isSelected =
-                                              selected[a.name] == label;
-                                          return ChoiceChip(
-                                            label: Text(label),
-                                            selected: isSelected,
-                                            showCheckmark: false,
-                                            selectedColor: AppTheme.primary,
-                                            backgroundColor: Theme.of(
-                                              context,
-                                            ).colorScheme.surfaceContainerLow,
-                                            labelStyle: GoogleFonts.inter(
-                                              fontWeight: FontWeight.w600,
-                                              color: isSelected
-                                                  ? Colors.white
-                                                  : AppTheme.onSurfaceVariant,
-                                            ),
-                                            side: BorderSide(
-                                              color: isSelected
-                                                  ? Colors.transparent
-                                                  : Theme.of(context)
-                                                      .colorScheme
-                                                      .outlineVariant
-                                                      .withValues(
-                                                          alpha: 0.5),
-                                            ),
-                                            onSelected: (_) {
-                                              setModal(() {
-                                                if (isSelected) {
-                                                  selected.remove(a.name);
-                                                } else {
-                                                  selected[a.name] = label;
-                                                }
-                                              });
-                                              clearVariantSheetError(
-                                                  'variantAttributes');
-                                            },
-                                          );
-                                        }).toList(),
-                                      ),
-                                    ],
+                          children: attrs.map((a) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    a.name,
+                                    style: GoogleFonts.inter(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                      color: AppTheme.onSurfaceVariant,
+                                    ),
                                   ),
-                                );
-                              })
-                              .toList(),
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 10,
+                                    runSpacing: 10,
+                                    children: a.values.map((raw) {
+                                      final label = _valueLabel(a, raw);
+                                      final isSelected =
+                                          selected[a.name] == label;
+                                      return ChoiceChip(
+                                        label: Text(label),
+                                        selected: isSelected,
+                                        showCheckmark: false,
+                                        selectedColor: AppTheme.primary,
+                                        backgroundColor: Theme.of(
+                                          context,
+                                        ).colorScheme.surfaceContainerLow,
+                                        labelStyle: GoogleFonts.inter(
+                                          fontWeight: FontWeight.w600,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : AppTheme.onSurfaceVariant,
+                                        ),
+                                        side: BorderSide(
+                                          color: isSelected
+                                              ? Colors.transparent
+                                              : Theme.of(context)
+                                                  .colorScheme
+                                                  .outlineVariant
+                                                  .withValues(alpha: 0.5),
+                                        ),
+                                        onSelected: (_) {
+                                          setModal(() {
+                                            if (isSelected) {
+                                              selected.remove(a.name);
+                                            } else {
+                                              selected[a.name] = label;
+                                            }
+                                          });
+                                          clearVariantSheetError(
+                                              'variantAttributes');
+                                        },
+                                      );
+                                    }).toList(),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -806,8 +800,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                       TextField(
                         controller: costPriceCtrl,
                         keyboardType: TextInputType.number,
-                        onChanged: (_) =>
-                            clearVariantSheetError('variantCost'),
+                        onChanged: (_) => clearVariantSheetError('variantCost'),
                         decoration: _variantPricingInputDecoration(
                           Theme.of(context),
                           labelText: 'Cost of goods (optional)',
@@ -937,12 +930,9 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                           final variantRegular =
                               _toDouble(regularPriceCtrl.text);
                           final variantSale = _toDouble(salePriceCtrl.text);
-                          final variantCost =
-                              _toDouble(costPriceCtrl.text);
+                          final variantCost = _toDouble(costPriceCtrl.text);
                           final variantPrimaryPrice =
-                              variantRegular > 0
-                                  ? variantRegular
-                                  : variantSale;
+                              variantRegular > 0 ? variantRegular : variantSale;
                           if (variantPrimaryPrice <= 0) {
                             reportVariantSheetError(
                               'variantPrice',
@@ -966,8 +956,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             );
                             return;
                           }
-                          final variantStockRaw =
-                              stockQtyCtrl.text.trim();
+                          final variantStockRaw = stockQtyCtrl.text.trim();
                           if (variantStockRaw.isEmpty) {
                             reportVariantSheetError(
                               'variantStock',
@@ -975,8 +964,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             );
                             return;
                           }
-                          final variantStock =
-                              int.tryParse(variantStockRaw);
+                          final variantStock = int.tryParse(variantStockRaw);
                           if (variantStock == null) {
                             reportVariantSheetError(
                               'variantStock',
@@ -991,8 +979,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             );
                             return;
                           }
-                          final combo =
-                              Map<String, String>.from(selected);
+                          final combo = Map<String, String>.from(selected);
                           if (_variantLines
                               .any((l) => _optionsEqual(l.options, combo))) {
                             Navigator.pop(ctx, false);
@@ -1171,76 +1158,65 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                 : null,
                           ),
                           child: Column(
-                            children: usableAttrs
-                                .map((a) {
-                                  return Padding(
-                                    padding:
-                                        const EdgeInsets.only(bottom: 14),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          a.name,
-                                          style: GoogleFonts.inter(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 13,
-                                            color: AppTheme.onSurfaceVariant,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Wrap(
-                                          spacing: 10,
-                                          runSpacing: 10,
-                                          children:
-                                              a.values.map((raw) {
-                                            final label =
-                                                _valueLabel(a, raw);
-                                            final isSelected =
-                                                selected[a.name] == label;
-                                            return ChoiceChip(
-                                              label: Text(label),
-                                              selected: isSelected,
-                                              showCheckmark: false,
-                                              selectedColor: AppTheme.primary,
-                                              backgroundColor: theme
-                                                  .colorScheme
-                                                  .surfaceContainerLow,
-                                              labelStyle: GoogleFonts.inter(
-                                                fontWeight: FontWeight.w600,
-                                                color: isSelected
-                                                    ? Colors.white
-                                                    : AppTheme
-                                                        .onSurfaceVariant,
-                                              ),
-                                              side: BorderSide(
-                                                color: isSelected
-                                                    ? Colors.transparent
-                                                    : theme.colorScheme
-                                                        .outlineVariant
-                                                        .withValues(
-                                                            alpha: 0.5),
-                                              ),
-                                              onSelected: (_) {
-                                                setModal(() {
-                                                  if (isSelected) {
-                                                    selected.remove(a.name);
-                                                  } else {
-                                                    selected[a.name] =
-                                                        label;
-                                                  }
-                                                });
-                                                clearEv(
-                                                    'variantAttributes');
-                                              },
-                                            );
-                                          }).toList(),
-                                        ),
-                                      ],
+                            children: usableAttrs.map((a) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 14),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      a.name,
+                                      style: GoogleFonts.inter(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                        color: AppTheme.onSurfaceVariant,
+                                      ),
                                     ),
-                                  );
-                                })
-                                .toList(),
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      spacing: 10,
+                                      runSpacing: 10,
+                                      children: a.values.map((raw) {
+                                        final label = _valueLabel(a, raw);
+                                        final isSelected =
+                                            selected[a.name] == label;
+                                        return ChoiceChip(
+                                          label: Text(label),
+                                          selected: isSelected,
+                                          showCheckmark: false,
+                                          selectedColor: AppTheme.primary,
+                                          backgroundColor: theme
+                                              .colorScheme.surfaceContainerLow,
+                                          labelStyle: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w600,
+                                            color: isSelected
+                                                ? Colors.white
+                                                : AppTheme.onSurfaceVariant,
+                                          ),
+                                          side: BorderSide(
+                                            color: isSelected
+                                                ? Colors.transparent
+                                                : theme
+                                                    .colorScheme.outlineVariant
+                                                    .withValues(alpha: 0.5),
+                                          ),
+                                          onSelected: (_) {
+                                            setModal(() {
+                                              if (isSelected) {
+                                                selected.remove(a.name);
+                                              } else {
+                                                selected[a.name] = label;
+                                              }
+                                            });
+                                            clearEv('variantAttributes');
+                                          },
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
                           ),
                         ),
                       const SizedBox(height: 8),
@@ -1383,14 +1359,11 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             );
                             return;
                           }
-                          final variantRegular =
-                              _toDouble(regularCtrl.text);
+                          final variantRegular = _toDouble(regularCtrl.text);
                           final variantSale = _toDouble(saleCtrl.text);
                           final variantCost = _toDouble(costCtrl.text);
                           final variantPrimaryPrice =
-                              variantRegular > 0
-                                  ? variantRegular
-                                  : variantSale;
+                              variantRegular > 0 ? variantRegular : variantSale;
                           if (variantPrimaryPrice <= 0) {
                             reportEv(
                               'variantPrice',
@@ -1414,8 +1387,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             );
                             return;
                           }
-                          final variantStockRaw =
-                              stockCtrl.text.trim();
+                          final variantStockRaw = stockCtrl.text.trim();
                           if (variantStockRaw.isEmpty) {
                             reportEv(
                               'variantStock',
@@ -1423,8 +1395,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                             );
                             return;
                           }
-                          final variantStock =
-                              int.tryParse(variantStockRaw);
+                          final variantStock = int.tryParse(variantStockRaw);
                           if (variantStock == null) {
                             reportEv(
                               'variantStock',
@@ -2795,7 +2766,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                       hintText:
                                           'e.g. Grade 1 maize flour, 2 kg bag. Milled locally…',
                                       hintStyle: TextStyle(
-                                        color: theme.colorScheme.onSurfaceVariant
+                                        color: theme
+                                            .colorScheme.onSurfaceVariant
                                             .withValues(alpha: 0.75),
                                         height: 1.35,
                                       ),
@@ -2835,7 +2807,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                   children: [
                                     Text(
                                       'Could not load categories.',
-                                      style: theme.textTheme.bodySmall?.copyWith(
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
                                         color: theme.colorScheme.error,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -2848,7 +2821,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                         OutlinedButton.icon(
                                           onPressed: () => ref.invalidate(
                                               categoriesListProvider),
-                                          icon: const Icon(Icons.refresh_rounded,
+                                          icon: const Icon(
+                                              Icons.refresh_rounded,
                                               size: 18),
                                           label: const Text('Retry'),
                                         ),
@@ -2875,11 +2849,13 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     Text(
                                       'No categories yet. Create one to organize products on your storefront.',
-                                      style: theme.textTheme.bodySmall?.copyWith(
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
                                         color:
                                             theme.colorScheme.onSurfaceVariant,
                                         height: 1.35,
@@ -2902,11 +2878,10 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                 !categoriesAsync.hasError &&
                                 categoryNames.isNotEmpty)
                               Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12),
                                 decoration: BoxDecoration(
-                                  color:
-                                      theme.colorScheme.surfaceContainerLow,
+                                  color: theme.colorScheme.surfaceContainerLow,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: DropdownButtonHideUnderline(
@@ -2924,14 +2899,14 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                     }(),
                                     isExpanded: true,
                                     icon: Icon(Icons.expand_more,
-                                        color: theme
-                                            .colorScheme.onSurfaceVariant),
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant),
                                     hint: Text(
                                       categoryNames.isEmpty
                                           ? 'No categories yet'
                                           : 'Select category',
-                                      style: theme.textTheme.bodyMedium
-                                          ?.copyWith(
+                                      style:
+                                          theme.textTheme.bodyMedium?.copyWith(
                                         color: theme.colorScheme.outline,
                                       ),
                                     ),
@@ -3327,15 +3302,13 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                     onPressed: () {
                                       final async =
                                           ref.read(dashboardAttributesProvider);
-                                      final all =
-                                          async.valueOrNull ?? [];
+                                      final all = async.valueOrNull ?? [];
 
                                       if (async.isLoading) {
                                         ScaffoldMessenger.of(context)
                                             .showSnackBar(
                                           const SnackBar(
-                                            behavior:
-                                                SnackBarBehavior.floating,
+                                            behavior: SnackBarBehavior.floating,
                                             content: Text(
                                               'Still loading attributes. Wait a moment, then tap Add variant again.',
                                             ),
@@ -3357,8 +3330,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                         return;
                                       }
                                       final usable = all
-                                          .where((a) =>
-                                              a.values.isNotEmpty)
+                                          .where((a) => a.values.isNotEmpty)
                                           .toList();
                                       if (usable.isEmpty) {
                                         _showVariantSetupRequired(
@@ -3505,7 +3477,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   InputDecoration _fieldDeco(ThemeData theme,
       {String? hint, bool isInvalid = false}) {
     final errorColor = theme.colorScheme.error;
-    final idleOutline = theme.colorScheme.outlineVariant.withValues(alpha: 0.55);
+    final idleOutline =
+        theme.colorScheme.outlineVariant.withValues(alpha: 0.55);
     final enabledBorder = OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
       borderSide: isInvalid

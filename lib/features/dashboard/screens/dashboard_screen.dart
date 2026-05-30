@@ -46,7 +46,9 @@ final connectivityStatusProvider =
   final connectivity = Connectivity();
   ConnectivityResult toStatus(List<ConnectivityResult> results) {
     if (results.isEmpty) return ConnectivityResult.none;
-    if (results.contains(ConnectivityResult.none)) return ConnectivityResult.none;
+    if (results.contains(ConnectivityResult.none)) {
+      return ConnectivityResult.none;
+    }
     return results.first;
   }
 
@@ -63,8 +65,7 @@ List<_OnboardingStepUi> _mergeLocalStepCompletion(
 ) {
   if (localKeys.isEmpty) return steps;
   return steps.map((s) {
-    final key =
-        canonicalDashboardOnboardingStepKey(s.stepKey ?? '');
+    final key = canonicalDashboardOnboardingStepKey(s.stepKey ?? '');
     if (key.isEmpty || !localKeys.contains(key) || s.completed) return s;
     return _OnboardingStepUi(
       completed: true,
@@ -185,7 +186,14 @@ List<_OnboardingStepUi> _orderOnboardingSteps(List<_OnboardingStepUi> steps) {
       middle.add(s);
     }
   }
-  return [...categories, ...attributes, ...products, ...middle, ...previews, ...shares];
+  return [
+    ...categories,
+    ...attributes,
+    ...products,
+    ...middle,
+    ...previews,
+    ...shares
+  ];
 }
 
 void _postGettingStartedPreview(WidgetRef ref) {
@@ -317,9 +325,8 @@ _TrialSnapshot? _trialSnapshotFromOverview(Map<String, dynamic>? data) {
   if (days == null || days <= 0) return null;
 
   final planRaw = sub['planName'] ?? sub['plan_name'];
-  final planName = planRaw is String && planRaw.trim().isNotEmpty
-      ? planRaw.trim()
-      : null;
+  final planName =
+      planRaw is String && planRaw.trim().isNotEmpty ? planRaw.trim() : null;
 
   return _TrialSnapshot(
     daysRemaining: days,

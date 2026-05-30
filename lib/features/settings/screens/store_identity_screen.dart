@@ -29,7 +29,8 @@ class StoreIdentityScreen extends ConsumerStatefulWidget {
   const StoreIdentityScreen({super.key});
 
   @override
-  ConsumerState<StoreIdentityScreen> createState() => _StoreIdentityScreenState();
+  ConsumerState<StoreIdentityScreen> createState() =>
+      _StoreIdentityScreenState();
 }
 
 class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
@@ -62,18 +63,23 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
   bool _saving = false;
   String? _serverSubdomain;
   String? _logoImageUrl;
+
   /// Local file chosen by the user; uploaded only when they tap Save changes.
   String? _pendingLogoLocalPath;
+
   /// Local file kept after upload/save so preview survives until the CDN URL loads.
   String? _logoPreviewLocalPath;
+
   /// Bumped when the logo URL changes or after save so [CachedNetworkImage] does not show a stale bitmap if the URL is unchanged.
   int _logoCacheEpoch = 0;
   String? _lastHydratedSettingsSignature;
   bool _skipNextSettingsHydrate = false;
 
   bool _uploadingLogo = false;
+
   /// 0..1 send progress for the in-flight logo upload, or null when total size is unknown / not uploading.
   double? _logoUploadProgress;
+
   /// True when the user explicitly removed the logo (X button) so the next save
   /// must persist the cleared value instead of leaving the server logo untouched.
   bool _logoClearedByUser = false;
@@ -130,8 +136,10 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       phone = phone.substring(3);
     }
     _phoneLocal.text = phone.replaceAll(RegExp(r'\D'), '');
-    _phone2Local.text = _normalizeLocalPhone(settingsPick(store, ['phone2', 'phone_2']));
-    _phone3Local.text = _normalizeLocalPhone(settingsPick(store, ['phone3', 'phone_3']));
+    _phone2Local.text =
+        _normalizeLocalPhone(settingsPick(store, ['phone2', 'phone_2']));
+    _phone3Local.text =
+        _normalizeLocalPhone(settingsPick(store, ['phone3', 'phone_3']));
     _address1.text = settingsPick(store, [
       'line1',
       'addressLine1',
@@ -142,8 +150,10 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     _city.text = settingsPick(store, ['city']);
     _state.text = settingsPick(store, ['state', 'province', 'region']);
     _country.text = settingsPick(store, ['country']);
-    _postal.text = settingsPick(store, ['postalCode', 'postal_code', 'zip', 'zipCode']);
-    _supportEmail.text = settingsPick(store, ['contactEmail', 'contact_email', 'supportEmail']);
+    _postal.text =
+        settingsPick(store, ['postalCode', 'postal_code', 'zip', 'zipCode']);
+    _supportEmail.text =
+        settingsPick(store, ['contactEmail', 'contact_email', 'supportEmail']);
     _description.text = settingsPick(store, ['description', 'tagline']);
 
     final bt = settingsPick(data, ['businessType', 'business_type']);
@@ -152,7 +162,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     } else if (bt.isNotEmpty) {
       _businessType = bt;
     }
-    final sell = settingsPick(data, ['selling', 'sellingCategory', 'selling_category']);
+    final sell =
+        settingsPick(data, ['selling', 'sellingCategory', 'selling_category']);
     if (sell.isNotEmpty && _sellingOptions.contains(sell)) {
       _sellingCategory = sell;
     } else if (sell.isNotEmpty) {
@@ -163,7 +174,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       _countryOptions = countriesRaw
           .map((c) {
             if (c is Map) {
-              return settingsPick(Map<String, dynamic>.from(c), ['name', 'label', 'code', 'country']);
+              return settingsPick(Map<String, dynamic>.from(c),
+                  ['name', 'label', 'code', 'country']);
             }
             return c?.toString() ?? '';
           })
@@ -174,13 +186,20 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     final currency = settingsSection(data, 'currency') ?? {};
     _currencyCode.text = settingsPick(currency, ['code'], fallback: 'KES');
     _currencySymbol.text = settingsPick(currency, ['symbol'], fallback: 'KSh');
-    final symbolPosition =
-        settingsPick(currency, ['symbolPosition', 'symbol_position'], fallback: 'left')
-            .toLowerCase();
+    final symbolPosition = settingsPick(
+            currency, ['symbolPosition', 'symbol_position'],
+            fallback: 'left')
+        .toLowerCase();
     _symbolPosition = symbolPosition == 'right' ? 'right' : 'left';
-    _decimalPlaces.text = settingsPick(currency, ['decimalPlaces', 'decimal_places'], fallback: '0');
-    _thousandSeparator.text = settingsPick(currency, ['thousandSeparator', 'thousand_separator'], fallback: ',');
-    _decimalSeparator.text = settingsPick(currency, ['decimalSeparator', 'decimal_separator'], fallback: '.');
+    _decimalPlaces.text = settingsPick(
+        currency, ['decimalPlaces', 'decimal_places'],
+        fallback: '0');
+    _thousandSeparator.text = settingsPick(
+        currency, ['thousandSeparator', 'thousand_separator'],
+        fallback: ',');
+    _decimalSeparator.text = settingsPick(
+        currency, ['decimalSeparator', 'decimal_separator'],
+        fallback: '.');
     _captureSaveBaseline();
   }
 
@@ -192,11 +211,13 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
   }
 
   String _toE164(String local) {
-    final digits = local.replaceAll(RegExp(r'\D'), '').replaceFirst(RegExp(r'^0+'), '');
+    final digits =
+        local.replaceAll(RegExp(r'\D'), '').replaceFirst(RegExp(r'^0+'), '');
     return digits.isEmpty ? '' : '+254$digits';
   }
 
-  void _applyLogoFromSettings(Map<String, dynamic> data, {bool preserveLocalPending = true}) {
+  void _applyLogoFromSettings(Map<String, dynamic> data,
+      {bool preserveLocalPending = true}) {
     final prevLogo = _logoImageUrl;
     final normalizedLogo = readStoreLogoFromSettings(data);
     if (normalizedLogo.isNotEmpty) {
@@ -219,7 +240,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     _pendingLogoLocalPath = null;
   }
 
-  void _hydrateFrom(Map<String, dynamic> data, {bool preserveLocalPending = true}) {
+  void _hydrateFrom(Map<String, dynamic> data,
+      {bool preserveLocalPending = true}) {
     _hydrateFormFieldsFrom(data);
     _applyLogoFromSettings(data, preserveLocalPending: preserveLocalPending);
     if (!preserveLocalPending) {
@@ -253,8 +275,9 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
   }
 
   String _currentFormSignature() {
-    final phoneDigits =
-        _phoneLocal.text.replaceAll(RegExp(r'\D'), '').replaceFirst(RegExp(r'^0+'), '');
+    final phoneDigits = _phoneLocal.text
+        .replaceAll(RegExp(r'\D'), '')
+        .replaceFirst(RegExp(r'^0+'), '');
     return jsonEncode({
       'name': _storeName.text.trim(),
       'domain': _domain.text.trim(),
@@ -310,9 +333,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     }
     _pendingLogoLocalPath = null;
     final preview = localPreviewPath?.trim();
-    if (preview != null &&
-        preview.isNotEmpty &&
-        File(preview).existsSync()) {
+    if (preview != null && preview.isNotEmpty && File(preview).existsSync()) {
       _logoPreviewLocalPath = preview;
     }
   }
@@ -390,8 +411,9 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     _captureSaveBaseline();
     _logoClearedByUser = false;
     final normalizedSubdomain = _domain.text.trim();
-    final rootHost = (Uri.tryParse(AppConfig.publicApiBaseUrl)?.host ?? 'dukanest.com')
-        .replaceFirst(RegExp(r'^www\.'), '');
+    final rootHost =
+        (Uri.tryParse(AppConfig.publicApiBaseUrl)?.host ?? 'dukanest.com')
+            .replaceFirst(RegExp(r'^www\.'), '');
     await ref.read(tokenStorageProvider).saveStoreIdentity(
           name: _storeName.text.trim(),
           subdomain: normalizedSubdomain,
@@ -454,7 +476,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     };
   }
 
-  Map<String, dynamic> _logoClearSettingsPatch({Map<String, dynamic>? settingsRoot}) {
+  Map<String, dynamic> _logoClearSettingsPatch(
+      {Map<String, dynamic>? settingsRoot}) {
     final staticOptions = _mergedStaticOptions(
       settingsRoot,
       clearStoreLogo: true,
@@ -494,7 +517,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     }
   }
 
-  String _formatApiError(Object e, {String fallback = 'Could not save store logo'}) {
+  String _formatApiError(Object e,
+      {String fallback = 'Could not save store logo'}) {
     if (e is DioException) {
       final data = e.response?.data;
       if (data is Map) {
@@ -528,14 +552,17 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
   static String _settingsHydrationSignature(Map<String, dynamic>? root) {
     if (root == null || root.isEmpty) return '';
     final store = settingsSection(root, 'store');
-    final storeKeys = store == null ? <String>[] : (store.keys.toList()..sort());
-    final storeJson =
-        store == null ? <String, dynamic>{} : {for (final k in storeKeys) k: store[k]};
+    final storeKeys =
+        store == null ? <String>[] : (store.keys.toList()..sort());
+    final storeJson = store == null
+        ? <String, dynamic>{}
+        : {for (final k in storeKeys) k: store[k]};
     return jsonEncode({
       'store': storeJson,
       'logo': readStoreLogoFromSettings(root),
       'businessType': settingsPick(root, ['businessType', 'business_type']),
-      'selling': settingsPick(root, ['selling', 'sellingCategory', 'selling_category']),
+      'selling': settingsPick(
+          root, ['selling', 'sellingCategory', 'selling_category']),
     });
   }
 
@@ -709,7 +736,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
           return;
         }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_formatApiError(e, fallback: 'Could not save'))),
+          SnackBar(
+              content: Text(_formatApiError(e, fallback: 'Could not save'))),
         );
         return;
       }
@@ -736,7 +764,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       if (refreshedRoot != null) {
         _hydrateFormFieldsFrom(refreshedRoot);
         _applyLogoFromSettings(refreshedRoot, preserveLocalPending: true);
-        _lastHydratedSettingsSignature = _settingsHydrationSignature(refreshedRoot);
+        _lastHydratedSettingsSignature =
+            _settingsHydrationSignature(refreshedRoot);
         _ensureLogoUrlAfterSave(
           savedLogoUrl: logo,
           cleared: _logoClearedByUser,
@@ -898,10 +927,13 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
           'This will sign you out, disable your store, and schedule hard deletion after the retention period.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Delete', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+            child: Text('Delete',
+                style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
           ),
         ],
       ),
@@ -910,7 +942,9 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     final sub = (_serverSubdomain ?? _domain.text.trim()).trim();
     if (sub.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Missing store subdomain — reload settings and try again.')),
+        const SnackBar(
+            content: Text(
+                'Missing store subdomain — reload settings and try again.')),
       );
       return;
     }
@@ -922,7 +956,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       if (!mounted) return;
       if (!r.success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(r.error?.message ?? 'Could not delete account')),
+          SnackBar(
+              content: Text(r.error?.message ?? 'Could not delete account')),
         );
         return;
       }
@@ -937,7 +972,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     }
   }
 
-  InputDecoration _fieldDeco(ThemeData theme, {String? hint, bool isInvalid = false}) {
+  InputDecoration _fieldDeco(ThemeData theme,
+      {String? hint, bool isInvalid = false}) {
     final errorColor = theme.colorScheme.error;
     final outlineColor = isInvalid
         ? errorColor
@@ -1067,8 +1103,11 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                         foregroundColor: theme.colorScheme.onSurface,
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         minimumSize: const Size(0, 48),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        side: BorderSide(
+                            color: theme.colorScheme.outlineVariant
+                                .withValues(alpha: 0.45)),
                         backgroundColor: theme.colorScheme.surfaceContainer,
                       ),
                       child: Row(
@@ -1076,8 +1115,12 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                         children: [
                           const Text('🇰🇪', style: TextStyle(fontSize: 16)),
                           const SizedBox(width: 8),
-                          Text('+254', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14)),
-                          Icon(Icons.keyboard_arrow_down_rounded, color: theme.colorScheme.onSurfaceVariant, size: 18),
+                          Text('+254',
+                              style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w600, fontSize: 14)),
+                          Icon(Icons.keyboard_arrow_down_rounded,
+                              color: theme.colorScheme.onSurfaceVariant,
+                              size: 18),
                         ],
                       ),
                     ),
@@ -1121,7 +1164,9 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _label(theme, 'Code'),
-                          TextField(controller: _currencyCode, decoration: _fieldDeco(theme)),
+                          TextField(
+                              controller: _currencyCode,
+                              decoration: _fieldDeco(theme)),
                         ],
                       ),
                     ),
@@ -1131,7 +1176,9 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _label(theme, 'Symbol'),
-                          TextField(controller: _currencySymbol, decoration: _fieldDeco(theme)),
+                          TextField(
+                              controller: _currencySymbol,
+                              decoration: _fieldDeco(theme)),
                         ],
                       ),
                     ),
@@ -1179,7 +1226,9 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _label(theme, 'Decimal places'),
-                          TextField(controller: _decimalPlaces, decoration: _fieldDeco(theme)),
+                          TextField(
+                              controller: _decimalPlaces,
+                              decoration: _fieldDeco(theme)),
                         ],
                       ),
                     ),
@@ -1189,7 +1238,9 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _label(theme, 'Thousands sep'),
-                          TextField(controller: _thousandSeparator, decoration: _fieldDeco(theme)),
+                          TextField(
+                              controller: _thousandSeparator,
+                              decoration: _fieldDeco(theme)),
                         ],
                       ),
                     ),
@@ -1199,7 +1250,9 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _label(theme, 'Decimal sep'),
-                          TextField(controller: _decimalSeparator, decoration: _fieldDeco(theme)),
+                          TextField(
+                              controller: _decimalSeparator,
+                              decoration: _fieldDeco(theme)),
                         ],
                       ),
                     ),
@@ -1224,9 +1277,12 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                 _label(theme, 'Business Type'),
                 _dropdown(
                   theme,
-                  value: _businessTypeOptions.contains(_businessType) ? _businessType : _businessTypeOptions.first,
+                  value: _businessTypeOptions.contains(_businessType)
+                      ? _businessType
+                      : _businessTypeOptions.first,
                   items: _businessTypeOptions,
-                  onChanged: (v) => setState(() => _businessType = v ?? _businessTypeOptions.first),
+                  onChanged: (v) => setState(
+                      () => _businessType = v ?? _businessTypeOptions.first),
                 ),
                 const SizedBox(height: 16),
                 _label(theme, 'What are you selling?'),
@@ -1236,7 +1292,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                       ? _sellingCategory
                       : _sellingOptions.first,
                   items: _sellingOptions,
-                  onChanged: (v) => setState(() => _sellingCategory = v ?? _sellingOptions.first),
+                  onChanged: (v) => setState(
+                      () => _sellingCategory = v ?? _sellingOptions.first),
                 ),
               ],
             ),
@@ -1314,11 +1371,15 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                                 )
                               : _dropdown(
                                   theme,
-                                  value: _countryOptions.contains(_country.text.trim())
+                                  value: _countryOptions
+                                          .contains(_country.text.trim())
                                       ? _country.text.trim()
-                                      : (_countryOptions.isNotEmpty ? _countryOptions.first : ''),
+                                      : (_countryOptions.isNotEmpty
+                                          ? _countryOptions.first
+                                          : ''),
                                   items: _countryOptions,
-                                  onChanged: (v) => setState(() => _country.text = v ?? ''),
+                                  onChanged: (v) =>
+                                      setState(() => _country.text = v ?? ''),
                                 ),
                         ],
                       ),
@@ -1359,14 +1420,16 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                       theme,
                       isInvalid: isFieldInvalid('supportEmail'),
                     ).copyWith(
-                      prefixIcon: Icon(Icons.mail_outline_rounded, color: theme.colorScheme.onSurfaceVariant, size: 22),
+                      prefixIcon: Icon(Icons.mail_outline_rounded,
+                          color: theme.colorScheme.onSurfaceVariant, size: 22),
                     ),
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Used for order confirmations and customer inquiries.',
-                  style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                      fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -1388,15 +1451,19 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                   ? const SizedBox(
                       width: 22,
                       height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
                     )
                   : const Icon(Icons.check_circle_outline_rounded, size: 22),
-              label: Text('Save Changes', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 16)),
+              label: Text('Save Changes',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w700, fontSize: 16)),
               style: FilledButton.styleFrom(
                 backgroundColor: theme.colorScheme.primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
                 elevation: 4,
                 shadowColor: theme.colorScheme.primary.withValues(alpha: 0.35),
               ),
@@ -1411,7 +1478,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     final localPath = _activeLogoLocalPath;
     final hasLocalPreview = localPath != null;
     final progress = _logoUploadProgress;
-    final progressPercent = progress != null ? (progress * 100).clamp(0, 100).toInt() : null;
+    final progressPercent =
+        progress != null ? (progress * 100).clamp(0, 100).toInt() : null;
 
     Widget centerVisual;
     if (_uploadingLogo) {
@@ -1428,7 +1496,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                 value: progress,
                 strokeWidth: 4,
                 color: theme.colorScheme.primary,
-                backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.15),
+                backgroundColor:
+                    theme.colorScheme.primary.withValues(alpha: 0.15),
               ),
             ),
             if (progressPercent != null)
@@ -1490,7 +1559,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
         clipBehavior: Clip.none,
         children: [
           ClipOval(child: imageChild),
-          if (_pendingLogoLocalPath != null && _pendingLogoLocalPath!.isNotEmpty)
+          if (_pendingLogoLocalPath != null &&
+              _pendingLogoLocalPath!.isNotEmpty)
             Positioned(
               bottom: -2,
               left: 0,
@@ -1526,7 +1596,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                 customBorder: const CircleBorder(),
                 child: const Padding(
                   padding: EdgeInsets.all(4),
-                  child: Icon(Icons.close_rounded, color: Colors.white, size: 16),
+                  child:
+                      Icon(Icons.close_rounded, color: Colors.white, size: 16),
                 ),
               ),
             ),
@@ -1555,7 +1626,9 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     final String headline;
     final String hint;
     if (_uploadingLogo) {
-      headline = progressPercent != null ? 'Uploading… $progressPercent%' : 'Uploading…';
+      headline = progressPercent != null
+          ? 'Uploading… $progressPercent%'
+          : 'Uploading…';
       hint = 'Please keep this screen open until the upload completes.';
     } else if (_hasLogoPreview) {
       final hasUnsavedPick =
@@ -1589,13 +1662,15 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                 Text(
                   headline,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700),
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   hint,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                      fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
                 ),
                 if (_uploadingLogo) ...[
                   const SizedBox(height: 16),
@@ -1605,7 +1680,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                       value: progress,
                       minHeight: 6,
                       color: theme.colorScheme.primary,
-                      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+                      backgroundColor:
+                          theme.colorScheme.primary.withValues(alpha: 0.12),
                     ),
                   ),
                 ],
@@ -1642,15 +1718,19 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45)),
+        border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
           isExpanded: true,
-          icon: Icon(Icons.unfold_more_rounded, color: theme.colorScheme.onSurfaceVariant),
+          icon: Icon(Icons.unfold_more_rounded,
+              color: theme.colorScheme.onSurfaceVariant),
           items: items
-              .map((e) => DropdownMenuItem(value: e, child: Text(e, style: GoogleFonts.inter(fontSize: 14))))
+              .map((e) => DropdownMenuItem(
+                  value: e,
+                  child: Text(e, style: GoogleFonts.inter(fontSize: 14))))
               .toList(),
           onChanged: onChanged,
         ),
@@ -1681,7 +1761,8 @@ class _SectionCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35)),
+          border: Border.all(
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -1783,8 +1864,10 @@ class _DeleteAccountSection extends StatelessWidget {
                 Container(
                   width: 22,
                   height: 22,
-                  decoration: const BoxDecoration(color: _titleRed, shape: BoxShape.circle),
-                  child: const Icon(Icons.priority_high_rounded, color: Colors.white, size: 16),
+                  decoration: const BoxDecoration(
+                      color: _titleRed, shape: BoxShape.circle),
+                  child: const Icon(Icons.priority_high_rounded,
+                      color: Colors.white, size: 16),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1822,13 +1905,16 @@ class _DeleteAccountSection extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: _buttonRed,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
                 elevation: 0,
               ),
               child: Text(
                 'Delete my account',
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14),
+                style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700, fontSize: 14),
               ),
             ),
           ),
@@ -1846,7 +1932,9 @@ class _DashedRectPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final r = RRect.fromRectAndRadius(Rect.fromLTWH(1, 1, size.width - 2, size.height - 2), Radius.circular(radius));
+    final r = RRect.fromRectAndRadius(
+        Rect.fromLTWH(1, 1, size.width - 2, size.height - 2),
+        Radius.circular(radius));
     final path = Path()..addRRect(r);
     final paint = Paint()
       ..color = color

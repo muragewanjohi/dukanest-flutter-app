@@ -18,12 +18,14 @@ class PaymentSettingsScreen extends ConsumerStatefulWidget {
   const PaymentSettingsScreen({super.key});
 
   @override
-  ConsumerState<PaymentSettingsScreen> createState() => _PaymentSettingsScreenState();
+  ConsumerState<PaymentSettingsScreen> createState() =>
+      _PaymentSettingsScreenState();
 }
 
 enum _PayTiming { beforeDelivery, afterDelivery, either }
 
 enum _MpesaMethod { sendMoney, buyGoods, paybill, pochi }
+
 enum _DefaultPaymentMethod { cash, mpesa, tumizi }
 
 class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
@@ -35,6 +37,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
   _DefaultPaymentMethod _defaultMethod = _DefaultPaymentMethod.tumizi;
   _MpesaMethod _mpesaMethod = _MpesaMethod.sendMoney;
   bool _saving = false;
+
   /// Server snapshot signature; avoids re-applying GET data on every local [setState] while still hydrating after refetch.
   String _lastHydratedPaymentSignature = '';
 
@@ -56,11 +59,22 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
 
   void _hydrateFrom(Map<String, dynamic>? root) {
     final p = settingsSection(root, 'payment') ?? {};
-    _cashEnabled = settingsPickBool(p, ['cash_enabled', 'cashEnabled', 'cod_enabled', 'cash'], fallback: true);
-    _mpesaEnabled = settingsPickBool(p, ['mpesa_enabled', 'mpesaEnabled', 'mpesa'], fallback: true);
+    _cashEnabled = settingsPickBool(
+        p, ['cash_enabled', 'cashEnabled', 'cod_enabled', 'cash'],
+        fallback: true);
+    _mpesaEnabled = settingsPickBool(
+        p, ['mpesa_enabled', 'mpesaEnabled', 'mpesa'],
+        fallback: true);
     _tumiziEnabled = _readTumiziEnabled(p);
     _timing = _parsePayTiming(
-      settingsPick(p, ['payment_timing', 'paymentTiming', 'timing', 'pay_timing', 'when_to_pay', 'whenToPay']),
+      settingsPick(p, [
+        'payment_timing',
+        'paymentTiming',
+        'timing',
+        'pay_timing',
+        'when_to_pay',
+        'whenToPay'
+      ]),
     );
     // Prefer camelCase keys — legacy snake_case `payment_method: cash` must not override `paymentMethod: tumizi`.
     _defaultMethod = _parseDefaultMethod(
@@ -72,7 +86,15 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
       ]),
     );
     _mpesaMethod = _parseMpesa(
-      settingsPick(p, ['mpesaOption', 'mpesa_option', 'mpesa_method', 'mpesaMethod', 'mpesa_type', 'mpesaType', 'lipa_method']),
+      settingsPick(p, [
+        'mpesaOption',
+        'mpesa_option',
+        'mpesa_method',
+        'mpesaMethod',
+        'mpesa_type',
+        'mpesaType',
+        'lipa_method'
+      ]),
     );
     _sendMoneyPhone.text = settingsPick(p, [
       'mpesaSendMoneyNumber',
@@ -83,10 +105,35 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
       'send_money_phone',
       'lipa_phone',
     ]);
-    _tillNumber.text = settingsPick(p, ['mpesaBuyGoodsTill', 'mpesa_buy_goods_till', 'till_number', 'tillNumber', 'till']);
-    _paybillNumber.text = settingsPick(p, ['mpesaPaybillNumber', 'mpesa_paybill_number', 'paybill_number', 'paybillNumber', 'paybill']);
-    _accountNumber.text = settingsPick(p, ['mpesaPaybillAccount', 'mpesa_paybill_account', 'account_number', 'accountNumber', 'paybill_account', 'paybillAccount']);
-    _pochiPhone.text = settingsPick(p, ['mpesaPochiPhone', 'mpesa_pochi_phone', 'pochi_phone', 'pochiPhone', 'pochi']);
+    _tillNumber.text = settingsPick(p, [
+      'mpesaBuyGoodsTill',
+      'mpesa_buy_goods_till',
+      'till_number',
+      'tillNumber',
+      'till'
+    ]);
+    _paybillNumber.text = settingsPick(p, [
+      'mpesaPaybillNumber',
+      'mpesa_paybill_number',
+      'paybill_number',
+      'paybillNumber',
+      'paybill'
+    ]);
+    _accountNumber.text = settingsPick(p, [
+      'mpesaPaybillAccount',
+      'mpesa_paybill_account',
+      'account_number',
+      'accountNumber',
+      'paybill_account',
+      'paybillAccount'
+    ]);
+    _pochiPhone.text = settingsPick(p, [
+      'mpesaPochiPhone',
+      'mpesa_pochi_phone',
+      'pochi_phone',
+      'pochiPhone',
+      'pochi'
+    ]);
     _applyTumiziPreferredDefault();
   }
 
@@ -152,14 +199,18 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
   static _PayTiming _parsePayTiming(String raw) {
     final s = raw.toLowerCase().replaceAll('-', '_');
     if (s.contains('before')) return _PayTiming.beforeDelivery;
-    if (s.contains('either') || s.contains('choice') || s.contains('any')) return _PayTiming.either;
+    if (s.contains('either') || s.contains('choice') || s.contains('any')) {
+      return _PayTiming.either;
+    }
     if (s.contains('after')) return _PayTiming.afterDelivery;
     return _PayTiming.beforeDelivery;
   }
 
   static _MpesaMethod _parseMpesa(String raw) {
     final s = raw.toLowerCase();
-    if (s.contains('till') || s.contains('buy_goods')) return _MpesaMethod.buyGoods;
+    if (s.contains('till') || s.contains('buy_goods')) {
+      return _MpesaMethod.buyGoods;
+    }
     if (s.contains('paybill')) return _MpesaMethod.paybill;
     if (s.contains('pochi')) return _MpesaMethod.pochi;
     return _MpesaMethod.sendMoney;
@@ -234,7 +285,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     if (_defaultMethod == _DefaultPaymentMethod.tumizi && !_tumiziEnabled) {
       reportFieldError(
         fieldId: 'defaultPaymentMethod',
-        message: 'Tumizi wallet can be default only when Tumizi wallet is enabled.',
+        message:
+            'Tumizi wallet can be default only when Tumizi wallet is enabled.',
       );
       return;
     }
@@ -354,14 +406,17 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
       if (!mounted) return;
       if (!r.success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(r.error?.message ?? 'Could not save payment settings')),
+          SnackBar(
+              content:
+                  Text(r.error?.message ?? 'Could not save payment settings')),
         );
         return;
       }
       final patched = unwrapSettingsData(r.data);
       if (patched != null && settingsSection(patched, 'payment') != null) {
         _hydrateFrom(patched);
-        _lastHydratedPaymentSignature = _paymentSectionSignature(settingsSection(patched, 'payment'));
+        _lastHydratedPaymentSignature =
+            _paymentSectionSignature(settingsSection(patched, 'payment'));
       }
       final refreshedRoot = await ref.refresh(dashboardSettingsProvider.future);
       if (refreshedRoot != null) {
@@ -369,7 +424,9 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
             _paymentSectionSignature(settingsSection(refreshedRoot, 'payment'));
       }
       if (!mounted) return;
-      ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(DashboardOnboardingStepKeys.payment);
+      ref
+          .read(dashboardLocalStepCompletionsProvider.notifier)
+          .markComplete(DashboardOnboardingStepKeys.payment);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Payment settings saved')),
       );
@@ -482,11 +539,14 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                   ),
                 ),
                 const SizedBox(height: 16),
-                _timingTile(theme, _PayTiming.beforeDelivery, 'Pay Before Delivery'),
+                _timingTile(
+                    theme, _PayTiming.beforeDelivery, 'Pay Before Delivery'),
                 const SizedBox(height: 10),
-                _timingTile(theme, _PayTiming.afterDelivery, 'Pay After Delivery'),
+                _timingTile(
+                    theme, _PayTiming.afterDelivery, 'Pay After Delivery'),
                 const SizedBox(height: 10),
-                _timingTile(theme, _PayTiming.either, 'User Can Pay Before or After'),
+                _timingTile(
+                    theme, _PayTiming.either, 'User Can Pay Before or After'),
                 const SizedBox(height: 28),
                 Text(
                   'Payment Methods',
@@ -504,8 +564,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                   subtitle:
                       'Customers pay with an M-Pesa STK prompt; payments confirm automatically when this is on.',
                   value: _tumiziEnabled,
-                  isPreferred:
-                      _defaultMethod == _DefaultPaymentMethod.tumizi && _tumiziEnabled,
+                  isPreferred: _defaultMethod == _DefaultPaymentMethod.tumizi &&
+                      _tumiziEnabled,
                   onChanged: (v) => setState(() {
                     _tumiziEnabled = v;
                     if (v) {
@@ -522,8 +582,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                   title: 'Cash',
                   subtitle: 'Enable cash on delivery payments',
                   value: _cashEnabled,
-                  isPreferred:
-                      _defaultMethod == _DefaultPaymentMethod.cash && _cashEnabled,
+                  isPreferred: _defaultMethod == _DefaultPaymentMethod.cash &&
+                      _cashEnabled,
                   onChanged: (v) => setState(() {
                     _cashEnabled = v;
                     if (!v && _defaultMethod == _DefaultPaymentMethod.cash) {
@@ -563,15 +623,19 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                       ? const SizedBox(
                           width: 22,
                           height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
                         )
                       : const Icon(Icons.save_outlined, size: 22),
-                  label: Text('Save Changes', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 16)),
+                  label: Text('Save Changes',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w700, fontSize: 16)),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(double.infinity, 54),
                     backgroundColor: theme.colorScheme.primaryContainer,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
                   ),
                 ),
               ),
@@ -676,7 +740,9 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               width: 2,
-              color: selected ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35) : Colors.transparent,
+              color: selected
+                  ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
+                  : Colors.transparent,
             ),
             color: selected ? theme.colorScheme.surfaceContainerLowest : null,
           ),
@@ -687,7 +753,10 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
               Expanded(
                 child: Text(
                   label,
-                  style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w500, color: theme.colorScheme.onSurface),
+                  style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: theme.colorScheme.onSurface),
                 ),
               ),
             ],
@@ -704,17 +773,22 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: selected ? AppTheme.primaryDark : theme.colorScheme.outlineVariant,
+          color: selected
+              ? AppTheme.primaryDark
+              : theme.colorScheme.outlineVariant,
           width: 2,
         ),
-        color: selected ? AppTheme.primaryDark.withValues(alpha: 0.12) : Colors.transparent,
+        color: selected
+            ? AppTheme.primaryDark.withValues(alpha: 0.12)
+            : Colors.transparent,
       ),
       child: selected
           ? Center(
               child: Container(
                 width: 10,
                 height: 10,
-                decoration: const BoxDecoration(color: AppTheme.primaryDark, shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                    color: AppTheme.primaryDark, shape: BoxShape.circle),
               ),
             )
           : null,
@@ -761,7 +835,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
         borderRadius: BorderRadius.circular(14),
         border: isPreferred
             ? Border.all(
-                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
+                color:
+                    theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
                 width: 2,
               )
             : null,
@@ -803,7 +878,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                      fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -830,7 +906,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
         borderRadius: BorderRadius.circular(14),
         border: isPreferred
             ? Border.all(
-                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
+                color:
+                    theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
                 width: 2,
               )
             : null,
@@ -850,7 +927,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                     color: theme.colorScheme.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(Icons.account_balance_wallet_outlined, color: AppTheme.primaryDark),
+                  child: Icon(Icons.account_balance_wallet_outlined,
+                      color: AppTheme.primaryDark),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -879,7 +957,9 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                       const SizedBox(height: 2),
                       Text(
                         'Manual mpesa verification',
-                        style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                        style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: theme.colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -906,12 +986,14 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF7E6),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.35)),
+                  border: Border.all(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.35)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 22),
+                    const Icon(Icons.warning_amber_rounded,
+                        color: Color(0xFFD97706), size: 22),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -1023,7 +1105,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                     theme,
                     method: _MpesaMethod.paybill,
                     title: 'Paybill',
-                    subtitle: 'Customers pay using your Paybill number and account number',
+                    subtitle:
+                        'Customers pay using your Paybill number and account number',
                     fields: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1063,7 +1146,8 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                     theme,
                     method: _MpesaMethod.pochi,
                     title: 'Pochi la Biashara',
-                    subtitle: 'Customers pay using your Pochi la Biashara phone number',
+                    subtitle:
+                        'Customers pay using your Pochi la Biashara phone number',
                     fields: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1114,7 +1198,9 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               width: 2,
-              color: selected ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35) : theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
+              color: selected
+                  ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
+                  : theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
             ),
           ),
           child: Column(

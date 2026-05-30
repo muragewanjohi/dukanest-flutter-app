@@ -55,7 +55,8 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
     super.dispose();
   }
 
-  static String _pickString(Map<String, dynamic> map, List<String> keys, {String fallback = ''}) {
+  static String _pickString(Map<String, dynamic> map, List<String> keys,
+      {String fallback = ''}) {
     for (final key in keys) {
       final value = map[key];
       if (value is String && value.trim().isNotEmpty) return value.trim();
@@ -95,7 +96,8 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
     return '${lower[0].toUpperCase()}${lower.substring(1)}';
   }
 
-  static String _formatPaymentStatusLabel(String raw, {required bool isTumizi}) {
+  static String _formatPaymentStatusLabel(String raw,
+      {required bool isTumizi}) {
     final lower = raw.trim().toLowerCase();
     if (isTumizi && (lower.isEmpty || lower.contains('pending'))) {
       return 'Awaiting M-Pesa';
@@ -110,7 +112,8 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
 
   String _formatCurrency(dynamic amount, String? currencyCode) {
     if (amount is num) {
-      final code = (currencyCode == null || currencyCode.isEmpty) ? 'KES' : currencyCode;
+      final code =
+          (currencyCode == null || currencyCode.isEmpty) ? 'KES' : currencyCode;
       return '$code ${amount.toStringAsFixed(2)}';
     }
     if (amount is String && amount.trim().isNotEmpty) return amount;
@@ -142,7 +145,8 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
   }
 
   /// Optional `data.metrics` / `data.summary` / etc. on `GET .../dashboard/orders`.
-  static Map<String, dynamic>? _pickMetricsBucket(Map<String, dynamic> payload) {
+  static Map<String, dynamic>? _pickMetricsBucket(
+      Map<String, dynamic> payload) {
     for (final key in ['metrics', 'summary', 'stats', 'ordersMetrics']) {
       final m = _asStringKeyedMap(payload[key]);
       if (m != null) return m;
@@ -155,7 +159,8 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
     int pendingShipment,
     int goalProcessed,
     int goalTotal,
-  }) _metricsFromApiBucket(Map<String, dynamic> bucket, int listTotal, List<_OrderListItem> mapped) {
+  }) _metricsFromApiBucket(
+      Map<String, dynamic> bucket, int listTotal, List<_OrderListItem> mapped) {
     final activeToday = _toIntOrNull(
           bucket['activeToday'] ??
               bucket['active_today'] ??
@@ -233,10 +238,13 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
 
     final pendingOnPage = mapped.where((o) => o.status == 'Pending').length;
     final nonPendingOnPage = mapped.where((o) => o.status != 'Pending').length;
-    final todayOnPage = mapped.where((o) => _isCreatedTodayFromLabel(o.date)).length;
+    final todayOnPage =
+        mapped.where((o) => _isCreatedTodayFromLabel(o.date)).length;
 
     final pendingShip = _filterIndex == 1 ? totalItems : pendingOnPage;
-    final active = todayOnPage > 0 ? todayOnPage : (_filterIndex == 0 ? totalItems : mapped.length);
+    final active = todayOnPage > 0
+        ? todayOnPage
+        : (_filterIndex == 0 ? totalItems : mapped.length);
     final goalT = totalItems > 0 ? totalItems : mapped.length;
 
     var goalP = 0;
@@ -245,7 +253,9 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
         goalP = nonPendingOnPage.clamp(0, goalT);
       } else {
         final n = mapped.length;
-        goalP = n > 0 ? ((nonPendingOnPage / n) * goalT).round().clamp(0, goalT) : 0;
+        goalP = n > 0
+            ? ((nonPendingOnPage / n) * goalT).round().clamp(0, goalT)
+            : 0;
       }
     }
 
@@ -295,8 +305,10 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
             order['id'] ??
             'UNKNOWN';
         final idText = idValue.toString();
-        final idLine = idText.startsWith('#') ? 'ORDER $idText' : 'ORDER #$idText';
-        final status = _formatOrderStatusLabel((order['status'] ?? '').toString());
+        final idLine =
+            idText.startsWith('#') ? 'ORDER $idText' : 'ORDER #$idText';
+        final status =
+            _formatOrderStatusLabel((order['status'] ?? '').toString());
         var paymentStatusRaw = _pickString(
           order,
           ['paymentStatus', 'payment_status'],
@@ -326,10 +338,15 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
               paymentStatusRaw.isEmpty ? 'pending' : paymentStatusRaw,
               isTumizi: isTumizi,
             );
-        final currencyCode = (order['currencyCode'] ?? order['currency_code'])?.toString();
-        final totalText = _formatCurrency(order['total'] ?? order['totalAmount'] ?? order['amount'], currencyCode);
-        final quantity = order['itemCount'] ?? order['totalItems'] ?? order['itemsCount'];
-        final quantityText = quantity is num ? '${quantity.toInt()} Items' : 'Items';
+        final currencyCode =
+            (order['currencyCode'] ?? order['currency_code'])?.toString();
+        final totalText = _formatCurrency(
+            order['total'] ?? order['totalAmount'] ?? order['amount'],
+            currencyCode);
+        final quantity =
+            order['itemCount'] ?? order['totalItems'] ?? order['itemsCount'];
+        final quantityText =
+            quantity is num ? '${quantity.toInt()} Items' : 'Items';
         final detail = '$quantityText • $totalText';
         final customer = (order['customerName'] ??
                 order['customer_name'] ??
@@ -422,14 +439,16 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final orders = _visibleOrders;
-    final providerPendingCount = ref.watch(pendingOrdersCountProvider).maybeWhen(
-          data: (count) => count,
-          orElse: () => 0,
-        );
+    final providerPendingCount =
+        ref.watch(pendingOrdersCountProvider).maybeWhen(
+              data: (count) => count,
+              orElse: () => 0,
+            );
     // Prefer the metric shown on this screen (pending shipment) so the badge
     // mirrors the same "pending orders" figure users see in the cards.
-    final pendingOrdersCount =
-        _metricPendingShipment > 0 ? _metricPendingShipment : providerPendingCount;
+    final pendingOrdersCount = _metricPendingShipment > 0
+        ? _metricPendingShipment
+        : providerPendingCount;
     final badgeLabel = pendingOrdersCount > 99 ? '99+' : '$pendingOrdersCount';
 
     return Scaffold(
@@ -437,7 +456,8 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
       body: RefreshIndicator(
         onRefresh: _loadOrders,
         child: ListView(
-          padding: EdgeInsets.fromLTRB(16, 8 + MediaQuery.of(context).padding.top, 16, 24),
+          padding: EdgeInsets.fromLTRB(
+              16, 8 + MediaQuery.of(context).padding.top, 16, 24),
           children: [
             DashboardPageHeader(
               title: 'Order Fulfillment',
@@ -447,7 +467,8 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
                   icon: Badge(
                     isLabelVisible: pendingOrdersCount > 0,
                     label: Text(badgeLabel),
-                    child: Icon(Icons.notifications_none_rounded, color: theme.colorScheme.onSurfaceVariant),
+                    child: Icon(Icons.notifications_none_rounded,
+                        color: theme.colorScheme.onSurfaceVariant),
                   ),
                   onPressed: () => context.push('/notifications'),
                 ),
@@ -460,7 +481,9 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
                   width: 8,
                   height: 8,
                   decoration: BoxDecoration(
-                    color: _isLiveData ? const Color(0xFF22C55E) : const Color(0xFFEAB308),
+                    color: _isLiveData
+                        ? const Color(0xFF22C55E)
+                        : const Color(0xFFEAB308),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -477,9 +500,13 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: _MetricCardActiveToday(value: '$_metricActiveToday')),
+                Expanded(
+                    child:
+                        _MetricCardActiveToday(value: '$_metricActiveToday')),
                 const SizedBox(width: 10),
-                Expanded(child: _MetricCardPendingShipment(value: '$_metricPendingShipment')),
+                Expanded(
+                    child: _MetricCardPendingShipment(
+                        value: '$_metricPendingShipment')),
               ],
             ),
             const SizedBox(height: 14),
@@ -517,7 +544,9 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
               elevation: WidgetStateProperty.all(0),
               backgroundColor: WidgetStateProperty.all(Colors.white),
               side: WidgetStateProperty.all(
-                BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.6)),
+                BorderSide(
+                    color: theme.colorScheme.outlineVariant
+                        .withValues(alpha: 0.6)),
               ),
               shape: WidgetStateProperty.all(
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -579,7 +608,8 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
                     paymentStatus: order.paymentStatus,
                     detail: order.detail,
                     accentLeft: order.status == 'Pending',
-                    onOpen: () => context.push('/orders/detail/${Uri.encodeComponent(order.orderKey)}'),
+                    onOpen: () => context.push(
+                        '/orders/detail/${Uri.encodeComponent(order.orderKey)}'),
                   ),
                 );
               }),
@@ -722,7 +752,8 @@ class _MetricCardActiveToday extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.outlineVariant.withValues(alpha: 0.2)),
+        border:
+            Border.all(color: AppTheme.outlineVariant.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -860,7 +891,9 @@ class _OrderCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        Text(date, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                        Text(date,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant)),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -910,7 +943,10 @@ class _OrderStatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final (bg, fg) = switch (status) {
-      'Pending' => (theme.colorScheme.errorContainer, theme.colorScheme.onErrorContainer),
+      'Pending' => (
+          theme.colorScheme.errorContainer,
+          theme.colorScheme.onErrorContainer
+        ),
       'Processing' => (const Color(0xFFDFE0FF), const Color(0xFF0A2ACF)),
       'Shipped' || 'Delivered' => (
           theme.colorScheme.surfaceContainerHigh,
@@ -950,13 +986,19 @@ class _PaymentStatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final (bg, fg) = switch (status) {
-      'Paid' || 'Paid via Tumizi' =>
-        (const Color(0xFFDCFCE7), const Color(0xFF166534)),
-      'Failed' || 'Payment failed' =>
-        (theme.colorScheme.errorContainer, theme.colorScheme.onErrorContainer),
+      'Paid' || 'Paid via Tumizi' => (
+          const Color(0xFFDCFCE7),
+          const Color(0xFF166534)
+        ),
+      'Failed' || 'Payment failed' => (
+          theme.colorScheme.errorContainer,
+          theme.colorScheme.onErrorContainer
+        ),
       'Refunded' => (const Color(0xFFF3F4F6), const Color(0xFF4B5563)),
-      'Awaiting M-Pesa' || 'Awaiting M-Pesa (Tumizi)' =>
-        (const Color(0xFFFFF7ED), const Color(0xFF9A3412)),
+      'Awaiting M-Pesa' || 'Awaiting M-Pesa (Tumizi)' => (
+          const Color(0xFFFFF7ED),
+          const Color(0xFF9A3412)
+        ),
       _ => (const Color(0xFFFFFBEB), const Color(0xFF92400E)),
     };
 

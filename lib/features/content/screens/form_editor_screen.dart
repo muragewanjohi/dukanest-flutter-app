@@ -55,8 +55,7 @@ class _FormEditorScreenState extends ConsumerState<FormEditorScreen> {
           : nested is Map
               ? Map<String, dynamic>.from(nested)
               : root;
-      _nameCtrl.text =
-          '${m['name'] ?? m['title'] ?? ''}'.trim();
+      _nameCtrl.text = '${m['name'] ?? m['title'] ?? ''}'.trim();
       _slugCtrl.text = '${m['slug'] ?? ''}'.trim();
       if (!mounted) return;
       setState(() => _loading = false);
@@ -81,8 +80,7 @@ class _FormEditorScreenState extends ConsumerState<FormEditorScreen> {
       final api = ref.read(apiClientProvider);
       final body = <String, dynamic>{
         'name': _nameCtrl.text.trim(),
-        if (_slugCtrl.text.trim().isNotEmpty)
-          'slug': _slugCtrl.text.trim(),
+        if (_slugCtrl.text.trim().isNotEmpty) 'slug': _slugCtrl.text.trim(),
       };
       if (widget.isCreate) {
         final r = await api.createForm(body);
@@ -135,8 +133,7 @@ class _FormEditorScreenState extends ConsumerState<FormEditorScreen> {
     if (ok != true || !mounted) return;
     setState(() => _saving = true);
     try {
-      final r =
-          await ref.read(apiClientProvider).deleteForm(widget.formId!);
+      final r = await ref.read(apiClientProvider).deleteForm(widget.formId!);
       if (!r.success) throw StateError(r.error?.message ?? 'Delete failed');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -160,8 +157,7 @@ class _FormEditorScreenState extends ConsumerState<FormEditorScreen> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
-    final title =
-        widget.isCreate ? 'New form' : 'Edit form';
+    final title = widget.isCreate ? 'New form' : 'Edit form';
 
     return Scaffold(
       backgroundColor: AppTheme.surface,

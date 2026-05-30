@@ -15,8 +15,7 @@ class SubscriptionScreen extends ConsumerStatefulWidget {
   const SubscriptionScreen({super.key});
 
   @override
-  ConsumerState<SubscriptionScreen> createState() =>
-      _SubscriptionScreenState();
+  ConsumerState<SubscriptionScreen> createState() => _SubscriptionScreenState();
 }
 
 class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
@@ -117,8 +116,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                 const SizedBox(height: 8),
                 _CurrentPlanCard(
                   theme: theme,
-                  label:
-                      currentLabel ?? (currentId != null ? 'Plan $currentId' : 'Not set'),
+                  label: currentLabel ??
+                      (currentId != null ? 'Plan $currentId' : 'Not set'),
                 ),
                 _UsageBlocks(data: data, theme: theme),
                 _PesapalConfigStrip(data: data),
@@ -142,8 +141,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                         billingCycle: _billingCycle,
                         onBillingCycleChanged: (v) =>
                             setState(() => _billingCycle = v),
-                        isCurrent:
-                            currentId != null && _planId(p) == currentId,
+                        isCurrent: currentId != null && _planId(p) == currentId,
                         onMpesa: () => _onMpesa(p),
                         onPesapal: () => _onPesapal(data, p),
                         onActivateFree: () => _onActivateFree(p),
@@ -195,7 +193,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     }
   }
 
-  Future<void> _onPesapal(Map<String, dynamic> _, Map<String, dynamic> plan) async {
+  Future<void> _onPesapal(
+      Map<String, dynamic> _, Map<String, dynamic> plan) async {
     final id = _planId(plan);
     if (id == null || id.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -282,9 +281,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       }
     }
 
-    final lowerPriceThanActive =
-        activePlan == null ||
-            (_extractPrice(activePlan) > _extractPrice(targetPlan) + 0.001);
+    final lowerPriceThanActive = activePlan == null ||
+        (_extractPrice(activePlan) > _extractPrice(targetPlan) + 0.001);
 
     if (!lowerPriceThanActive) {
       if (!mounted) return;
@@ -330,9 +328,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       if (!mounted) return;
       if (!res.success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content:
-                  Text(res.error?.message ?? 'Plan change failed')),
+          SnackBar(content: Text(res.error?.message ?? 'Plan change failed')),
         );
         return;
       }
@@ -340,7 +336,9 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            suffix != null ? 'Plan change noted: $suffix' : 'Plan change submitted.',
+            suffix != null
+                ? 'Plan change noted: $suffix'
+                : 'Plan change submitted.',
           ),
         ),
       );
@@ -366,10 +364,15 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Activate plan'),
-        content: Text('Switch to $title now? No payment is required for this plan.'),
+        content:
+            Text('Switch to $title now? No payment is required for this plan.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Activate')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Activate')),
         ],
       ),
     );
@@ -386,7 +389,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       if (!mounted) return;
       if (!res.success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(res.error?.message ?? 'Could not activate plan')),
+          SnackBar(
+              content: Text(res.error?.message ?? 'Could not activate plan')),
         );
         return;
       }
@@ -406,8 +410,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     final keys = ['monthlyPrice', 'price', 'monthly', 'cost', 'amount'];
     for (final k in keys) {
       final v = p[k];
-      final n =
-          v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+      final n = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
       if (n != null && n >= 0) return n;
     }
     return 0;
@@ -467,13 +470,19 @@ String? _trialMessage(Map<String, dynamic> data) {
   if (sub is Map) merged.addAll(Map<String, dynamic>.from(sub));
   if (current is Map) merged.addAll(Map<String, dynamic>.from(current));
 
-  final inTrial =
-      merged['inTrial'] == true || merged['in_trial'] == true || merged['trial'] == true;
+  final inTrial = merged['inTrial'] == true ||
+      merged['in_trial'] == true ||
+      merged['trial'] == true;
 
   num? dur;
   dur = _pickNum(
     merged,
-    ['trialDaysRemaining', 'trial_days_remaining', 'daysRemaining', 'trialLeft'],
+    [
+      'trialDaysRemaining',
+      'trial_days_remaining',
+      'daysRemaining',
+      'trialLeft'
+    ],
   );
   dur ??= _pickNum(merged, ['daysUntilRenewal', 'days_until_renewal']);
 
@@ -688,8 +697,7 @@ class _PlanCard extends StatelessWidget {
                     padding: const EdgeInsets.only(left: 8),
                     child: Chip(
                       label: const Text('Current'),
-                      backgroundColor:
-                          AppTheme.primary.withValues(alpha: 0.12),
+                      backgroundColor: AppTheme.primary.withValues(alpha: 0.12),
                       side: BorderSide.none,
                       labelStyle: theme.textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.w700,
@@ -732,8 +740,7 @@ class _PlanCard extends StatelessWidget {
                 backgroundColor: AppTheme.surfaceContainerLow,
                 foregroundColor: AppTheme.primaryDark,
               ),
-              onSelectionChanged: (s) =>
-                  onBillingCycleChanged(s.first),
+              onSelectionChanged: (s) => onBillingCycleChanged(s.first),
             ),
             const SizedBox(height: 14),
             if (_isFreeActivatable(plan) && !isCurrent)

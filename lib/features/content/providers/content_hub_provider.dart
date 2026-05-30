@@ -24,10 +24,14 @@ List<Map<String, dynamic>> _itemsFromResponse(dynamic raw) {
   if (root is! Map) return [];
   final items = root['items'] ?? root['data'];
   if (items is! List) return [];
-  return items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  return items
+      .whereType<Map>()
+      .map((e) => Map<String, dynamic>.from(e))
+      .toList();
 }
 
-final contentHubProvider = FutureProvider.autoDispose<ContentHubSnapshot>((ref) async {
+final contentHubProvider =
+    FutureProvider.autoDispose<ContentHubSnapshot>((ref) async {
   final api = ref.watch(apiClientProvider);
   final search = ref.watch(contentHubSearchProvider);
   final results = await Future.wait([
@@ -48,7 +52,9 @@ final contentHubProvider = FutureProvider.autoDispose<ContentHubSnapshot>((ref) 
 });
 
 String contentBlogStatusLabel(Map<String, dynamic> b) {
-  final s = settingsPick(b, ['status', 'publish_status', 'publishStatus'], fallback: 'draft').toLowerCase();
+  final s = settingsPick(b, ['status', 'publish_status', 'publishStatus'],
+          fallback: 'draft')
+      .toLowerCase();
   if (s == 'published' || s == 'live' || s == 'active') return 'PUBLISHED';
   return 'DRAFT';
 }
@@ -64,16 +70,22 @@ String contentFormatHubDate(dynamic raw) {
   if (dt == null) return '';
   final diff = DateTime.now().difference(dt);
   if (diff.inDays >= 7) return 'Updated ${DateFormat.yMMMd().format(dt)}';
-  if (diff.inDays >= 1) return 'Updated ${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
-  if (diff.inHours >= 1) return 'Updated ${diff.inHours} hr${diff.inHours == 1 ? '' : 's'} ago';
+  if (diff.inDays >= 1) {
+    return 'Updated ${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
+  }
+  if (diff.inHours >= 1) {
+    return 'Updated ${diff.inHours} hr${diff.inHours == 1 ? '' : 's'} ago';
+  }
   if (diff.inMinutes >= 1) return 'Updated ${diff.inMinutes} min ago';
   return 'Updated just now';
 }
 
 String contentBlogMetaLine(Map<String, dynamic> b) {
-  final dateRaw = b['updated_at'] ?? b['updatedAt'] ?? b['created_at'] ?? b['createdAt'];
+  final dateRaw =
+      b['updated_at'] ?? b['updatedAt'] ?? b['created_at'] ?? b['createdAt'];
   final base = contentFormatHubDate(dateRaw);
-  final mins = settingsPick(b, ['read_time_minutes', 'readTimeMinutes', 'reading_time']);
+  final mins =
+      settingsPick(b, ['read_time_minutes', 'readTimeMinutes', 'reading_time']);
   if (mins.isNotEmpty) {
     final m = int.tryParse(mins) ?? 0;
     if (m > 0) {
@@ -96,7 +108,8 @@ String contentBlogImageUrl(Map<String, dynamic> b) => settingsPick(b, [
 
 String contentBlogId(Map<String, dynamic> b) => settingsPick(b, ['id', '_id']);
 
-String contentBlogTitle(Map<String, dynamic> b) => settingsPick(b, ['title', 'name'], fallback: 'Untitled');
+String contentBlogTitle(Map<String, dynamic> b) =>
+    settingsPick(b, ['title', 'name'], fallback: 'Untitled');
 
 String contentPageSlug(Map<String, dynamic> p) {
   final slug = settingsPick(p, ['slug']);
@@ -104,12 +117,17 @@ String contentPageSlug(Map<String, dynamic> p) {
   return settingsPick(p, ['id', '_id'], fallback: 'page');
 }
 
-String contentPageTitle(Map<String, dynamic> p) => settingsPick(p, ['title', 'name', 'slug'], fallback: 'Page');
+String contentPageTitle(Map<String, dynamic> p) =>
+    settingsPick(p, ['title', 'name', 'slug'], fallback: 'Page');
 
 String contentPageUpdatedLine(Map<String, dynamic> p) {
-  final dateRaw = p['updated_at'] ?? p['updatedAt'] ?? p['created_at'] ?? p['createdAt'];
+  final dateRaw =
+      p['updated_at'] ?? p['updatedAt'] ?? p['created_at'] ?? p['createdAt'];
   final formatted = contentFormatHubDate(dateRaw);
-  return formatted.isEmpty ? '' : 'Last updated: ${formatted.replaceFirst('Updated ', '')}';
+  return formatted.isEmpty
+      ? ''
+      : 'Last updated: ${formatted.replaceFirst('Updated ', '')}';
 }
 
-String contentSaleTitle(Map<String, dynamic> s) => settingsPick(s, ['name', 'title'], fallback: 'Sale');
+String contentSaleTitle(Map<String, dynamic> s) =>
+    settingsPick(s, ['name', 'title'], fallback: 'Sale');

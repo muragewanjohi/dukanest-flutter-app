@@ -14,6 +14,7 @@ import '../analytics_parse.dart';
 import '../providers/dashboard_analytics_provider.dart';
 import '../providers/dashboard_pnl_provider.dart';
 import '../widgets/analytics_segment_pane.dart';
+
 /// Analytics Center — data from `GET /dashboard/analytics?days=`.
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
@@ -64,7 +65,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
       } else if (payload is String) {
         bytes = Uint8List.fromList(payload.codeUnits);
       } else {
-        throw FormatException('Unexpected export payload: ${payload.runtimeType}');
+        throw FormatException(
+            'Unexpected export payload: ${payload.runtimeType}');
       }
       final file = XFile.fromData(
         bytes,
@@ -84,7 +86,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
       if (mounted) setState(() => _exportingSummary = false);
     }
   }
-
 
   int get _days => switch (_period) {
         0 => 7,
@@ -248,8 +249,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
                                   child: Text(
                                     'Could not load analytics. Pull to retry.',
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color:
-                                          theme.colorScheme.onErrorContainer,
+                                      color: theme.colorScheme.onErrorContainer,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
@@ -276,8 +276,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
                       const SizedBox(height: 16),
                       _TopProductsCard(view: view, theme: theme),
                       const SizedBox(height: 16),
-                      _CustomerLoyaltyCard(
-                          returningShare: view.returningShare),
+                      _CustomerLoyaltyCard(returningShare: view.returningShare),
                       const SizedBox(height: 16),
                       _TrafficSourcesCard(
                         rows: view.trafficSources,
@@ -292,10 +291,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
                 AnalyticsSegmentPane(segment: 'sales', days: _days),
                 AnalyticsSegmentPane(segment: 'customers', days: _days),
                 AnalyticsSegmentPane(segment: 'inventory', days: _days),
-                AnalyticsSegmentPane(
-                    segment: 'traffic-sources', days: _days),
-                AnalyticsSegmentPane(
-                    segment: 'conversion-funnel', days: _days),
+                AnalyticsSegmentPane(segment: 'traffic-sources', days: _days),
+                AnalyticsSegmentPane(segment: 'conversion-funnel', days: _days),
                 AnalyticsSegmentPane(segment: 'geographic', days: _days),
                 AnalyticsSegmentPane(
                     segment: 'product-performance', days: _days),

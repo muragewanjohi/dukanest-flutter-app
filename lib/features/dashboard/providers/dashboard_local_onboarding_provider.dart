@@ -74,7 +74,8 @@ class DashboardLocalStepCompletionsNotifier extends StateNotifier<Set<String>> {
 }
 
 final dashboardLocalStepCompletionsProvider =
-    StateNotifierProvider<DashboardLocalStepCompletionsNotifier, Set<String>>((ref) {
+    StateNotifierProvider<DashboardLocalStepCompletionsNotifier, Set<String>>(
+        (ref) {
   final notifier = DashboardLocalStepCompletionsNotifier();
   ref.listen<AuthState>(authProvider, (previous, next) {
     if (next.status == AuthStatus.unauthenticated) {

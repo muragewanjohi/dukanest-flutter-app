@@ -45,10 +45,10 @@ void main() {
       final v = parseAnalyticsViewData({
         'trafficSources': {'direct': 30, 'search': 70},
       }, 7);
-      final total =
-          v.trafficSources.fold<double>(0, (a, t) => a + t.fraction);
+      final total = v.trafficSources.fold<double>(0, (a, t) => a + t.fraction);
       expect(total, closeTo(1.0, 1e-9));
-      expect(v.trafficSources.map((e) => e.label), containsAll(['DIRECT', 'SEARCH']));
+      expect(v.trafficSources.map((e) => e.label),
+          containsAll(['DIRECT', 'SEARCH']));
     });
   });
 

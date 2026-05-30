@@ -49,17 +49,56 @@ class SegmentTable {
 }
 
 const _labelKeys = [
-  'name', 'label', 'title', 'date', 'day', 'period', 'month', 'week',
-  'country', 'region', 'city', 'location', 'source', 'channel',
-  'product', 'productName', 'category', 'sku', 'status', 'key', 'id',
+  'name',
+  'label',
+  'title',
+  'date',
+  'day',
+  'period',
+  'month',
+  'week',
+  'country',
+  'region',
+  'city',
+  'location',
+  'source',
+  'channel',
+  'product',
+  'productName',
+  'category',
+  'sku',
+  'status',
+  'key',
+  'id',
 ];
 
 const _valueKeys = [
-  'revenue', 'amount', 'total', 'value', 'count', 'quantity', 'qty',
-  'sales', 'orders', 'views', 'visits', 'sessions', 'users', 'refunds',
+  'revenue',
+  'amount',
+  'total',
+  'value',
+  'count',
+  'quantity',
+  'qty',
+  'sales',
+  'orders',
+  'views',
+  'visits',
+  'sessions',
+  'users',
+  'refunds',
 ];
 
-const _moneyHints = ['revenue', 'amount', 'sales', 'total', 'profit', 'cogs', 'spend', 'value'];
+const _moneyHints = [
+  'revenue',
+  'amount',
+  'sales',
+  'total',
+  'profit',
+  'cogs',
+  'spend',
+  'value'
+];
 const _percentHints = ['percent', 'rate', 'margin', 'share', 'ratio', 'pct'];
 
 String _humanize(String key) {
@@ -142,7 +181,8 @@ void _consume(
     if (key == 'currencyCode' || key == 'currency_code' || key == 'currency') {
       return;
     }
-    final label = prefix.isEmpty ? _humanize(key) : '$prefix · ${_humanize(key)}';
+    final label =
+        prefix.isEmpty ? _humanize(key) : '$prefix · ${_humanize(key)}';
 
     final n = value is num ? value : (value is String ? null : null);
     if (n != null) {
@@ -150,7 +190,8 @@ void _consume(
       return;
     }
     if (value is bool) {
-      out.metrics.add(SegmentMetric(label, value ? 'Yes' : 'No', positive: value));
+      out.metrics
+          .add(SegmentMetric(label, value ? 'Yes' : 'No', positive: value));
       return;
     }
     if (value is String) {
@@ -172,7 +213,8 @@ void _consume(
         out.breakdowns.add(SegmentBreakdown(
           label,
           m.entries
-              .map((e) => (label: _humanize(e.key), value: _asNum(e.value)!.toDouble()))
+              .map((e) =>
+                  (label: _humanize(e.key), value: _asNum(e.value)!.toDouble()))
               .toList(),
         ));
       } else {
@@ -198,7 +240,8 @@ void _consumeList(
   }
 
   // List of maps.
-  final maps = value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  final maps =
+      value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
   if (maps.isEmpty) return;
 
   final sample = maps.first;
@@ -215,8 +258,8 @@ void _consumeList(
     if (rows.isNotEmpty) {
       // If the label looks like a date sequence, render as a line series;
       // otherwise as a ranked breakdown.
-      final looksTemporal = _keyHints(
-          _findStringKey(sample, _labelKeys), ['date', 'day', 'month', 'week', 'period']);
+      final looksTemporal = _keyHints(_findStringKey(sample, _labelKeys),
+          ['date', 'day', 'month', 'week', 'period']);
       if (looksTemporal) {
         out.series.add(SegmentSeries(
           '$label (${_humanize(numeric.key!)})',
@@ -236,7 +279,11 @@ void _consumeList(
 
   // Fallback: tabular view.
   final columns = <String>[];
-  for (final k in [...(_labelKeys), ..._valueKeys, ...sample.keys.map((e) => e.toString())]) {
+  for (final k in [
+    ...(_labelKeys),
+    ..._valueKeys,
+    ...sample.keys.map((e) => e.toString())
+  ]) {
     if (sample.containsKey(k) && !columns.contains(k) && columns.length < 4) {
       columns.add(k);
     }
@@ -263,7 +310,8 @@ List<String> _autoLabels(int n) {
   if (n <= 0) return [];
   final now = DateTime.now();
   final df = n <= 14 ? DateFormat('E') : DateFormat.Md();
-  return List<String>.generate(n, (i) => df.format(now.subtract(Duration(days: n - 1 - i))));
+  return List<String>.generate(
+      n, (i) => df.format(now.subtract(Duration(days: n - 1 - i))));
 }
 
 /// Parses an arbitrary analytics segment payload into a renderable [SegmentView].

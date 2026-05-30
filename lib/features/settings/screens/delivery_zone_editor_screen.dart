@@ -47,10 +47,12 @@ class DeliveryZoneEditorScreen extends ConsumerStatefulWidget {
   final DeliveryZoneEditorArgs? args;
 
   @override
-  ConsumerState<DeliveryZoneEditorScreen> createState() => _DeliveryZoneEditorScreenState();
+  ConsumerState<DeliveryZoneEditorScreen> createState() =>
+      _DeliveryZoneEditorScreenState();
 }
 
-class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScreen>
+class _DeliveryZoneEditorScreenState
+    extends ConsumerState<DeliveryZoneEditorScreen>
     with FormErrorHighlightMixin {
   late final TextEditingController _name;
   late final TextEditingController _fee;
@@ -87,7 +89,8 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
 
   bool get _isEditing => widget.args?.isEditing ?? false;
 
-  String get _appBarTitle => _isEditing ? 'Edit delivery zone' : 'Add delivery zone';
+  String get _appBarTitle =>
+      _isEditing ? 'Edit delivery zone' : 'Add delivery zone';
 
   Map<String, dynamic> _buildZoneBody() {
     final name = _name.text.trim();
@@ -140,7 +143,10 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
     if (k.contains('day') || k.contains('handling') || k.contains('estimate')) {
       return 'handlingDays';
     }
-    if (k.contains('fee') || k.contains('rate') || k.contains('price') || k.contains('amount')) {
+    if (k.contains('fee') ||
+        k.contains('rate') ||
+        k.contains('price') ||
+        k.contains('amount')) {
       return 'fee';
     }
     if (k.contains('name')) return 'name';
@@ -316,10 +322,12 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
       builder: (ctx) {
         final theme = Theme.of(ctx);
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(
             'Add area',
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 18),
+            style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w700, fontSize: 18),
           ),
           content: TextField(
             controller: controller,
@@ -328,7 +336,9 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
             textCapitalization: TextCapitalization.words,
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
             FilledButton(
               onPressed: () {
                 final t = controller.text.trim();
@@ -355,7 +365,8 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
     bool isInvalid = false,
   }) {
     final errorColor = theme.colorScheme.error;
-    final idleOutline = theme.colorScheme.outlineVariant.withValues(alpha: 0.55);
+    final idleOutline =
+        theme.colorScheme.outlineVariant.withValues(alpha: 0.55);
     final enabledBorder = OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
       borderSide: isInvalid
@@ -396,13 +407,15 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
     );
   }
 
-  Widget _section(ThemeData theme, {required IconData icon, required String title, required Widget child}) {
+  Widget _section(ThemeData theme,
+      {required IconData icon, required String title, required Widget child}) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35)),
+        border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -451,10 +464,15 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
             children: [
               Text(
                 title,
-                style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface),
+                style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface),
               ),
               const SizedBox(height: 4),
-              Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
+              Text(subtitle,
+                  style: GoogleFonts.inter(
+                      fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
             ],
           ),
         ),
@@ -543,91 +561,114 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                       final areasInvalid = isFieldInvalid('areas');
                       final errorColor = theme.colorScheme.error;
                       return Container(
-                        padding: areasInvalid ? const EdgeInsets.all(12) : EdgeInsets.zero,
+                        padding: areasInvalid
+                            ? const EdgeInsets.all(12)
+                            : EdgeInsets.zero,
                         decoration: areasInvalid
                             ? BoxDecoration(
                                 color: errorColor.withValues(alpha: 0.04),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: errorColor, width: 1.5),
+                                border:
+                                    Border.all(color: errorColor, width: 1.5),
                               )
                             : null,
                         child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Included areas',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: areasInvalid
-                              ? errorColor
-                              : theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      if (areasInvalid) ...[
-                        const SizedBox(height: 6),
-                        Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.error_outline, size: 16, color: errorColor),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                _areasInlineError ??
-                                    'Add at least one area this zone covers.',
+                            Text(
+                              'Included areas',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: areasInvalid
+                                    ? errorColor
+                                    : theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            if (areasInvalid) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(Icons.error_outline,
+                                      size: 16, color: errorColor),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      _areasInlineError ??
+                                          'Add at least one area this zone covers.',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: errorColor,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            const SizedBox(height: 10),
+                            if (_areas.isEmpty)
+                              Text(
+                                'No areas yet. Add counties, cities, or neighborhoods customers can order from within this zone (e.g. Nairobi CBD, Westlands, Nanyuki, Nakuru).',
                                 style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: errorColor,
-                                  height: 1.35,
-                                ),
+                                    fontSize: 13,
+                                    height: 1.4,
+                                    color: theme.colorScheme.outline),
+                              )
+                            else
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _areas
+                                    .map(
+                                      (a) => InputChip(
+                                        label: Text(a,
+                                            style: GoogleFonts.inter(
+                                                fontSize: 13)),
+                                        deleteIcon: Icon(Icons.close_rounded,
+                                            size: 18,
+                                            color: theme.colorScheme.outline),
+                                        onDeleted: () =>
+                                            setState(() => _areas.remove(a)),
+                                        visualDensity: VisualDensity.compact,
+                                        side: BorderSide(
+                                            color: theme
+                                                .colorScheme.outlineVariant
+                                                .withValues(alpha: 0.5)),
+                                        backgroundColor: theme
+                                            .colorScheme.surfaceContainerLow,
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            const SizedBox(height: 14),
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                clearFieldError('areas');
+                                _addAreaPrompt();
+                              },
+                              icon: Icon(Icons.add_rounded,
+                                  size: 20, color: AppTheme.primaryDark),
+                              label: Text(
+                                'Add area',
+                                style: GoogleFonts.plusJakartaSans(
+                                    fontWeight: FontWeight.w700,
+                                    color: AppTheme.primaryDark),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppTheme.primaryDark,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 18, vertical: 12),
+                                side: BorderSide(
+                                    color: AppTheme.primaryDark
+                                        .withValues(alpha: 0.35)),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12)),
                               ),
                             ),
                           ],
-                        ),
-                      ],
-                      const SizedBox(height: 10),
-                      if (_areas.isEmpty)
-                        Text(
-                          'No areas yet. Add counties, cities, or neighborhoods customers can order from within this zone (e.g. Nairobi CBD, Westlands, Nanyuki, Nakuru).',
-                          style: GoogleFonts.inter(fontSize: 13, height: 1.4, color: theme.colorScheme.outline),
-                        )
-                      else
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _areas
-                              .map(
-                                (a) => InputChip(
-                                  label: Text(a, style: GoogleFonts.inter(fontSize: 13)),
-                                  deleteIcon: Icon(Icons.close_rounded, size: 18, color: theme.colorScheme.outline),
-                                  onDeleted: () => setState(() => _areas.remove(a)),
-                                  visualDensity: VisualDensity.compact,
-                                  side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
-                                  backgroundColor: theme.colorScheme.surfaceContainerLow,
-                                ),
-                              )
-                              .toList(),
-                        ),
-                      const SizedBox(height: 14),
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          clearFieldError('areas');
-                          _addAreaPrompt();
-                        },
-                        icon: Icon(Icons.add_rounded, size: 20, color: AppTheme.primaryDark),
-                        label: Text(
-                          'Add area',
-                          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, color: AppTheme.primaryDark),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppTheme.primaryDark,
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                          side: BorderSide(color: AppTheme.primaryDark.withValues(alpha: 0.35)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ],
                         ),
                       );
                     }),
@@ -656,7 +697,8 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                           controller: _fee,
                           keyboardType: TextInputType.number,
                           inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r'[0-9.]')),
                           ],
                           onChanged: (_) => clearFieldError('fee'),
                           decoration: _fieldDeco(
@@ -686,14 +728,16 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                           controller: _freeOver,
                           keyboardType: TextInputType.number,
                           inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r'[0-9.]')),
                           ],
                           onChanged: (_) => clearFieldError('freeOver'),
                           decoration: _fieldDeco(
                             theme,
                             hint: '0',
                             prefixText: 'KES ',
-                            helperText: '0 means free delivery is not offered in this zone.',
+                            helperText:
+                                '0 means free delivery is not offered in this zone.',
                             errorText: _freeOverInlineError,
                             isInvalid: isFieldInvalid('freeOver'),
                           ),
@@ -741,7 +785,8 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                       _switchRow(
                         theme,
                         title: 'Default zone',
-                        subtitle: 'Use this zone when an address does not match another zone',
+                        subtitle:
+                            'Use this zone when an address does not match another zone',
                         value: _isDefault,
                         onChanged: (v) => setState(() => _isDefault = v),
                       ),
@@ -752,14 +797,18 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer.withValues(alpha: 0.12),
+                    color: theme.colorScheme.primaryContainer
+                        .withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: theme.colorScheme.primaryContainer.withValues(alpha: 0.25)),
+                    border: Border.all(
+                        color: theme.colorScheme.primaryContainer
+                            .withValues(alpha: 0.25)),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.info_outline_rounded, color: theme.colorScheme.primary, size: 22),
+                      Icon(Icons.info_outline_rounded,
+                          color: theme.colorScheme.primary, size: 22),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
@@ -803,7 +852,8 @@ class _DeliveryZoneEditorScreenState extends ConsumerState<DeliveryZoneEditorScr
                               ? const SizedBox(
                                   height: 22,
                                   width: 22,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Colors.white),
                                 )
                               : Text(
                                   _isEditing ? 'Save zone' : 'Create zone',

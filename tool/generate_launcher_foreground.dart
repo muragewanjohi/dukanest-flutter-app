@@ -16,7 +16,8 @@ void main() {
     return;
   }
 
-  final paddedCanvas = img.Image(width: canvasSize, height: canvasSize, numChannels: 4);
+  final paddedCanvas =
+      img.Image(width: canvasSize, height: canvasSize, numChannels: 4);
   img.fill(paddedCanvas, color: img.ColorRgba8(0, 0, 0, 0));
 
   final targetLongestSide = (canvasSize * logoScale).round();

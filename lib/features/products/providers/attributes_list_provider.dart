@@ -9,7 +9,8 @@ ProductAttribute productAttributeFromApi(Map<String, dynamic> m) {
   final id = (m['id'] ?? m['_id'] ?? '').toString();
   final name = (m['name'] ?? 'Attribute').toString();
   final desc = (m['description'] ?? '').toString();
-  final typeStr = (m['type'] ?? m['attributeType'] ?? 'text').toString().toLowerCase();
+  final typeStr =
+      (m['type'] ?? m['attributeType'] ?? 'text').toString().toLowerCase();
   final AttributeDisplayType displayType;
   switch (typeStr) {
     case 'color':
@@ -26,8 +27,11 @@ ProductAttribute productAttributeFromApi(Map<String, dynamic> m) {
     default:
       displayType = AttributeDisplayType.text;
   }
-  final valuesRaw =
-      m['values'] ?? m['attributeValues'] ?? m['attribute_values'] ?? m['items'] ?? const [];
+  final valuesRaw = m['values'] ??
+      m['attributeValues'] ??
+      m['attribute_values'] ??
+      m['items'] ??
+      const [];
   final values = <String>[];
   final valueIdByLabel = <String, String>{};
   if (valuesRaw is List) {
@@ -47,7 +51,8 @@ ProductAttribute productAttributeFromApi(Map<String, dynamic> m) {
         if (valueId.isNotEmpty) {
           valueIdByLabel[label] = valueId;
         }
-        final cc = (vm['colorCode'] ?? vm['color_code'] ?? '').toString().trim();
+        final cc =
+            (vm['colorCode'] ?? vm['color_code'] ?? '').toString().trim();
         if (cc.isNotEmpty) {
           final hex = cc.startsWith('#') ? cc : '#$cc';
           values.add('$label|$hex');
@@ -76,7 +81,8 @@ String apiTypeFromDisplay(AttributeDisplayType t) => switch (t) {
       _ => 'text',
     };
 
-final dashboardAttributesProvider = FutureProvider.autoDispose<List<ProductAttribute>>((ref) async {
+final dashboardAttributesProvider =
+    FutureProvider.autoDispose<List<ProductAttribute>>((ref) async {
   final api = ref.watch(apiClientProvider);
   final r = await api.getDashboardAttributes();
   if (!r.success || r.data == null) {
@@ -97,8 +103,8 @@ final dashboardAttributesProvider = FutureProvider.autoDispose<List<ProductAttri
 });
 
 /// Loads one attribute (detail includes values with ids for edits).
-final dashboardAttributeDetailProvider =
-    FutureProvider.autoDispose.family<Map<String, dynamic>?, String>((ref, id) async {
+final dashboardAttributeDetailProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>?, String>((ref, id) async {
   final api = ref.read(apiClientProvider);
   final r = await api.getDashboardAttribute(id);
   if (!r.success || r.data == null) return null;

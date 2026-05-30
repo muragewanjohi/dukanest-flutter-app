@@ -43,7 +43,8 @@ class _AnalyticsSegmentPaneState extends ConsumerState<AnalyticsSegmentPane> {
 
   ({String segment, Map<String, dynamic>? query}) get _params => (
         segment: widget.segment,
-        query: AnalyticsSegmentPane.queryForSegment(widget.segment, widget.days),
+        query:
+            AnalyticsSegmentPane.queryForSegment(widget.segment, widget.days),
       );
 
   String get _title {
@@ -66,7 +67,8 @@ class _AnalyticsSegmentPaneState extends ConsumerState<AnalyticsSegmentPane> {
       final Response<dynamic> res = await api.exportAnalytics(
         type: widget.segment,
         format: 'csv',
-        queryParameters: AnalyticsSegmentPane.queryForSegment(widget.segment, widget.days),
+        queryParameters:
+            AnalyticsSegmentPane.queryForSegment(widget.segment, widget.days),
       );
       final status = res.statusCode ?? 0;
       if (status < 200 || status >= 300) {
@@ -85,7 +87,8 @@ class _AnalyticsSegmentPaneState extends ConsumerState<AnalyticsSegmentPane> {
       } else if (payload is String) {
         bytes = Uint8List.fromList(payload.codeUnits);
       } else {
-        throw FormatException('Unexpected export payload: ${payload.runtimeType}');
+        throw FormatException(
+            'Unexpected export payload: ${payload.runtimeType}');
       }
       final file = XFile.fromData(
         bytes,
@@ -314,7 +317,9 @@ class _SeriesCard extends StatelessWidget {
             child: spots.length < 2
                 ? Center(
                     child: Text(
-                      spots.isEmpty ? 'No points' : 'Single data point: ${values.first}',
+                      spots.isEmpty
+                          ? 'No points'
+                          : 'Single data point: ${values.first}',
                       style: theme.textTheme.bodySmall,
                     ),
                   )
@@ -341,7 +346,9 @@ class _SeriesCard extends StatelessWidget {
                               if (i < 0 || i >= series.labels.length) {
                                 return const SizedBox.shrink();
                               }
-                              if (i % labelStep != 0) return const SizedBox.shrink();
+                              if (i % labelStep != 0) {
+                                return const SizedBox.shrink();
+                              }
                               return Padding(
                                 padding: const EdgeInsets.only(top: 6),
                                 child: Text(
@@ -397,7 +404,8 @@ class _BreakdownCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final rows = breakdown.rows;
-    final total = rows.fold<double>(0, (a, r) => a + (r.value < 0 ? 0 : r.value));
+    final total =
+        rows.fold<double>(0, (a, r) => a + (r.value < 0 ? 0 : r.value));
     final usePie = rows.length <= 6 && total > 0;
 
     return _CardShell(
@@ -426,7 +434,8 @@ class _BreakdownCard extends StatelessWidget {
                         sections: [
                           for (var i = 0; i < rows.length; i++)
                             PieChartSectionData(
-                              value: rows[i].value <= 0 ? 0.0001 : rows[i].value,
+                              value:
+                                  rows[i].value <= 0 ? 0.0001 : rows[i].value,
                               color: _palette[i % _palette.length],
                               title: '',
                               radius: 42,

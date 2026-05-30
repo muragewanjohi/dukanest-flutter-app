@@ -51,7 +51,8 @@ final _withdrawalStoreSettingsProvider =
   final api = ref.watch(apiClientProvider);
   final response = await api.getDashboardSettings();
   if (!response.success || response.data == null) {
-    throw StateError(response.error?.message ?? 'Failed to load store settings');
+    throw StateError(
+        response.error?.message ?? 'Failed to load store settings');
   }
   final unwrapped = unwrapSettingsData(response.data);
   if (unwrapped == null) {
@@ -1477,7 +1478,8 @@ class _TumiziTextField extends StatelessWidget {
           keyboardType: keyboardType,
           onChanged: onChanged,
           style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
-          decoration: _tumiziInputDecoration(theme, hasError: hasError).copyWith(
+          decoration:
+              _tumiziInputDecoration(theme, hasError: hasError).copyWith(
             hintText: hintText,
             hintStyle: GoogleFonts.inter(
               fontSize: 12,
@@ -1554,7 +1556,8 @@ class _TumiziFieldLabel extends StatelessWidget {
   }
 }
 
-InputDecoration _tumiziInputDecoration(ThemeData theme, {bool hasError = false}) {
+InputDecoration _tumiziInputDecoration(ThemeData theme,
+    {bool hasError = false}) {
   final borderColor =
       hasError ? theme.colorScheme.error : theme.colorScheme.outlineVariant;
   final border = OutlineInputBorder(
@@ -2041,7 +2044,8 @@ double _resolveMaxGrossWithdrawal(
   return _maxTumiziGrossWithdrawalFromBalance(balance);
 }
 
-List<Map<String, dynamic>> _tumiziMerchantSearchMaps(Map<String, dynamic>? root) {
+List<Map<String, dynamic>> _tumiziMerchantSearchMaps(
+    Map<String, dynamic>? root) {
   if (root == null || root.isEmpty) return const [];
   final maps = <Map<String, dynamic>>[];
   for (final key in const [

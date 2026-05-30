@@ -18,7 +18,8 @@ int? parseWholeDays(String raw) {
 }
 
 /// Rows from `GET /dashboard/delivery-zones` (`items` or `zones`).
-final deliveryZonesListProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+final deliveryZonesListProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final api = ref.watch(apiClientProvider);
   final r = await api.getDeliveryZones();
   if (!r.success || r.data == null) {
@@ -30,7 +31,10 @@ final deliveryZonesListProvider = FutureProvider.autoDispose<List<Map<String, dy
   }
   final items = root['items'] ?? root['zones'] ?? root['data'];
   if (items is! List) return [];
-  return items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  return items
+      .whereType<Map>()
+      .map((e) => Map<String, dynamic>.from(e))
+      .toList();
 });
 
 List<String> zoneAreasFromMap(Map<String, dynamic> z) {
@@ -39,7 +43,11 @@ List<String> zoneAreasFromMap(Map<String, dynamic> z) {
     return ar.map((e) => e.toString()).where((s) => s.isNotEmpty).toList();
   }
   if (ar is String && ar.trim().isNotEmpty) {
-    return ar.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    return ar
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
   }
   return const [];
 }

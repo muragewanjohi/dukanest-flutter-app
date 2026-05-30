@@ -5,7 +5,8 @@ import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 
-final notificationsProvider = FutureProvider<List<_NotificationItem>>((ref) async {
+final notificationsProvider =
+    FutureProvider<List<_NotificationItem>>((ref) async {
   final api = ref.read(apiClientProvider);
   final response = await api.getNotifications();
   if (!response.success || response.data == null) {
@@ -29,7 +30,8 @@ final notificationsProvider = FutureProvider<List<_NotificationItem>>((ref) asyn
       .toList();
 });
 
-final notificationPreferencesProvider = FutureProvider<Map<String, bool>>((ref) async {
+final notificationPreferencesProvider =
+    FutureProvider<Map<String, bool>>((ref) async {
   final api = ref.read(apiClientProvider);
   final response = await api.getNotificationPreferences();
   if (!response.success || response.data == null) {
@@ -77,7 +79,8 @@ class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
+  ConsumerState<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
 }
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
@@ -104,7 +107,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         });
       }
       if (!response.success) {
-        throw StateError(response.error?.message ?? 'Could not update preference');
+        throw StateError(
+            response.error?.message ?? 'Could not update preference');
       }
       ref.invalidate(notificationPreferencesProvider);
     } catch (e) {
@@ -185,7 +189,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     'email',
   ];
 
-  List<MapEntry<String, bool>> _orderedPreferenceEntries(Map<String, bool> prefs) {
+  List<MapEntry<String, bool>> _orderedPreferenceEntries(
+      Map<String, bool> prefs) {
     final all = prefs.entries.toList();
     all.sort((a, b) {
       final ai = _preferredPrefOrder.indexOf(a.key);
@@ -231,7 +236,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     child: ExpansionTile(
                       initiallyExpanded: true,
                       title: const Text('Notification preferences'),
-                      subtitle: const Text('Choose what updates you want to receive'),
+                      subtitle:
+                          const Text('Choose what updates you want to receive'),
                       children: [
                         for (final entry in primary)
                           SwitchListTile.adaptive(
@@ -285,7 +291,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                       subtitle: Text('${item.message} • ${item.timeLabel}'),
                       onTap: () => _openNotification(item),
                       trailing: item.isUnread
-                          ? const Icon(Icons.circle, size: 10, color: Colors.redAccent)
+                          ? const Icon(Icons.circle,
+                              size: 10, color: Colors.redAccent)
                           : null,
                     ),
                   ),
@@ -339,14 +346,18 @@ class _NotificationItem {
   });
 
   factory _NotificationItem.fromJson(Map<String, dynamic> json) {
-    final createdAtRaw = json['createdAt'] ?? json['created_at'] ?? json['time'];
+    final createdAtRaw =
+        json['createdAt'] ?? json['created_at'] ?? json['time'];
     final dataRaw = json['data'];
-    final data = dataRaw is Map ? Map<String, dynamic>.from(dataRaw) : const <String, dynamic>{};
+    final data = dataRaw is Map
+        ? Map<String, dynamic>.from(dataRaw)
+        : const <String, dynamic>{};
     return _NotificationItem(
       title: (json['title'] ?? 'Notification').toString(),
       message: (json['message'] ?? json['body'] ?? '').toString(),
       isUnread: json['isUnread'] == true || json['is_read'] == false,
-      createdAt: createdAtRaw is String ? DateTime.tryParse(createdAtRaw) : null,
+      createdAt:
+          createdAtRaw is String ? DateTime.tryParse(createdAtRaw) : null,
       orderKey: (json['orderKey'] ??
               json['order_key'] ??
               json['orderCode'] ??
@@ -360,7 +371,12 @@ class _NotificationItem {
               data['orderId'] ??
               data['order_id'])
           ?.toString(),
-      link: (json['link'] ?? json['deepLink'] ?? json['deep_link'] ?? data['link'] ?? data['deepLink'] ?? data['deep_link'])
+      link: (json['link'] ??
+              json['deepLink'] ??
+              json['deep_link'] ??
+              data['link'] ??
+              data['deepLink'] ??
+              data['deep_link'])
           ?.toString(),
     );
   }
@@ -375,5 +391,6 @@ class _NotificationItem {
     return '${diff.inDays}d ago';
   }
 
-  IconData get icon => isUnread ? Icons.notifications_active : Icons.notifications_none;
+  IconData get icon =>
+      isUnread ? Icons.notifications_active : Icons.notifications_none;
 }

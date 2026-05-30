@@ -61,12 +61,18 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
         search: _searchController.text.trim(),
         status: _statusFilter.isEmpty ? null : _statusFilter,
       );
-      if (!r.success) throw StateError(r.error?.message ?? 'Failed to load sales');
+      if (!r.success) {
+        throw StateError(r.error?.message ?? 'Failed to load sales');
+      }
       final payload = r.data;
-      final root = payload is Map<String, dynamic> ? payload : <String, dynamic>{};
+      final root =
+          payload is Map<String, dynamic> ? payload : <String, dynamic>{};
       final rawList = root['items'] ?? root['sales'] ?? root['data'];
       final list = rawList is List
-          ? rawList.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+          ? rawList
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList()
           : <Map<String, dynamic>>[];
 
       final pag = r.pagination;
@@ -100,10 +106,13 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
         title: const Text('Delete sale?'),
         content: const Text('This will remove the sale campaign.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error),
             child: const Text('Delete'),
           ),
         ],
@@ -117,16 +126,19 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
       ref.read(salesListRefreshTokenProvider.notifier).state++;
       await _load(page: _page);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sale deleted')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Sale deleted')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Delete failed: $e')));
       }
     }
   }
 
-  static String _pickString(Map<String, dynamic> map, List<String> keys, {String fallback = ''}) {
+  static String _pickString(Map<String, dynamic> map, List<String> keys,
+      {String fallback = ''}) {
     for (final k in keys) {
       final v = map[k];
       if (v is String && v.trim().isNotEmpty) return v.trim();
@@ -147,7 +159,10 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
   }
 
   static int _countProducts(Map<String, dynamic> sale) {
-    final list = sale['product_sales'] ?? sale['productSales'] ?? sale['products'] ?? sale['items'];
+    final list = sale['product_sales'] ??
+        sale['productSales'] ??
+        sale['products'] ??
+        sale['items'];
     if (list is List) return list.length;
     return 0;
   }
@@ -180,14 +195,16 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
               onChanged: _onSearchChanged,
               decoration: InputDecoration(
                 hintText: 'Search sales…',
-                prefixIcon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
+                prefixIcon: Icon(Icons.search,
+                    color: theme.colorScheme.onSurfaceVariant),
                 filled: true,
                 fillColor: theme.colorScheme.surfaceContainerLow,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
             ),
           ),
@@ -249,7 +266,8 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
           if (_error != null)
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+              child: Text(_error!,
+                  style: TextStyle(color: theme.colorScheme.error)),
             ),
           Expanded(
             child: _loading && _items.isEmpty
@@ -264,7 +282,9 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                               Center(
                                 child: Text(
                                   'No sales match your filters.',
-                                  style: GoogleFonts.inter(color: theme.colorScheme.onSurfaceVariant),
+                                  style: GoogleFonts.inter(
+                                      color:
+                                          theme.colorScheme.onSurfaceVariant),
                                 ),
                               ),
                             ],
@@ -272,14 +292,19 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                         : ListView.separated(
                             padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                             itemCount: _items.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 10),
                             itemBuilder: (context, i) {
                               final sale = _items[i];
                               final id = _pickString(sale, ['id', '_id']);
-                              final title = _pickString(sale, ['name', 'title'], fallback: 'Sale');
-                              final start = _formatDate(sale['start_date'] ?? sale['startDate']);
-                              final end = _formatDate(sale['end_date'] ?? sale['endDate']);
-                              final status = _pickString(sale, ['status'], fallback: 'draft');
+                              final title = _pickString(sale, ['name', 'title'],
+                                  fallback: 'Sale');
+                              final start = _formatDate(
+                                  sale['start_date'] ?? sale['startDate']);
+                              final end = _formatDate(
+                                  sale['end_date'] ?? sale['endDate']);
+                              final status = _pickString(sale, ['status'],
+                                  fallback: 'draft');
                               final count = _countProducts(sale);
 
                               return Material(
@@ -287,18 +312,23 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                                 borderRadius: BorderRadius.circular(14),
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(14),
-                                  onTap: id.isEmpty ? null : () => context.push('/sales/edit/${Uri.encodeComponent(id)}'),
+                                  onTap: id.isEmpty
+                                      ? null
+                                      : () => context.push(
+                                          '/sales/edit/${Uri.encodeComponent(id)}'),
                                   child: Padding(
                                     padding: const EdgeInsets.all(14),
                                     child: Row(
                                       children: [
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 title,
-                                                style: GoogleFonts.plusJakartaSans(
+                                                style:
+                                                    GoogleFonts.plusJakartaSans(
                                                   fontSize: 16,
                                                   fontWeight: FontWeight.w700,
                                                   color: AppTheme.primaryDark,
@@ -309,7 +339,8 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                                                 '$start - $end',
                                                 style: GoogleFonts.inter(
                                                   fontSize: 12,
-                                                  color: theme.colorScheme.onSurfaceVariant,
+                                                  color: theme.colorScheme
+                                                      .onSurfaceVariant,
                                                 ),
                                               ),
                                               const SizedBox(height: 2),
@@ -318,7 +349,8 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                                                 style: GoogleFonts.inter(
                                                   fontSize: 12,
                                                   fontWeight: FontWeight.w600,
-                                                  color: theme.colorScheme.onSurfaceVariant,
+                                                  color: theme.colorScheme
+                                                      .onSurfaceVariant,
                                                 ),
                                               ),
                                             ],
@@ -326,13 +358,19 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                                         ),
                                         IconButton(
                                           tooltip: 'Edit',
-                                          onPressed: id.isEmpty ? null : () => context.push('/sales/edit/${Uri.encodeComponent(id)}'),
+                                          onPressed: id.isEmpty
+                                              ? null
+                                              : () => context.push(
+                                                  '/sales/edit/${Uri.encodeComponent(id)}'),
                                           icon: const Icon(Icons.edit_outlined),
                                         ),
                                         IconButton(
                                           tooltip: 'Delete',
-                                          onPressed: id.isEmpty ? null : () => _deleteSale(id),
-                                          icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
+                                          onPressed: id.isEmpty
+                                              ? null
+                                              : () => _deleteSale(id),
+                                          icon: Icon(Icons.delete_outline,
+                                              color: theme.colorScheme.error),
                                         ),
                                       ],
                                     ),
@@ -358,11 +396,15 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                     ),
                   ),
                   IconButton(
-                    onPressed: _loading || _page <= 1 ? null : () => _load(page: _page - 1),
+                    onPressed: _loading || _page <= 1
+                        ? null
+                        : () => _load(page: _page - 1),
                     icon: const Icon(Icons.chevron_left),
                   ),
                   IconButton(
-                    onPressed: _loading || _page >= _totalPages ? null : () => _load(page: _page + 1),
+                    onPressed: _loading || _page >= _totalPages
+                        ? null
+                        : () => _load(page: _page + 1),
                     icon: const Icon(Icons.chevron_right),
                   ),
                 ],
@@ -391,7 +433,9 @@ class _FilterChip extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: Material(
-        color: selected ? AppTheme.primaryDark : theme.colorScheme.surfaceContainerLow,
+        color: selected
+            ? AppTheme.primaryDark
+            : theme.colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
           onTap: onTap,
@@ -403,7 +447,9 @@ class _FilterChip extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.w700,
                 fontSize: 12,
-                color: selected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                color: selected
+                    ? Colors.white
+                    : theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ),

@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 
 /// Raw `data` from `GET /dashboard/analytics/:segment` (query e.g. date range).
-final analyticsSegmentProvider = FutureProvider.autoDispose
-    .family<Map<String, dynamic>?, ({String segment, Map<String, dynamic>? query})>(
-        (ref, arg) async {
+final analyticsSegmentProvider = FutureProvider.autoDispose.family<
+    Map<String, dynamic>?,
+    ({String segment, Map<String, dynamic>? query})>((ref, arg) async {
   try {
     final api = ref.read(apiClientProvider);
     final response = await api.getAnalyticsSegment(

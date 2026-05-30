@@ -35,7 +35,11 @@ List<ApiValidationIssue> parseApiValidationIssues(dynamic raw) {
     if (value is Map) {
       final m = Map<String, dynamic>.from(value);
       return messageFrom(
-        m['message'] ?? m['msg'] ?? m['error'] ?? m['detail'] ?? m['description'],
+        m['message'] ??
+            m['msg'] ??
+            m['error'] ??
+            m['detail'] ??
+            m['description'],
       );
     }
     return null;
@@ -61,14 +65,24 @@ List<ApiValidationIssue> parseApiValidationIssues(dynamic raw) {
       final err = map['error'];
       if (err is Map) walk(err);
 
-      for (final key in ['details', 'errors', 'fieldErrors', 'validation', 'issues']) {
+      for (final key in [
+        'details',
+        'errors',
+        'fieldErrors',
+        'validation',
+        'issues'
+      ]) {
         final segment = map[key];
         if (segment is List) {
           for (final item in segment) {
             if (item is! Map) continue;
             final m = Map<String, dynamic>.from(item);
             final field = fieldKeyFrom(
-              m['field'] ?? m['path'] ?? m['key'] ?? m['param'] ?? m['property'],
+              m['field'] ??
+                  m['path'] ??
+                  m['key'] ??
+                  m['param'] ??
+                  m['property'],
             );
             final msg = messageFrom(
               m['message'] ?? m['msg'] ?? m['error'] ?? m['detail'],
@@ -127,12 +141,10 @@ String? formatApiValidationSummary(dynamic raw) {
     final label = i.fieldKey.isEmpty ? 'Validation' : i.fieldKey;
     return '$label: ${i.message}';
   }
-  final lines = issues
-      .map((i) {
-        final label = i.fieldKey.isEmpty ? 'Field' : i.fieldKey;
-        return '• $label — ${i.message}';
-      })
-      .join('\n');
+  final lines = issues.map((i) {
+    final label = i.fieldKey.isEmpty ? 'Field' : i.fieldKey;
+    return '• $label — ${i.message}';
+  }).join('\n');
   return 'Please fix the following:\n$lines';
 }
 

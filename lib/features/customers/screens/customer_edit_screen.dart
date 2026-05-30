@@ -87,8 +87,8 @@ class _CustomerEditFormState extends State<_CustomerEditForm> {
     super.initState();
     final d = widget.initialData;
     _nameController = TextEditingController(
-      text:
-          _pick(d, ['name', 'fullName', 'full_name', 'displayName', 'display_name']),
+      text: _pick(
+          d, ['name', 'fullName', 'full_name', 'displayName', 'display_name']),
     );
     _phoneController = TextEditingController(
       text: _pick(d, ['phone', 'phoneNumber', 'phone_number', 'mobile']),
@@ -159,8 +159,7 @@ class _CustomerEditFormState extends State<_CustomerEditForm> {
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
-    final emailShown =
-        _email.isEmpty ? '(no email on record)' : _email;
+    final emailShown = _email.isEmpty ? '(no email on record)' : _email;
 
     return ListView(
       padding: EdgeInsets.fromLTRB(
@@ -189,8 +188,8 @@ class _CustomerEditFormState extends State<_CustomerEditForm> {
         ),
         const SizedBox(height: 16),
         Text('Email',
-            style:
-                theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
+            style: theme.textTheme.labelLarge
+                ?.copyWith(fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
         InputDecorator(
           decoration: InputDecoration(
@@ -243,7 +242,8 @@ class _CustomerEditFormState extends State<_CustomerEditForm> {
             backgroundColor: AppTheme.primaryDark,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           child: _saving
               ? const SizedBox(
@@ -280,8 +280,8 @@ class _LabeledField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(label,
-            style:
-                theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
+            style: theme.textTheme.labelLarge
+                ?.copyWith(fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
         child,
       ],

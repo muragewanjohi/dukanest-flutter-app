@@ -23,7 +23,8 @@ class AttributesManagementScreen extends ConsumerStatefulWidget {
       _AttributesManagementScreenState();
 }
 
-class _AttributesManagementScreenState extends ConsumerState<AttributesManagementScreen> {
+class _AttributesManagementScreenState
+    extends ConsumerState<AttributesManagementScreen> {
   bool _showSearch = false;
   final _searchController = TextEditingController();
   String _query = '';
@@ -73,7 +74,8 @@ class _AttributesManagementScreenState extends ConsumerState<AttributesManagemen
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Delete', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+            child: Text('Delete',
+                style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
           ),
         ],
       ),
@@ -173,7 +175,8 @@ class _AttributesManagementScreenState extends ConsumerState<AttributesManagemen
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none,
                               ),
-                              prefixIcon: Icon(Icons.search, color: colorScheme.outline),
+                              prefixIcon: Icon(Icons.search,
+                                  color: colorScheme.outline),
                             ),
                           ),
                         ),
@@ -212,7 +215,8 @@ class _AttributesManagementScreenState extends ConsumerState<AttributesManagemen
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.info_outline_rounded, color: AppTheme.primary, size: 22),
+                          Icon(Icons.info_outline_rounded,
+                              color: AppTheme.primary, size: 22),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
@@ -242,7 +246,8 @@ class _AttributesManagementScreenState extends ConsumerState<AttributesManagemen
                         child: Center(
                           child: Text(
                             'No attributes match your search',
-                            style: GoogleFonts.inter(color: AppTheme.onSurfaceVariant),
+                            style: GoogleFonts.inter(
+                                color: AppTheme.onSurfaceVariant),
                           ),
                         ),
                       ),
@@ -273,7 +278,8 @@ class _AttributesManagementScreenState extends ConsumerState<AttributesManagemen
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.add, color: Colors.white, size: 22),
+                                const Icon(Icons.add,
+                                    color: Colors.white, size: 22),
                                 const SizedBox(width: 10),
                                 Text(
                                   'Add Attribute',
@@ -361,11 +367,13 @@ class _AttributeCard extends StatelessWidget {
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.edit_outlined, color: theme.colorScheme.onSurfaceVariant),
+                      icon: Icon(Icons.edit_outlined,
+                          color: theme.colorScheme.onSurfaceVariant),
                       onPressed: onEdit,
                     ),
                     IconButton(
-                      icon: Icon(Icons.delete_outline_rounded, color: theme.colorScheme.onSurfaceVariant),
+                      icon: Icon(Icons.delete_outline_rounded,
+                          color: theme.colorScheme.onSurfaceVariant),
                       onPressed: onDelete,
                     ),
                   ],
@@ -375,13 +383,15 @@ class _AttributeCard extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: attribute.values.map((v) {
-                    final label =
-                        AttributeValueFormat.shortLabel(v, attribute.displayType);
-                    final swatch = attribute.displayType == AttributeDisplayType.color
-                        ? AttributeValueFormat.parse(v).$2
-                        : null;
+                    final label = AttributeValueFormat.shortLabel(
+                        v, attribute.displayType);
+                    final swatch =
+                        attribute.displayType == AttributeDisplayType.color
+                            ? AttributeValueFormat.parse(v).$2
+                            : null;
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: AppTheme.surfaceContainerLowest,
                         borderRadius: BorderRadius.circular(999),
@@ -399,7 +409,8 @@ class _AttributeCard extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: swatch,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: AppTheme.outlineVariant, width: 0.5),
+                                border: Border.all(
+                                    color: AppTheme.outlineVariant, width: 0.5),
                               ),
                             ),
                             const SizedBox(width: 8),

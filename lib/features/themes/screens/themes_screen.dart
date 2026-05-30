@@ -31,7 +31,8 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
     _load();
   }
 
-  List<Map<String, dynamic>> _listFrom(dynamic payload) => themeListFrom(payload);
+  List<Map<String, dynamic>> _listFrom(dynamic payload) =>
+      themeListFrom(payload);
 
   Future<void> _load() async {
     setState(() {
@@ -51,8 +52,11 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
       }
       final list = _listFrom(themesResp.data);
 
-      final installed = results[1].success ? _listFrom(results[1].data) : <Map<String, dynamic>>[];
-      final installedIds = installed.map(_id).where((e) => e.isNotEmpty).toSet();
+      final installed = results[1].success
+          ? _listFrom(results[1].data)
+          : <Map<String, dynamic>>[];
+      final installedIds =
+          installed.map(_id).where((e) => e.isNotEmpty).toSet();
 
       final activeId =
           results[2].success ? currentThemeId(results[2].data) : null;
@@ -108,7 +112,9 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
         }
       }
       final r = await api.updateCurrentTheme({'themeId': id, 'id': id});
-      if (!r.success) throw StateError(r.error?.message ?? 'Could not activate');
+      if (!r.success) {
+        throw StateError(r.error?.message ?? 'Could not activate');
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Theme activated')),
@@ -248,8 +254,8 @@ class _ThemeCard extends StatelessWidget {
                     top: 8,
                     left: 8,
                     child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: AppTheme.primary,
                         borderRadius: BorderRadius.circular(999),
@@ -270,8 +276,8 @@ class _ThemeCard extends StatelessWidget {
                     top: 8,
                     left: 8,
                     child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: theme.colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(999),
@@ -312,7 +318,8 @@ class _ThemeCard extends StatelessWidget {
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10)),
                           ),
-                          child: const Text('Active', style: TextStyle(fontSize: 12)),
+                          child: const Text('Active',
+                              style: TextStyle(fontSize: 12)),
                         )
                       : FilledButton(
                           onPressed: busy ? null : onActivate,
@@ -389,8 +396,7 @@ class _ThemeCustomizationScreenState
           : nested is Map
               ? Map<String, dynamic>.from(nested)
               : root;
-      _jsonCtrl.text =
-          const JsonEncoder.withIndent('  ').convert(m);
+      _jsonCtrl.text = const JsonEncoder.withIndent('  ').convert(m);
       if (!mounted) return;
       setState(() => _loading = false);
     } catch (e) {
@@ -414,8 +420,7 @@ class _ThemeCustomizationScreenState
     }
     setState(() => _saving = true);
     try {
-      final r =
-          await ref.read(apiClientProvider).updateCurrentTheme(parsed);
+      final r = await ref.read(apiClientProvider).updateCurrentTheme(parsed);
       if (!r.success) throw StateError(r.error?.message ?? 'Save failed');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

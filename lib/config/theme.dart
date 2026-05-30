@@ -10,14 +10,14 @@ class AppTheme {
   static const Color neutral = Color(0xFF8D8D8D);
   static const Color errorContainer = Color(0xFFFFDAD6);
   static const Color onErrorContainer = Color(0xFF93000A);
-  
+
   // Surfaces
   static const Color surface = Color(0xFFFAF9F9);
   static const Color surfaceContainerLow = Color(0xFFF4F3F3);
   static const Color surfaceContainerLowest = Color(0xFFFFFFFF);
   static const Color onSurfaceVariant = Color(0xFF444655);
   static const Color outlineVariant = Color(0xFFC5C5D8);
-  
+
   // Ghost Border
   static const Color ghostBorder = Color(0x26C5C5D8); // 15% opacity
 
@@ -57,7 +57,7 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: surface,
-      
+
       // Typography
       textTheme: TextTheme(
         displayLarge: GoogleFonts.plusJakartaSans(
@@ -152,7 +152,8 @@ class AppTheme {
       // Elevated Button Theme
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: primary, // Handled roughly, gradients require custom Container
+          backgroundColor:
+              primary, // Handled roughly, gradients require custom Container
           foregroundColor: Colors.white,
           elevation: 0,
           shape: RoundedRectangleBorder(
@@ -200,13 +201,19 @@ class AppTheme {
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => GoogleFonts.inter(
             fontSize: 12,
-            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w600 : FontWeight.w500,
-            color: states.contains(WidgetState.selected) ? primary : onSurfaceVariant,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w600
+                : FontWeight.w500,
+            color: states.contains(WidgetState.selected)
+                ? primary
+                : onSurfaceVariant,
           ),
         ),
         iconTheme: WidgetStateProperty.resolveWith(
           (states) => IconThemeData(
-            color: states.contains(WidgetState.selected) ? primary : onSurfaceVariant,
+            color: states.contains(WidgetState.selected)
+                ? primary
+                : onSurfaceVariant,
             size: 22,
           ),
         ),

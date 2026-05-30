@@ -45,7 +45,8 @@ void _flattenCategoryNodes(dynamic node, List<Map<String, dynamic>> out) {
   }
 }
 
-final categoriesListProvider = FutureProvider.autoDispose<List<CategoryEntry>>((ref) async {
+final categoriesListProvider =
+    FutureProvider.autoDispose<List<CategoryEntry>>((ref) async {
   final api = ref.read(apiClientProvider);
   final response = await api.getCategories(includeChildren: true);
   if (!response.success || response.data == null) {
@@ -61,7 +62,8 @@ final categoriesListProvider = FutureProvider.autoDispose<List<CategoryEntry>>((
       }
     }
     if (kDebugMode) {
-      debugPrint('categoriesListProvider: could not find list in response envelope');
+      debugPrint(
+          'categoriesListProvider: could not find list in response envelope');
     }
     return [];
   }
@@ -77,8 +79,14 @@ final categoriesListProvider = FutureProvider.autoDispose<List<CategoryEntry>>((
 CategoryEntry categoryEntryFromApi(Map<String, dynamic> m) {
   final id = (m['id'] ?? m['_id'] ?? '').toString();
   final name = (m['name'] ?? m['title'] ?? 'Category').toString();
-  final countRaw = m['productCount'] ?? m['productsCount'] ?? m['product_count'] ?? m['products_count'] ?? 0;
-  final productCount = countRaw is num ? countRaw.toInt() : int.tryParse(countRaw.toString()) ?? 0;
+  final countRaw = m['productCount'] ??
+      m['productsCount'] ??
+      m['product_count'] ??
+      m['products_count'] ??
+      0;
+  final productCount = countRaw is num
+      ? countRaw.toInt()
+      : int.tryParse(countRaw.toString()) ?? 0;
   final parent = m['parentId'] ?? m['parent_id'];
   final parentIdRaw = parent?.toString();
   final img = m['imageUrl'] ?? m['image'] ?? m['thumbnail'];

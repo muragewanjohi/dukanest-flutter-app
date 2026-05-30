@@ -27,6 +27,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   bool _categoriesLoading = true;
   bool _saving = false;
   String? _error;
+
   /// Empty = all categories; otherwise expense category UUID.
   String _categoryFilter = '';
   DateTime? _startDate;
@@ -67,20 +68,19 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
               .map((e) => Map<String, dynamic>.from(e))
               .toList()
           : <Map<String, dynamic>>[];
-      final mapped = list.map((row) {
-        final id =
-            '${row['id'] ?? row['_id'] ?? ''}'.trim();
-        final name =
-            '${row['name'] ?? row['title'] ?? 'Category'}'.trim();
-        final label =
-            id.isEmpty ? name : '$name';
-        final safeId =
-            id.isNotEmpty ? id : '${row['slug'] ?? ''}'.trim();
-        return _LoadedExpenseCategory(
-          id: safeId,
-          label: label.isEmpty ? 'Category' : label,
-        );
-      }).where((c) => c.id.isNotEmpty).toList();
+      final mapped = list
+          .map((row) {
+            final id = '${row['id'] ?? row['_id'] ?? ''}'.trim();
+            final name = '${row['name'] ?? row['title'] ?? 'Category'}'.trim();
+            final label = id.isEmpty ? name : name;
+            final safeId = id.isNotEmpty ? id : '${row['slug'] ?? ''}'.trim();
+            return _LoadedExpenseCategory(
+              id: safeId,
+              label: label.isEmpty ? 'Category' : label,
+            );
+          })
+          .where((c) => c.id.isNotEmpty)
+          .toList();
       if (!mounted) return;
       setState(() {
         _apiCategories = mapped;
@@ -145,8 +145,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
         'name': name,
         if (slug.isNotEmpty) 'slug': slug,
       };
-      final r =
-          await ref.read(apiClientProvider).createExpenseCategory(body);
+      final r = await ref.read(apiClientProvider).createExpenseCategory(body);
       if (!r.success) {
         throw StateError(r.error?.message ?? 'Create failed');
       }
@@ -379,8 +378,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   }
 
   String _categoryLabelForExpense(Map<String, dynamic> expense) {
-    final cid =
-        _pickString(expense, const ['category_id', 'categoryId']);
+    final cid = _pickString(expense, const ['category_id', 'categoryId']);
     if (cid.isNotEmpty) {
       for (final c in _apiCategories) {
         if (c.id == cid) return c.label;
@@ -390,8 +388,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     if (nested is Map && nested['name'] != null) {
       return '${nested['name']}'.trim();
     }
-    final legacySlug =
-        _pickString(expense, const ['category'], fallback: '');
+    final legacySlug = _pickString(expense, const ['category'], fallback: '');
     if (legacySlug.isNotEmpty) return legacySlug;
     return 'Uncategorized';
   }
@@ -972,6 +969,7 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
   late String _categoryId;
   late String _paymentMethod;
   late DateTime _date;
+
   /// When set ('amount'), that field shows error styling alongside the snackbar.
   String? _fieldErrorKey;
 
@@ -986,10 +984,8 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
       text: _string(expense['reference'] ?? expense['payment_reference']),
     );
     _notes = TextEditingController(text: _string(expense['notes']));
-    final apiId =
-        _string(expense['category_id'] ?? expense['categoryId']);
-    if (apiId.isNotEmpty &&
-        widget.categories.any((c) => c.id == apiId)) {
+    final apiId = _string(expense['category_id'] ?? expense['categoryId']);
+    if (apiId.isNotEmpty && widget.categories.any((c) => c.id == apiId)) {
       _categoryId = apiId;
     } else if (widget.categories.isNotEmpty) {
       _categoryId = widget.categories.first.id;
@@ -1072,8 +1068,7 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
     if (_categoryId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content:
-              Text('Create an expense category before adding expenses.'),
+          content: Text('Create an expense category before adding expenses.'),
         ),
       );
       return;
@@ -1123,7 +1118,7 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
                 )
               else
                 DropdownButtonFormField<String>(
-                  value:
+                  initialValue:
                       widget.categories.any((c) => c.id == _categoryId)
                           ? _categoryId
                           : widget.categories.first.id,
@@ -1284,7 +1279,8 @@ class _SheetTextField extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final errorColor = theme.colorScheme.error;
-    final idleOutline = theme.colorScheme.outlineVariant.withValues(alpha: 0.55);
+    final idleOutline =
+        theme.colorScheme.outlineVariant.withValues(alpha: 0.55);
     final borderColor = isInvalid ? errorColor : idleOutline;
 
     return Column(
@@ -1293,8 +1289,7 @@ class _SheetTextField extends StatelessWidget {
         Text(
           label,
           style: theme.textTheme.labelLarge?.copyWith(
-            color:
-                isInvalid ? errorColor : theme.textTheme.labelLarge?.color,
+            color: isInvalid ? errorColor : theme.textTheme.labelLarge?.color,
             fontWeight: isInvalid ? FontWeight.w700 : null,
           ),
         ),
@@ -1316,11 +1311,13 @@ class _SheetTextField extends StatelessWidget {
                 : theme.colorScheme.surfaceContainerLow,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: borderColor, width: isInvalid ? 1.5 : 1),
+              borderSide:
+                  BorderSide(color: borderColor, width: isInvalid ? 1.5 : 1),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: borderColor, width: isInvalid ? 1.5 : 1),
+              borderSide:
+                  BorderSide(color: borderColor, width: isInvalid ? 1.5 : 1),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),

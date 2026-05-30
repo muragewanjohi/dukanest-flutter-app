@@ -31,10 +31,11 @@ bool tumiziProvisioningPending(Map<String, dynamic>? config) {
   if (config == null) return false;
   final meta = config['metadata'];
   if (meta is! Map) return false;
-  final status = (meta['provisioning_status'] ?? meta['provisioningStatus'] ?? '')
-      .toString()
-      .trim()
-      .toLowerCase();
+  final status =
+      (meta['provisioning_status'] ?? meta['provisioningStatus'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase();
   return status == 'pending';
 }
 

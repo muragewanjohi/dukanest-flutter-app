@@ -19,10 +19,12 @@ class ContentManagementScreen extends ConsumerStatefulWidget {
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAad6vSBUp7TJUfwx6q_Zu98Ov5kBoXEE6qBmxohdxS3Xvva7vzUbTd5Y8YRBWNFTGzudNbQtShKEQH6NuGII-SsspXdB7DKKsz4Pimfw-Jw5ZbD3mkR2xLXoBuY18sQ55Wah_7XurHfjAkge6D7u_3_X-u4e-H1jxPrAIqkvKr208JNSiW_mN2sX_JILyDCrOLz4QvdqqC50F7jj7CEJhMVpBASAs5cMEfzX-FmTtgGIOTgkONTsfB_g9bii7TyqizG0D5kkTunZt5';
 
   @override
-  ConsumerState<ContentManagementScreen> createState() => _ContentManagementScreenState();
+  ConsumerState<ContentManagementScreen> createState() =>
+      _ContentManagementScreenState();
 }
 
-class _ContentManagementScreenState extends ConsumerState<ContentManagementScreen> {
+class _ContentManagementScreenState
+    extends ConsumerState<ContentManagementScreen> {
   final _searchCtrl = TextEditingController();
 
   @override
@@ -51,7 +53,8 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
               autofocus: true,
               decoration: const InputDecoration(labelText: 'Title'),
               onChanged: (v) {
-                if (slugCtrl.text.trim().isEmpty || _looksAutoSlug(slugCtrl.text, titleCtrl.text)) {
+                if (slugCtrl.text.trim().isEmpty ||
+                    _looksAutoSlug(slugCtrl.text, titleCtrl.text)) {
                   slugCtrl.text = _slugify(v);
                 }
               },
@@ -59,13 +62,18 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
             const SizedBox(height: 12),
             TextField(
               controller: slugCtrl,
-              decoration: const InputDecoration(labelText: 'Slug', prefixText: '/'),
+              decoration:
+                  const InputDecoration(labelText: 'Slug', prefixText: '/'),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Create')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Create')),
         ],
       ),
     );
@@ -75,7 +83,8 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
       return;
     }
     final title = titleCtrl.text.trim();
-    final slug = _slugify(slugCtrl.text.trim().isEmpty ? title : slugCtrl.text.trim());
+    final slug =
+        _slugify(slugCtrl.text.trim().isEmpty ? title : slugCtrl.text.trim());
     titleCtrl.dispose();
     slugCtrl.dispose();
     if (title.isEmpty || slug.isEmpty) {
@@ -140,7 +149,8 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
             child: CircleAvatar(
               radius: 20,
               backgroundColor: AppTheme.primary.withValues(alpha: 0.15),
-              backgroundImage: CachedNetworkImageProvider(ContentManagementScreen._avatarUrl),
+              backgroundImage: CachedNetworkImageProvider(
+                  ContentManagementScreen._avatarUrl),
             ),
           ),
         ],
@@ -172,8 +182,7 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
               children: [
                 OutlinedButton.icon(
                   onPressed: () => context.push('/forms'),
-                  icon:
-                      const Icon(Icons.dynamic_form_outlined, size: 18),
+                  icon: const Icon(Icons.dynamic_form_outlined, size: 18),
                   label: const Text('Forms'),
                 ),
                 OutlinedButton.icon(
@@ -197,7 +206,8 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
             _SearchAndActionsRow(
               theme: theme,
               searchController: _searchCtrl,
-              onSearch: (q) => ref.read(contentHubSearchProvider.notifier).state = q,
+              onSearch: (q) =>
+                  ref.read(contentHubSearchProvider.notifier).state = q,
             ),
             const SizedBox(height: 32),
             Text(
@@ -219,7 +229,9 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                child: Text('Refresh', style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14)),
+                child: Text('Refresh',
+                    style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w500, fontSize: 14)),
               ),
             ),
             const SizedBox(height: 12),
@@ -228,7 +240,8 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
                   'No blog posts yet.',
-                  style: GoogleFonts.inter(fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
+                  style: GoogleFonts.inter(
+                      fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
                 ),
               )
             else
@@ -263,7 +276,8 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
                 const Spacer(),
                 IconButton(
                   onPressed: _createPage,
-                  icon: Icon(Icons.add_circle, color: theme.colorScheme.primary),
+                  icon:
+                      Icon(Icons.add_circle, color: theme.colorScheme.primary),
                 ),
               ],
             ),
@@ -279,13 +293,18 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
                       padding: const EdgeInsets.all(20),
                       child: Text(
                         'No pages loaded.',
-                        style: GoogleFonts.inter(fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
+                        style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: theme.colorScheme.onSurfaceVariant),
                       ),
                     )
                   : Column(
                       children: [
                         for (var i = 0; i < snap.pages.length; i++) ...[
-                          if (i > 0) Divider(height: 1, color: Colors.white.withValues(alpha: 0.35)),
+                          if (i > 0)
+                            Divider(
+                                height: 1,
+                                color: Colors.white.withValues(alpha: 0.35)),
                           Builder(
                             builder: (context) {
                               final p = snap.pages[i];
@@ -316,7 +335,8 @@ class _ContentManagementScreenState extends ConsumerState<ContentManagementScree
             if (snap.sales.isEmpty)
               Text(
                 'No sales campaigns yet.',
-                style: GoogleFonts.inter(fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                    fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
               )
             else ...[
               _FeaturedSaleCard(
@@ -358,12 +378,17 @@ class _SearchAndActionsRow extends StatelessWidget {
           controller: searchController,
           decoration: InputDecoration(
             hintText: 'Search blogs & pages — press enter',
-            hintStyle: GoogleFonts.inter(fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
-            prefixIcon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
+            hintStyle: GoogleFonts.inter(
+                fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
+            prefixIcon:
+                Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
             filled: true,
             fillColor: theme.colorScheme.surfaceContainerLow,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
           onSubmitted: onSearch,
         ),
@@ -378,14 +403,18 @@ class _SearchAndActionsRow extends StatelessWidget {
                   foregroundColor: theme.colorScheme.onSurface,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.filter_list_rounded, size: 20, color: theme.colorScheme.onSurface),
+                    Icon(Icons.filter_list_rounded,
+                        size: 20, color: theme.colorScheme.onSurface),
                     const SizedBox(width: 8),
-                    Text('Filter', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14)),
+                    Text('Filter',
+                        style: GoogleFonts.inter(
+                            fontWeight: FontWeight.w600, fontSize: 14)),
                   ],
                 ),
               ),
@@ -419,11 +448,15 @@ class _SearchAndActionsRow extends StatelessWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.add_rounded, color: Colors.white, size: 22),
+                          const Icon(Icons.add_rounded,
+                              color: Colors.white, size: 22),
                           const SizedBox(width: 8),
                           Text(
                             'Create New Post',
-                            style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.white),
+                            style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                color: Colors.white),
                           ),
                         ],
                       ),
@@ -473,7 +506,10 @@ class _BlogCard extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              border: accentBorder ? const Border(left: BorderSide(color: AppTheme.primary, width: 4)) : null,
+              border: accentBorder
+                  ? const Border(
+                      left: BorderSide(color: AppTheme.primary, width: 4))
+                  : null,
             ),
             padding: const EdgeInsets.all(14),
             child: Row(
@@ -487,15 +523,18 @@ class _BlogCard extends StatelessWidget {
                     child: imageUrl.trim().isEmpty
                         ? ColoredBox(
                             color: theme.colorScheme.surfaceContainerLow,
-                            child: Icon(Icons.article_outlined, color: theme.colorScheme.outline),
+                            child: Icon(Icons.article_outlined,
+                                color: theme.colorScheme.outline),
                           )
                         : CachedNetworkImage(
                             imageUrl: imageUrl,
                             fit: BoxFit.cover,
-                            placeholder: (_, __) => ColoredBox(color: theme.colorScheme.surfaceContainerLow),
+                            placeholder: (_, __) => ColoredBox(
+                                color: theme.colorScheme.surfaceContainerLow),
                             errorWidget: (_, __, ___) => ColoredBox(
                               color: theme.colorScheme.surfaceContainerLow,
-                              child: Icon(Icons.article_outlined, color: theme.colorScheme.outline),
+                              child: Icon(Icons.article_outlined,
+                                  color: theme.colorScheme.outline),
                             ),
                           ),
                   ),
@@ -508,7 +547,8 @@ class _BlogCard extends StatelessWidget {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
                               color: publishedStyle
                                   ? theme.colorScheme.secondaryContainer
@@ -528,10 +568,13 @@ class _BlogCard extends StatelessWidget {
                           ),
                           const Spacer(),
                           IconButton(
-                            icon: Icon(Icons.more_vert, color: theme.colorScheme.onSurfaceVariant, size: 22),
+                            icon: Icon(Icons.more_vert,
+                                color: theme.colorScheme.onSurfaceVariant,
+                                size: 22),
                             onPressed: onEdit,
                             padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                            constraints: const BoxConstraints(
+                                minWidth: 36, minHeight: 36),
                           ),
                         ],
                       ),
@@ -606,7 +649,8 @@ class _PageRow extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.edit_outlined, color: theme.colorScheme.primary, size: 22),
+              Icon(Icons.edit_outlined,
+                  color: theme.colorScheme.primary, size: 22),
             ],
           ),
         ),
@@ -619,7 +663,8 @@ class _BlogCategoriesSheet extends ConsumerStatefulWidget {
   const _BlogCategoriesSheet();
 
   @override
-  ConsumerState<_BlogCategoriesSheet> createState() => _BlogCategoriesSheetState();
+  ConsumerState<_BlogCategoriesSheet> createState() =>
+      _BlogCategoriesSheetState();
 }
 
 class _BlogCategoriesSheetState extends ConsumerState<_BlogCategoriesSheet> {
@@ -663,10 +708,15 @@ class _BlogCategoriesSheetState extends ConsumerState<_BlogCategoriesSheet> {
         return;
       }
       final root = unwrapSettingsData(r.data) ?? r.data;
-      final items = (root is Map ? (root['items'] ?? root['data'] ?? root['categories']) : null);
+      final items = (root is Map
+          ? (root['items'] ?? root['data'] ?? root['categories'])
+          : null);
       setState(() {
         _categories = items is List
-            ? items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+            ? items
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList()
             : [];
         _loading = false;
       });
@@ -783,7 +833,8 @@ class _BlogCategoriesSheetState extends ConsumerState<_BlogCategoriesSheet> {
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
                 'No blog categories yet.',
-                style: GoogleFonts.inter(fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
+                style: GoogleFonts.inter(
+                    fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
               ),
             )
           else
@@ -797,13 +848,15 @@ class _BlogCategoriesSheetState extends ConsumerState<_BlogCategoriesSheet> {
                   final c = _categories[i];
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: Text(settingsPick(c, ['name', 'title'], fallback: 'Untitled')),
+                    title: Text(settingsPick(c, ['name', 'title'],
+                        fallback: 'Untitled')),
                     subtitle: () {
                       final slug = settingsPick(c, ['slug']);
                       return slug.isEmpty ? null : Text(slug);
                     }(),
                     trailing: IconButton(
-                      icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
+                      icon: Icon(Icons.delete_outline,
+                          color: theme.colorScheme.error),
                       onPressed: _busy ? null : () => _delete(c),
                     ),
                   );
@@ -873,10 +926,14 @@ class _FeaturedSaleCard extends StatelessWidget {
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.white,
                   backgroundColor: Colors.white.withValues(alpha: 0.2),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
                 ),
-                child: Text('Edit', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 12)),
+                child: Text('Edit',
+                    style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w600, fontSize: 12)),
               ),
             ],
           ),
@@ -949,9 +1006,12 @@ class _OutlinedSaleCard extends StatelessWidget {
               foregroundColor: AppTheme.primaryDark,
               backgroundColor: AppTheme.primaryDark.withValues(alpha: 0.06),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
             ),
-            child: Text('Edit', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12)),
+            child: Text('Edit',
+                style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w700, fontSize: 12)),
           ),
         ],
       ),

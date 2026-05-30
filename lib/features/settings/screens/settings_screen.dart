@@ -26,7 +26,9 @@ class SettingsScreen extends ConsumerWidget {
               identityAsync.when(
                 data: (id) {
                   final name = id.name?.trim();
-                  final initial = (name != null && name.isNotEmpty) ? name[0].toUpperCase() : '?';
+                  final initial = (name != null && name.isNotEmpty)
+                      ? name[0].toUpperCase()
+                      : '?';
                   return CircleAvatar(
                     radius: 20,
                     backgroundColor: AppTheme.primary,
@@ -46,20 +48,24 @@ class SettingsScreen extends ConsumerWidget {
                   child: const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
                   ),
                 ),
                 error: (_, __) => CircleAvatar(
                   radius: 20,
                   backgroundColor: AppTheme.primary,
-                  child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 20),
+                  child: const Icon(Icons.storefront_rounded,
+                      color: Colors.white, size: 20),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: identityAsync.when(
                   data: (id) => Text(
-                    (id.name != null && id.name!.trim().isNotEmpty) ? id.name!.trim() : 'Your store',
+                    (id.name != null && id.name!.trim().isNotEmpty)
+                        ? id.name!.trim()
+                        : 'Your store',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleMedium?.copyWith(
@@ -126,7 +132,9 @@ class SettingsScreen extends ConsumerWidget {
                   await storage.saveProductDetailRefreshHintSeen(false);
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Refresh tips reset. They will appear again.')),
+                    const SnackBar(
+                        content: Text(
+                            'Refresh tips reset. They will appear again.')),
                   );
                 },
               ),
@@ -229,8 +237,12 @@ class _StoreHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = (storeName != null && storeName!.trim().isNotEmpty) ? storeName!.trim() : 'Your store';
-    final url = (storeUrl != null && storeUrl!.trim().isNotEmpty) ? storeUrl!.trim() : '';
+    final name = (storeName != null && storeName!.trim().isNotEmpty)
+        ? storeName!.trim()
+        : 'Your store';
+    final url = (storeUrl != null && storeUrl!.trim().isNotEmpty)
+        ? storeUrl!.trim()
+        : '';
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -396,7 +408,8 @@ class _SettingsRow extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: theme.colorScheme.outline),
+              Icon(Icons.chevron_right_rounded,
+                  color: theme.colorScheme.outline),
             ],
           ),
         ),

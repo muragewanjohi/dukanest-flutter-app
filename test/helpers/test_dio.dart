@@ -10,7 +10,8 @@ import 'package:http_mock_adapter/http_mock_adapter.dart';
 /// adapter.onGet('/dashboard/themes', (s) => s.reply(200, {...}));
 /// ```
 (Dio, DioAdapter) buildMockDio({String baseUrl = 'https://test.local'}) {
-  final dio = Dio(BaseOptions(baseUrl: baseUrl, contentType: 'application/json'));
+  final dio =
+      Dio(BaseOptions(baseUrl: baseUrl, contentType: 'application/json'));
   final adapter = DioAdapter(dio: dio);
   dio.httpClientAdapter = adapter;
   return (dio, adapter);

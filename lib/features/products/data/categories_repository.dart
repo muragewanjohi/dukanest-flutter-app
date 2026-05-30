@@ -37,10 +37,26 @@ class CategoriesRepository {
       'https://lh3.googleusercontent.com/aida-public/AB6AXuBoDt04oKpoWBXQ_ugBru47NCrDeaD-_YkubE0qEVTZUj2og74g2iQxRpHwGlz_M11GUbCNE49kTZA1eH0JcJGL2qaELZnNkvNwwOmwvxpMkwtq_HgemNSow2tEhgJ3rCdUnZlgAWUpICvJwZ9mjjx3L9NBfgFxD2j0-xOF99AS6rUUPPH_yiTOE6BexqwxxHsBpiPek3F7yUrFYIymB01qdTh_erqtV_A4fCQSh1sWvmxLWHnxVuhHxKDvKUOMTPX7e8ES8M8mZXml';
 
   static List<CategoryEntry> get _seed => [
-        CategoryEntry(id: 'footwear', name: 'Footwear', productCount: 420, imageUrl: _kFootwear),
-        CategoryEntry(id: 'electronics', name: 'Electronics', productCount: 156, imageUrl: _kElectronics),
-        CategoryEntry(id: 'home-garden', name: 'Home & Garden', productCount: 89, imageUrl: _kHomeGarden),
-        CategoryEntry(id: 'accessories', name: 'Accessories', productCount: 211, imageUrl: _kAccessories),
+        CategoryEntry(
+            id: 'footwear',
+            name: 'Footwear',
+            productCount: 420,
+            imageUrl: _kFootwear),
+        CategoryEntry(
+            id: 'electronics',
+            name: 'Electronics',
+            productCount: 156,
+            imageUrl: _kElectronics),
+        CategoryEntry(
+            id: 'home-garden',
+            name: 'Home & Garden',
+            productCount: 89,
+            imageUrl: _kHomeGarden),
+        CategoryEntry(
+            id: 'accessories',
+            name: 'Accessories',
+            productCount: 211,
+            imageUrl: _kAccessories),
       ];
 
   static CategoryEntry? findById(String id) {

@@ -83,8 +83,7 @@ class _MpesaCheckoutSheetState extends ConsumerState<MpesaCheckoutSheet> {
       if (!initiate.success || body == null) {
         setState(() {
           _busy = false;
-          _error =
-              initiate.error?.message ?? 'Could not start M-Pesa checkout';
+          _error = initiate.error?.message ?? 'Could not start M-Pesa checkout';
           _hint = null;
         });
         return;
@@ -147,7 +146,9 @@ class _MpesaCheckoutSheetState extends ConsumerState<MpesaCheckoutSheet> {
 
         final statusNorm = _statusFromMaps([
           raw,
-          raw?['status'] is Map ? Map<String, dynamic>.from(raw!['status'] as Map) : null,
+          raw?['status'] is Map
+              ? Map<String, dynamic>.from(raw!['status'] as Map)
+              : null,
           raw?['payment'] is Map
               ? Map<String, dynamic>.from(raw!['payment'] as Map)
               : null,
@@ -170,8 +171,7 @@ class _MpesaCheckoutSheetState extends ConsumerState<MpesaCheckoutSheet> {
             setState(() {
               _busy = false;
               _hint = null;
-              _error =
-                  _failureMessage(raw) ?? 'Payment was not completed';
+              _error = _failureMessage(raw) ?? 'Payment was not completed';
             });
           }
         }
@@ -236,8 +236,7 @@ class _MpesaCheckoutSheetState extends ConsumerState<MpesaCheckoutSheet> {
               fillColor: AppTheme.surfaceContainerLow,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide:
-                    BorderSide(color: theme.colorScheme.outlineVariant),
+                borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
               ),
             ),
           ),

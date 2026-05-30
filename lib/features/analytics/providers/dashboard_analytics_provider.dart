@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 
 /// Mobile `GET /dashboard/analytics?days=` — raw `data` object from [ApiResponse.data].
-final dashboardAnalyticsProvider =
-    FutureProvider.autoDispose.family<Map<String, dynamic>?, int>((ref, days) async {
+final dashboardAnalyticsProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>?, int>((ref, days) async {
   final api = ref.watch(apiClientProvider);
   final response = await api.getDashboardAnalytics(days: days.clamp(1, 365));
   if (!response.success || response.data == null) return null;

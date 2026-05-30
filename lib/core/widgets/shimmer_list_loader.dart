@@ -20,7 +20,7 @@ class ShimmerListLoader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Shimmer.fromColors(
       baseColor: baseColor ?? theme.colorScheme.surfaceContainerLow,
       highlightColor: highlightColor ?? theme.colorScheme.surface,

@@ -79,7 +79,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       if (!r.success || r.data == null) {
         throw Exception(r.error?.message ?? 'Failed to load settings');
       }
-      final root = Map<String, dynamic>.from(r.data is Map ? r.data as Map : {});
+      final root =
+          Map<String, dynamic>.from(r.data is Map ? r.data as Map : {});
       final data = root['data'] ?? root['settings'];
       final row = data is Map<String, dynamic>
           ? Map<String, dynamic>.from(data)
@@ -150,7 +151,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
   List<Map<String, dynamic>> _asMapList(dynamic raw) {
     if (raw is! List) return const [];
-    return raw.whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList();
+    return raw
+        .whereType<Map>()
+        .map((m) => Map<String, dynamic>.from(m))
+        .toList();
   }
 
   Future<void> _loadStock({int? page, bool refreshAlerts = false}) async {
@@ -177,8 +181,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               ? Map<String, dynamic>.from(rawPayload)
               : throw const FormatException('Invalid inventory response');
       final data = payload['data'];
-      final root =
-          data is Map<String, dynamic> ? Map<String, dynamic>.from(data) : payload;
+      final root = data is Map<String, dynamic>
+          ? Map<String, dynamic>.from(data)
+          : payload;
 
       List<Map<String, dynamic>> rows;
       rows = _asMapList(
@@ -192,7 +197,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
           root['pagination'] is Map ? root['pagination'] as Map : null;
 
       int pageNow = target;
-      int totalPg = p?.totalPages ?? _pickInt(pMap ?? pMap2, ['total_pages', 'totalPages']) ?? 1;
+      int totalPg = p?.totalPages ??
+          _pickInt(pMap ?? pMap2, ['total_pages', 'totalPages']) ??
+          1;
       int total = p?.total ?? _pickInt(pMap ?? pMap2, ['total']) ?? rows.length;
 
       if (p?.page != null) pageNow = p!.page;
@@ -243,8 +250,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               ? Map<String, dynamic>.from(rawPayload)
               : throw const FormatException('Invalid history response');
       final data = payload['data'];
-      final root =
-          data is Map<String, dynamic> ? Map<String, dynamic>.from(data) : payload;
+      final root = data is Map<String, dynamic>
+          ? Map<String, dynamic>.from(data)
+          : payload;
       List<Map<String, dynamic>> rows =
           _asMapList(root['items'] ?? root['history'] ?? root['entries']);
 
@@ -254,8 +262,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       final pMap2 =
           root['pagination'] is Map ? root['pagination'] as Map : null;
       final pageNow = p?.page ?? _pickInt(pMap ?? pMap2, ['page']) ?? target;
-      final totalPg =
-          p?.totalPages ?? _pickInt(pMap ?? pMap2, ['total_pages', 'totalPages']) ?? 1;
+      final totalPg = p?.totalPages ??
+          _pickInt(pMap ?? pMap2, ['total_pages', 'totalPages']) ??
+          1;
       final total =
           p?.total ?? _pickInt(pMap ?? pMap2, ['total']) ?? rows.length;
 
@@ -302,8 +311,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       'variantId',
       'product_variant_id',
     ]);
-    final namePick =
-        pick(['productName', 'name', 'product_name', 'title']);
+    final namePick = pick(['productName', 'name', 'product_name', 'title']);
     final name = namePick.isEmpty ? '(Product)' : namePick;
     final sku = pick(['sku', 'code']);
     final stockVal = row['stock'] ??
@@ -327,9 +335,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
         : root is Map
             ? Map<String, dynamic>.from(root)
             : <String, dynamic>{};
-    final items = rootMap['items'] ??
-        rootMap['alerts'] ??
-        rootMap['data'];
+    final items = rootMap['items'] ?? rootMap['alerts'] ?? rootMap['data'];
 
     List<Map<String, dynamic>> list;
     if (items is List) {
@@ -391,7 +397,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       final ms = raw < 20000000000 ? raw * 1000 : raw;
       d = DateTime.fromMillisecondsSinceEpoch(ms);
     }
-    return d != null ? DateFormat.yMMMd().add_jm().format(d.toLocal()) : raw.toString();
+    return d != null
+        ? DateFormat.yMMMd().add_jm().format(d.toLocal())
+        : raw.toString();
   }
 
   @override
@@ -409,7 +417,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: DashboardPageHeader(
                 title: 'Inventory',
-                subtitle: 'Stock counts, alerts, recent adjustments, thresholds.',
+                subtitle:
+                    'Stock counts, alerts, recent adjustments, thresholds.',
                 leading: IconButton(
                   style: IconButton.styleFrom(
                     backgroundColor: theme.colorScheme.surfaceContainerLow,
@@ -435,7 +444,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                               ref,
                               rows: _stockItems.map(_rowFromStockMap).toList(),
                               onSuccess: () {
-                                _loadStock(page: _stockPage, refreshAlerts: true);
+                                _loadStock(
+                                    page: _stockPage, refreshAlerts: true);
                                 if (_historyItems.isNotEmpty) {
                                   _loadHistory(page: 1);
                                 }
@@ -602,8 +612,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               ),
             ),
           ],
-          if (_stockLoading &&
-              _stockItems.isNotEmpty)
+          if (_stockLoading && _stockItems.isNotEmpty)
             const LinearProgressIndicator(minHeight: 2),
         ],
       ),
@@ -616,9 +625,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
         row['isLowStock'] == true ||
         row['low_stock'] == true ||
         adj.currentStockLabel == '0';
-    final stockText = adj.currentStockLabel.isEmpty
-        ? '—'
-        : adj.currentStockLabel;
+    final stockText =
+        adj.currentStockLabel.isEmpty ? '—' : adj.currentStockLabel;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),

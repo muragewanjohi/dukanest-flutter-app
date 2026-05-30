@@ -76,7 +76,7 @@ class _ScheduledReportsScreenState
     if (result == null || !mounted) return;
     try {
       final api = ref.read(apiClientProvider);
-      final emailsRaw = '${result['emailRecipients'] ?? ''}'.trim();
+      final emailsRaw = (result['emailRecipients'] ?? '').trim();
       final body = <String, dynamic>{
         'reportType': result['reportType']!.trim(),
         'frequency': result['frequency']!.trim(),
@@ -104,8 +104,7 @@ class _ScheduledReportsScreenState
   }
 
   Future<void> _deleteReport(Map<String, dynamic> row) async {
-    final id =
-        '${row['id'] ?? row['_id'] ?? row['scheduleId'] ?? ''}'.trim();
+    final id = '${row['id'] ?? row['_id'] ?? row['scheduleId'] ?? ''}'.trim();
     if (id.isEmpty) return;
     final ok = await showDialog<bool>(
       context: context,
@@ -203,7 +202,8 @@ class _ScheduledReportsScreenState
                         padding: const EdgeInsets.all(24),
                         child: Text(_error!, textAlign: TextAlign.center),
                       ),
-                      FilledButton(onPressed: _load, child: const Text('Retry')),
+                      FilledButton(
+                          onPressed: _load, child: const Text('Retry')),
                     ],
                   ),
                 ),
@@ -315,8 +315,7 @@ class _ScheduledReportDialogState extends State<_ScheduledReportDialog> {
         ),
         FilledButton(
           onPressed: () {
-            if (_type.text.trim().isEmpty ||
-                _frequency.text.trim().isEmpty) {
+            if (_type.text.trim().isEmpty || _frequency.text.trim().isEmpty) {
               return;
             }
             Navigator.pop(context, {

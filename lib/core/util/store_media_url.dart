@@ -18,7 +18,8 @@ String normalizeStoreMediaUrl(String? raw) {
       resolved = 'https:$resolved';
     } else {
       final base = AppConfig.publicApiBaseUrl.replaceFirst(RegExp(r'/$'), '');
-      resolved = resolved.startsWith('/') ? '$base$resolved' : '$base/$resolved';
+      resolved =
+          resolved.startsWith('/') ? '$base$resolved' : '$base/$resolved';
     }
   }
 

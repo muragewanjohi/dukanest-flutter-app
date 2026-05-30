@@ -38,7 +38,8 @@ class CustomersListScreen extends ConsumerStatefulWidget {
   const CustomersListScreen({super.key});
 
   @override
-  ConsumerState<CustomersListScreen> createState() => _CustomersListScreenState();
+  ConsumerState<CustomersListScreen> createState() =>
+      _CustomersListScreenState();
 }
 
 class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
@@ -50,7 +51,12 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
   List<_CustomerRow> _customers = const [];
   final TextEditingController _searchController = TextEditingController();
 
-  static const _chips = ['All Customers', 'VIP Customers', 'Repeat Buyers', 'New This Month'];
+  static const _chips = [
+    'All Customers',
+    'VIP Customers',
+    'Repeat Buyers',
+    'New This Month'
+  ];
 
   @override
   void initState() {
@@ -93,15 +99,23 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
       final mapped = items.whereType<Map>().map((raw) {
         final p = Map<String, dynamic>.from(raw);
         final id = (p['id'] ?? p['customerId'] ?? '').toString().trim();
-        final name = (p['name'] ?? p['fullName'] ?? p['displayName'] ?? p['email'] ?? 'Customer')
+        final name = (p['name'] ??
+                p['fullName'] ??
+                p['displayName'] ??
+                p['email'] ??
+                'Customer')
             .toString();
         final email = (p['email'] ?? '').toString();
-        final orderCountRaw = p['orderCount'] ?? p['ordersCount'] ?? p['totalOrders'] ?? 0;
-        final orderCount =
-            orderCountRaw is num ? orderCountRaw.toInt() : int.tryParse(orderCountRaw.toString()) ?? 0;
+        final orderCountRaw =
+            p['orderCount'] ?? p['ordersCount'] ?? p['totalOrders'] ?? 0;
+        final orderCount = orderCountRaw is num
+            ? orderCountRaw.toInt()
+            : int.tryParse(orderCountRaw.toString()) ?? 0;
         final spent = p['totalSpent'] ?? p['lifetimeValue'] ?? p['total_spent'];
-        final spentLabel = spent is num ? spent.toStringAsFixed(0) : spent?.toString() ?? '—';
-        final lastRaw = p['lastOrderAt'] ?? p['last_order_at'] ?? p['lastOrder'];
+        final spentLabel =
+            spent is num ? spent.toStringAsFixed(0) : spent?.toString() ?? '—';
+        final lastRaw =
+            p['lastOrderAt'] ?? p['last_order_at'] ?? p['lastOrder'];
         String lastLabel = '—';
         if (lastRaw is String && lastRaw.isNotEmpty) {
           lastLabel = lastRaw;
@@ -158,7 +172,8 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty) return '?';
     if (parts.length == 1) return parts[0].substring(0, 1).toUpperCase();
-    return '${parts[0].substring(0, 1)}${parts[1].substring(0, 1)}'.toUpperCase();
+    return '${parts[0].substring(0, 1)}${parts[1].substring(0, 1)}'
+        .toUpperCase();
   }
 
   void _goBack(BuildContext context) {
@@ -227,8 +242,8 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
     if (c.id.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content:
-              Text('Missing customer ID — refresh the list or sync your account.'),
+          content: Text(
+              'Missing customer ID — refresh the list or sync your account.'),
         ),
       );
       return;
@@ -263,7 +278,8 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
               children: [
                 Text(_error!, textAlign: TextAlign.center),
                 const SizedBox(height: 16),
-                FilledButton(onPressed: _loadCustomers, child: const Text('Retry')),
+                FilledButton(
+                    onPressed: _loadCustomers, child: const Text('Retry')),
               ],
             ),
           ),
@@ -297,8 +313,7 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
                       ? const SizedBox(
                           width: 22,
                           height: 22,
-                          child:
-                              CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : Icon(Icons.file_download_outlined,
                           color: theme.colorScheme.onSurfaceVariant),
@@ -326,8 +341,10 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                      prefixIcon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 14, horizontal: 16),
+                      prefixIcon: Icon(Icons.search,
+                          color: theme.colorScheme.onSurfaceVariant),
                     ),
                   ),
                 ),
@@ -338,7 +355,8 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
                     color: theme.colorScheme.surfaceContainerLow,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(Icons.tune, color: theme.colorScheme.onSurfaceVariant),
+                  child: Icon(Icons.tune,
+                      color: theme.colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -352,17 +370,22 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
                 itemBuilder: (context, i) {
                   final sel = _chip == i;
                   return Material(
-                    color: sel ? AppTheme.primary : theme.colorScheme.surfaceContainerLow,
+                    color: sel
+                        ? AppTheme.primary
+                        : theme.colorScheme.surfaceContainerLow,
                     borderRadius: BorderRadius.circular(999),
                     child: InkWell(
                       onTap: () => setState(() => _chip = i),
                       borderRadius: BorderRadius.circular(999),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
                         child: Text(
                           _chips[i],
                           style: theme.textTheme.labelLarge?.copyWith(
-                            color: sel ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                            color: sel
+                                ? Colors.white
+                                : theme.colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -379,7 +402,9 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
                 padding: const EdgeInsets.only(top: 48),
                 child: Center(
                   child: Text(
-                    _customers.isEmpty ? 'No customers yet' : 'No matches for your filters.',
+                    _customers.isEmpty
+                        ? 'No customers yet'
+                        : 'No matches for your filters.',
                     style: theme.textTheme.bodyLarge,
                   ),
                 ),
@@ -402,15 +427,20 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
                           border: highlight
-                              ? const Border(left: BorderSide(color: AppTheme.primary, width: 4))
+                              ? const Border(
+                                  left: BorderSide(
+                                      color: AppTheme.primary, width: 4))
                               : null,
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
                         child: Row(
                           children: [
                             CircleAvatar(
                               radius: 26,
-                              backgroundColor: theme.colorScheme.secondaryContainer.withValues(alpha: 0.6),
+                              backgroundColor: theme
+                                  .colorScheme.secondaryContainer
+                                  .withValues(alpha: 0.6),
                               child: Text(
                                 _initials(c.name),
                                 style: theme.textTheme.titleMedium?.copyWith(
@@ -424,15 +454,21 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(c.name, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                                  Text(c.name,
+                                      style: theme.textTheme.titleSmall
+                                          ?.copyWith(
+                                              fontWeight: FontWeight.w700)),
                                   Text(
                                     c.email,
-                                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant),
                                   ),
                                 ],
                               ),
                             ),
-                            const Icon(Icons.chevron_right_rounded, color: AppTheme.primaryDark),
+                            const Icon(Icons.chevron_right_rounded,
+                                color: AppTheme.primaryDark),
                           ],
                         ),
                       ),
@@ -446,4 +482,3 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
     );
   }
 }
-

@@ -177,7 +177,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.description ?? 'Google sign-in failed. Please try again.'),
+            content: Text(
+                e.description ?? 'Google sign-in failed. Please try again.'),
             duration: const Duration(seconds: 6),
           ),
         );
@@ -609,7 +610,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           auth.status == AuthStatus.awaitingMfa) {
         if (!isGooglePath && auth.status == AuthStatus.awaitingMfa) {
           // Keep existing email OTP path, and request SMS OTP as best effort.
-          unawaited(ref.read(authProvider.notifier).requestSmsMfaCodeSilently());
+          unawaited(
+              ref.read(authProvider.notifier).requestSmsMfaCodeSilently());
         }
         // Router redirect handles /dashboard or /mfa.
         context.go('/dashboard');
@@ -1221,7 +1223,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const OnboardingStepHeader(title: OnboardingTrial.registerHeaderTitle),
+          const OnboardingStepHeader(
+              title: OnboardingTrial.registerHeaderTitle),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: _isLoading ? null : _handleGoogleSignIn,

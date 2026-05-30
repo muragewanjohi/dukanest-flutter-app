@@ -144,7 +144,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.description ?? 'Google sign-in failed. Please try again.'),
+            content: Text(
+                e.description ?? 'Google sign-in failed. Please try again.'),
             duration: const Duration(seconds: 6),
           ),
         );
@@ -629,7 +630,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                                 // Registration path: directly under primary CTA so it is not lost at the bottom edge.
                                 Semantics(
-                                  label: OnboardingTrial.loginTrialSemanticLabel,
+                                  label:
+                                      OnboardingTrial.loginTrialSemanticLabel,
                                   child: Material(
                                     color: colorScheme.primaryContainer
                                         .withValues(alpha: 0.28),
@@ -669,7 +671,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                                   ),
                                                   const SizedBox(height: 2),
                                                   Text(
-                                                    OnboardingTrial.loginTrialSubtitle,
+                                                    OnboardingTrial
+                                                        .loginTrialSubtitle,
                                                     style: theme
                                                         .textTheme.bodySmall
                                                         ?.copyWith(

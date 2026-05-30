@@ -34,7 +34,10 @@ class DashboardShell extends ConsumerWidget {
           color: Theme.of(context).colorScheme.surfaceContainerLowest,
           border: Border(
             top: BorderSide(
-              color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.35),
+              color: Theme.of(context)
+                  .colorScheme
+                  .outlineVariant
+                  .withValues(alpha: 0.35),
             ),
           ),
         ),

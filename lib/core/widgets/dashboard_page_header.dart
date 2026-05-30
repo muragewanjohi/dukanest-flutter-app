@@ -50,7 +50,8 @@ class DashboardPageHeader extends ConsumerWidget {
     final theme = Theme.of(context);
     final storeIdentity = ref.watch(storeIdentityProvider).asData?.value;
     final storeLogoUrl = storeIdentity?.logoUrl;
-    final resolvedName = (storeNameOverride ?? storeIdentity?.name ?? '').trim();
+    final resolvedName =
+        (storeNameOverride ?? storeIdentity?.name ?? '').trim();
     final displayName = resolvedName.isNotEmpty ? resolvedName : 'DukaNest';
 
     return Padding(

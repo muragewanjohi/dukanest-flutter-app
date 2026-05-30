@@ -61,7 +61,8 @@ class FirstRunTutorialScreen extends ConsumerStatefulWidget {
       _FirstRunTutorialScreenState();
 }
 
-class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen> {
+class _FirstRunTutorialScreenState
+    extends ConsumerState<FirstRunTutorialScreen> {
   static const _doneGreen = Color(0xFF16A34A);
   final _pageController = PageController();
   final Set<String> _localCompleted = <String>{};
@@ -91,7 +92,8 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
     _TutorialStep(
       key: 'product',
       title: 'Add your first product',
-      description: 'Create at least one product so shoppers can browse and place orders.',
+      description:
+          'Create at least one product so shoppers can browse and place orders.',
       actionLabel: 'Open products',
       completed: false,
       icon: Icons.inventory_2_outlined,
@@ -127,7 +129,8 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
     _TutorialStep(
       key: 'preview_store',
       title: 'Preview your store',
-      description: 'Open your storefront in the browser to see what buyers see.',
+      description:
+          'Open your storefront in the browser to see what buyers see.',
       actionLabel: 'Preview store',
       completed: false,
       icon: Icons.visibility_outlined,
@@ -209,7 +212,8 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
     if (t.contains('shipping') || t.contains('delivery')) {
       return '/shipping-delivery';
     }
-    if (t.contains('payment') || (t.contains('checkout') && t.contains('prefer'))) {
+    if (t.contains('payment') ||
+        (t.contains('checkout') && t.contains('prefer'))) {
       return '/payment-settings';
     }
     if (t.contains('logo') || (t.contains('brand') && t.contains('store'))) {
@@ -266,7 +270,8 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
     return 'Continue';
   }
 
-  Future<void> _primaryFooterAction(List<_TutorialStep> steps, int total) async {
+  Future<void> _primaryFooterAction(
+      List<_TutorialStep> steps, int total) async {
     if (_finishing) return;
     final safeIndex = _index.clamp(0, total - 1);
     final isLast = safeIndex >= total - 1;
@@ -336,19 +341,20 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
       final key = (m['id'] ?? m['key'] ?? m['stepKey'] ?? '').toString().trim();
       final title = (m['label'] ?? m['title'] ?? '').toString().trim();
       if (title.isEmpty) continue;
-      final desc =
-          (m['description'] ?? m['subtitle'] ?? '').toString().trim();
-      final cta = (m['cta'] ?? m['actionLabel'] ?? 'Continue')
-          .toString()
-          .trim();
+      final desc = (m['description'] ?? m['subtitle'] ?? '').toString().trim();
+      final cta =
+          (m['cta'] ?? m['actionLabel'] ?? 'Continue').toString().trim();
       final completed = m['completed'] == true || m['done'] == true;
-      final normalizedKey = key.isEmpty ? title.toLowerCase() : key.toLowerCase();
+      final normalizedKey =
+          key.isEmpty ? title.toLowerCase() : key.toLowerCase();
       final route = _routeForKey(normalizedKey) ?? _inferRouteFromTitle(title);
       out.add(
         _TutorialStep(
           key: normalizedKey,
           title: _displayTitleForStep(title),
-          description: desc.isEmpty ? 'Complete this setup step to keep your store ready.' : desc,
+          description: desc.isEmpty
+              ? 'Complete this setup step to keep your store ready.'
+              : desc,
           actionLabel: cta.isEmpty ? 'Continue' : cta,
           completed: completed,
           icon: _iconForStep(normalizedKey, title),
@@ -411,7 +417,14 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
         middle.add(s);
       }
     }
-    return [...categories, ...attributes, ...products, ...middle, ...previews, ...shares];
+    return [
+      ...categories,
+      ...attributes,
+      ...products,
+      ...middle,
+      ...previews,
+      ...shares
+    ];
   }
 
   Future<void> _completeTutorial() async {
@@ -639,7 +652,8 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
       if (!mounted) return;
       if (!res.success) {
         final msg = res.error?.message ?? 'Failed to remove demo products.';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(msg)));
         return;
       }
       _localCompleted.add(step.key);
@@ -651,7 +665,8 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to remove demo products right now.')),
+        const SnackBar(
+            content: Text('Unable to remove demo products right now.')),
       );
     }
   }
@@ -666,26 +681,22 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
     final cardPadding = compact ? 16.0 : 20.0;
     final checklistHeight = compact ? 108.0 : 130.0;
     final gsData = ref.watch(dashboardGettingStartedProvider).valueOrNull;
-    final syncedCompletions =
-        ref.watch(dashboardLocalStepCompletionsProvider);
+    final syncedCompletions = ref.watch(dashboardLocalStepCompletionsProvider);
     final stepsBase = _stepsFromGettingStarted(gsData);
-    final steps = stepsBase
-        .map((s) {
-          final canonical = canonicalDashboardOnboardingStepKey(s.key);
-          final synced =
-              canonical.isNotEmpty && syncedCompletions.contains(canonical);
-          return s.copyWith(
-            completed: s.completed ||
-                _localCompleted.contains(s.key) ||
-                synced,
-          );
-        })
-        .toList();
+    final steps = stepsBase.map((s) {
+      final canonical = canonicalDashboardOnboardingStepKey(s.key);
+      final synced =
+          canonical.isNotEmpty && syncedCompletions.contains(canonical);
+      return s.copyWith(
+        completed: s.completed || _localCompleted.contains(s.key) || synced,
+      );
+    }).toList();
     final total = steps.isEmpty ? 1 : steps.length;
     final safeIndex = _index.clamp(0, total - 1);
     final isLast = safeIndex == total - 1;
     final completedCount = steps.where((s) => s.completed).length;
-    final progress = total == 0 ? 0.0 : (completedCount / total).clamp(0.0, 1.0);
+    final progress =
+        total == 0 ? 0.0 : (completedCount / total).clamp(0.0, 1.0);
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
@@ -753,7 +764,8 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
                         color: theme.colorScheme.surfaceContainerLowest,
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(
-                          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+                          color: theme.colorScheme.outlineVariant
+                              .withValues(alpha: 0.35),
                         ),
                       ),
                       padding: EdgeInsets.all(cardPadding),
@@ -766,27 +778,35 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
                                 width: 56,
                                 height: 56,
                                 decoration: BoxDecoration(
-                                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                                  color: theme.colorScheme.primary
+                                      .withValues(alpha: 0.1),
                                   shape: BoxShape.circle,
                                 ),
                                 alignment: Alignment.center,
-                                child: Icon(step.icon, color: theme.colorScheme.primary, size: 30),
+                                child: Icon(step.icon,
+                                    color: theme.colorScheme.primary, size: 30),
                               ),
                               const Spacer(),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 6),
                                 decoration: BoxDecoration(
                                   color: step.completed
                                       ? const Color(0xFFF0FDF4)
                                       : isInProgress
-                                          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
-                                          : theme.colorScheme.surfaceContainerHigh,
+                                          ? theme.colorScheme.primaryContainer
+                                              .withValues(alpha: 0.35)
+                                          : theme
+                                              .colorScheme.surfaceContainerHigh,
                                   borderRadius: BorderRadius.circular(999),
                                   border: step.completed
-                                      ? Border.all(color: _doneGreen.withValues(alpha: 0.35))
+                                      ? Border.all(
+                                          color: _doneGreen.withValues(
+                                              alpha: 0.35))
                                       : isInProgress
                                           ? Border.all(
-                                              color: theme.colorScheme.primary.withValues(alpha: 0.45),
+                                              color: theme.colorScheme.primary
+                                                  .withValues(alpha: 0.45),
                                             )
                                           : null,
                                 ),
@@ -798,13 +818,15 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
                                           ? Icons.check_circle_rounded
                                           : isInProgress
                                               ? Icons.hourglass_top_rounded
-                                              : Icons.radio_button_unchecked_rounded,
+                                              : Icons
+                                                  .radio_button_unchecked_rounded,
                                       size: 14,
                                       color: step.completed
                                           ? _doneGreen
                                           : isInProgress
                                               ? theme.colorScheme.primary
-                                              : theme.colorScheme.onSurfaceVariant,
+                                              : theme
+                                                  .colorScheme.onSurfaceVariant,
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
@@ -820,7 +842,8 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
                                             ? _doneGreen
                                             : isInProgress
                                                 ? theme.colorScheme.primary
-                                                : theme.colorScheme.onSurfaceVariant,
+                                                : theme.colorScheme
+                                                    .onSurfaceVariant,
                                       ),
                                     ),
                                   ],
@@ -871,7 +894,8 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
                 color: theme.colorScheme.surfaceContainerLow,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+                  color:
+                      theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
                 ),
               ),
               child: SizedBox(
@@ -900,12 +924,14 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
                           ),
                           decoration: BoxDecoration(
                             color: selected
-                                ? theme.colorScheme.primary.withValues(alpha: 0.08)
+                                ? theme.colorScheme.primary
+                                    .withValues(alpha: 0.08)
                                 : theme.colorScheme.surfaceContainerLowest,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: selected
-                                  ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                                  ? theme.colorScheme.primary
+                                      .withValues(alpha: 0.3)
                                   : theme.colorScheme.outlineVariant
                                       .withValues(alpha: 0.25),
                             ),
@@ -942,7 +968,8 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
                                     decoration: step.completed
                                         ? TextDecoration.lineThrough
                                         : TextDecoration.none,
-                                    decorationColor: theme.colorScheme.onSurfaceVariant,
+                                    decorationColor:
+                                        theme.colorScheme.onSurfaceVariant,
                                   ),
                                 ),
                               ),
@@ -973,7 +1000,8 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
               ),
             ),
             Padding(
-              padding: EdgeInsets.fromLTRB(14, compact ? 6 : 8, 14, compact ? 12 : 16),
+              padding: EdgeInsets.fromLTRB(
+                  14, compact ? 6 : 8, 14, compact ? 12 : 16),
               child: Row(
                 children: [
                   Expanded(
@@ -985,7 +1013,9 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton(
-                      onPressed: _finishing ? null : () => _primaryFooterAction(steps, total),
+                      onPressed: _finishing
+                          ? null
+                          : () => _primaryFooterAction(steps, total),
                       child: _finishing
                           ? const SizedBox(
                               height: 18,
@@ -993,7 +1023,9 @@ class _FirstRunTutorialScreenState extends ConsumerState<FirstRunTutorialScreen>
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : Text(
-                              isLast ? 'Finish' : _footerCtaLabel(steps[safeIndex]),
+                              isLast
+                                  ? 'Finish'
+                                  : _footerCtaLabel(steps[safeIndex]),
                             ),
                     ),
                   ),
@@ -1070,7 +1102,8 @@ class _TutorialIllustration extends StatelessWidget {
                         const _ShippingIllustrationBody(),
                       _TutorialIllustrKind.payment =>
                         const _PaymentIllustrationBody(),
-                      _TutorialIllustrKind.logo => const _LogoIllustrationBody(),
+                      _TutorialIllustrKind.logo =>
+                        const _LogoIllustrationBody(),
                       _TutorialIllustrKind.share ||
                       _TutorialIllustrKind.preview =>
                         const _StorefrontIllustrationBody(),
@@ -1142,7 +1175,9 @@ class _IllustrSpecRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: theme.colorScheme.primary.withValues(alpha: 0.85)),
+          Icon(icon,
+              size: 18,
+              color: theme.colorScheme.primary.withValues(alpha: 0.85)),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -1207,7 +1242,8 @@ class _CategoryIllustrationBody extends StatelessWidget {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                        color:
+                            theme.colorScheme.primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       alignment: Alignment.center,
@@ -1244,7 +1280,10 @@ class _CategoryIllustrationBody extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                Divider(
+                    height: 1,
+                    color: theme.colorScheme.outlineVariant
+                        .withValues(alpha: 0.5)),
                 const _IllustrSpecRow(
                   icon: Icons.folder_outlined,
                   label: 'Groceries',
@@ -1304,7 +1343,8 @@ class _AttributesIllustrationBody extends StatelessWidget {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                        color:
+                            theme.colorScheme.primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       alignment: Alignment.center,
@@ -1495,7 +1535,8 @@ class _ProductIllustrationBody extends StatelessWidget {
                           ),
                           const Spacer(),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: const Color(0xFFDCFCE7),
                               borderRadius: BorderRadius.circular(8),
@@ -1551,9 +1592,11 @@ class _ShippingIllustrationBody extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             child: Column(
               children: [
-                _ShippingIllustrationBody._zoneRow(theme, 'City center', 'Flat rate', 'KES 250'),
+                _ShippingIllustrationBody._zoneRow(
+                    theme, 'City center', 'Flat rate', 'KES 250'),
                 const SizedBox(height: 10),
-                _ShippingIllustrationBody._zoneRow(theme, 'Greater area', 'Zone', 'KES 450'),
+                _ShippingIllustrationBody._zoneRow(
+                    theme, 'Greater area', 'Zone', 'KES 450'),
               ],
             ),
           ),
@@ -1562,11 +1605,13 @@ class _ShippingIllustrationBody extends StatelessWidget {
     );
   }
 
-  static Widget _zoneRow(ThemeData theme, String zone, String type, String price) {
+  static Widget _zoneRow(
+      ThemeData theme, String zone, String type, String price) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.65),
+        color:
+            theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
@@ -1574,7 +1619,8 @@ class _ShippingIllustrationBody extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.local_shipping_outlined, color: theme.colorScheme.primary, size: 22),
+          Icon(Icons.local_shipping_outlined,
+              color: theme.colorScheme.primary, size: 22),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -1582,7 +1628,8 @@ class _ShippingIllustrationBody extends StatelessWidget {
               children: [
                 Text(
                   zone,
-                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700),
+                  style: GoogleFonts.inter(
+                      fontSize: 13, fontWeight: FontWeight.w700),
                 ),
                 Text(
                   type,
@@ -1630,9 +1677,12 @@ class _PaymentIllustrationBody extends StatelessWidget {
               Icons.account_balance_wallet_rounded,
               'Tumizi wallet',
             ),
-            _PaymentIllustrationBody._payChip(theme, Icons.payments_outlined, 'Cash on delivery'),
-            _PaymentIllustrationBody._payChip(theme, Icons.phone_android_rounded, 'M-Pesa'),
-            _PaymentIllustrationBody._payChip(theme, Icons.credit_card_outlined, 'Card'),
+            _PaymentIllustrationBody._payChip(
+                theme, Icons.payments_outlined, 'Cash on delivery'),
+            _PaymentIllustrationBody._payChip(
+                theme, Icons.phone_android_rounded, 'M-Pesa'),
+            _PaymentIllustrationBody._payChip(
+                theme, Icons.credit_card_outlined, 'Card'),
           ],
         ),
       ],
@@ -1645,7 +1695,8 @@ class _PaymentIllustrationBody extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
         boxShadow: [
           BoxShadow(
             color: theme.colorScheme.shadow.withValues(alpha: 0.05),
@@ -1770,7 +1821,9 @@ class _StorefrontIllustrationBody extends StatelessWidget {
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45)),
+            border: Border.all(
+                color:
+                    theme.colorScheme.outlineVariant.withValues(alpha: 0.45)),
             boxShadow: [
               BoxShadow(
                 color: theme.colorScheme.shadow.withValues(alpha: 0.07),
@@ -1783,28 +1836,34 @@ class _StorefrontIllustrationBody extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+                  color: theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.8),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(11)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.lock_outline_rounded, size: 14, color: theme.colorScheme.primary),
+                    Icon(Icons.lock_outline_rounded,
+                        size: 14, color: theme.colorScheme.primary),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         _demoStoreHost,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600),
+                        style: GoogleFonts.inter(
+                            fontSize: 11, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
                 ),
               ),
               ClipRRect(
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(11)),
+                borderRadius:
+                    const BorderRadius.vertical(bottom: Radius.circular(11)),
                 child: SizedBox(
                   height: 152,
                   width: double.infinity,
@@ -1838,7 +1897,8 @@ class _StorefrontIllustrationBody extends StatelessWidget {
         ),
       ),
       child: Center(
-        child: Icon(Icons.storefront_outlined, size: 40, color: theme.colorScheme.primary.withValues(alpha: 0.5)),
+        child: Icon(Icons.storefront_outlined,
+            size: 40, color: theme.colorScheme.primary.withValues(alpha: 0.5)),
       ),
     );
   }
@@ -1858,12 +1918,15 @@ class _DemoCleanupIllustrationBody extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.inventory_2_outlined, color: theme.colorScheme.outline, size: 28),
+            Icon(Icons.inventory_2_outlined,
+                color: theme.colorScheme.outline, size: 28),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Icon(Icons.arrow_forward_rounded, color: theme.colorScheme.primary, size: 22),
+              child: Icon(Icons.arrow_forward_rounded,
+                  color: theme.colorScheme.primary, size: 22),
             ),
-            Icon(Icons.delete_outline_rounded, color: theme.colorScheme.error, size: 30),
+            Icon(Icons.delete_outline_rounded,
+                color: theme.colorScheme.error, size: 30),
           ],
         ),
         const SizedBox(height: 10),
@@ -1898,11 +1961,14 @@ class _SettingsIllustrationBody extends StatelessWidget {
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45)),
+            border: Border.all(
+                color:
+                    theme.colorScheme.outlineVariant.withValues(alpha: 0.45)),
           ),
           child: Row(
             children: [
-              Icon(Icons.sms_outlined, color: theme.colorScheme.primary, size: 26),
+              Icon(Icons.sms_outlined,
+                  color: theme.colorScheme.primary, size: 26),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1910,7 +1976,8 @@ class _SettingsIllustrationBody extends StatelessWidget {
                   children: [
                     Text(
                       '+254 712 ··· 889',
-                      style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+                      style: GoogleFonts.inter(
+                          fontSize: 14, fontWeight: FontWeight.w700),
                     ),
                     Text(
                       'Order SMS & phone alerts',
@@ -1922,7 +1989,8 @@ class _SettingsIllustrationBody extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: theme.colorScheme.outline),
+              Icon(Icons.chevron_right_rounded,
+                  color: theme.colorScheme.outline),
             ],
           ),
         ),

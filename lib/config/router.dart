@@ -170,7 +170,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
         if (firstRunTutorialSeen != true) {
           return (isFirstRunTutorial ||
-                  (tutorialBypass && isFirstRunSetupRoute(state.matchedLocation)))
+                  (tutorialBypass &&
+                      isFirstRunSetupRoute(state.matchedLocation)))
               ? null
               : '/first-run-tutorial';
         }
@@ -281,7 +282,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           return DeliveryZoneEditorScreen(args: args);
         },
       ),
-
       GoRoute(
         path: '/subscription',
         builder: (context, state) => const SubscriptionScreen(),
@@ -328,8 +328,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: 'customize',
-            builder: (context, state) =>
-                const ThemeCustomizationScreen(),
+            builder: (context, state) => const ThemeCustomizationScreen(),
           ),
         ],
       ),
@@ -344,16 +343,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: ':id/edit',
             builder: (context, state) {
-              final id =
-                  Uri.decodeComponent(state.pathParameters['id']!);
+              final id = Uri.decodeComponent(state.pathParameters['id']!);
               return FormEditorScreen(formId: id);
             },
           ),
           GoRoute(
             path: ':id/submissions',
             builder: (context, state) {
-              final id =
-                  Uri.decodeComponent(state.pathParameters['id']!);
+              final id = Uri.decodeComponent(state.pathParameters['id']!);
               return FormSubmissionsScreen(formId: id);
             },
           ),
@@ -505,8 +502,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'scheduled-reports',
-                    builder: (context, state) =>
-                        const ScheduledReportsScreen(),
+                    builder: (context, state) => const ScheduledReportsScreen(),
                   ),
                 ],
               ),

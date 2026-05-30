@@ -77,10 +77,7 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
             : root;
     final raw = bag['items'] ?? root['items'];
     final list = raw is List
-        ? raw
-            .whereType<Map>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList()
+        ? raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
         : <Map<String, dynamic>>[];
     if (!mounted) return;
     setState(() {
@@ -105,15 +102,13 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
             ? Map<String, dynamic>.from(nested)
             : root;
     final title = '${m['title'] ?? ''}'.trim();
-    final content =
-        '${m['content'] ?? m['body'] ?? ''}'.trim();
+    final content = '${m['content'] ?? m['body'] ?? ''}'.trim();
     final excerpt = '${m['excerpt'] ?? ''}'.trim();
-    final published =
-        m['published'] == true || m['status'] == 'published';
-    final img = '${m['featured_image'] ?? m['image'] ?? m['featuredImage'] ?? ''}'
-        .trim();
-    final cid =
-        '${m['category_id'] ?? m['categoryId'] ?? ''}'.trim();
+    final published = m['published'] == true || m['status'] == 'published';
+    final img =
+        '${m['featured_image'] ?? m['image'] ?? m['featuredImage'] ?? ''}'
+            .trim();
+    final cid = '${m['category_id'] ?? m['categoryId'] ?? ''}'.trim();
     if (!mounted) return;
     setState(() {
       _title.text = title;
@@ -140,10 +135,13 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
         title: const Text('Delete this post?'),
         content: const Text('This permanently deletes the blog post.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Delete', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+            child: Text('Delete',
+                style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
           ),
         ],
       ),
@@ -188,8 +186,7 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
       'content': _body.text.trim(),
       'excerpt': _excerpt.text.trim(),
       'published': _published,
-      if (_selectedCategoryId != null &&
-          _selectedCategoryId!.trim().isNotEmpty)
+      if (_selectedCategoryId != null && _selectedCategoryId!.trim().isNotEmpty)
         'category_id': _selectedCategoryId!.trim(),
       if (_imageUrl != null && _imageUrl!.trim().isNotEmpty)
         'featured_image': _imageUrl!.trim(),
@@ -197,8 +194,7 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
     try {
       final api = ref.read(apiClientProvider);
       if (_isEditing && widget.postId != null) {
-        final r =
-            await api.updateBlog(widget.postId!, body);
+        final r = await api.updateBlog(widget.postId!, body);
         if (!r.success) {
           throw StateError(r.error?.message ?? 'Save failed');
         }
@@ -270,8 +266,10 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
           width: 1.5,
         ),
       ),
-      contentPadding: contentPadding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      hintStyle: TextStyle(color: theme.colorScheme.outline.withValues(alpha: 0.45)),
+      contentPadding: contentPadding ??
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      hintStyle:
+          TextStyle(color: theme.colorScheme.outline.withValues(alpha: 0.45)),
     );
   }
 
@@ -306,11 +304,13 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
                 elevation: 1,
                 shadowColor: Colors.black26,
                 shape: const StadiumBorder(),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               ),
               child: Text(
                 'Save',
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14),
+                style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700, fontSize: 14),
               ),
             ),
           ),
@@ -359,7 +359,7 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
             )
           else
             DropdownButtonFormField<String>(
-              value: () {
+              initialValue: () {
                 final ids = _categories
                     .map((c) => '${c['id'] ?? c['_id'] ?? ''}'.trim())
                     .where((id) => id.isNotEmpty)
@@ -377,8 +377,7 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
               ),
               items: _categories
                   .map((c) {
-                    final id =
-                        '${c['id'] ?? c['_id'] ?? ''}'.trim();
+                    final id = '${c['id'] ?? c['_id'] ?? ''}'.trim();
                     if (id.isEmpty) return null;
                     final name =
                         '${c['name'] ?? c['title'] ?? 'Category'}'.trim();
@@ -389,8 +388,7 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
                   })
                   .whereType<DropdownMenuItem<String>>()
                   .toList(),
-              onChanged: (v) =>
-                  setState(() => _selectedCategoryId = v),
+              onChanged: (v) => setState(() => _selectedCategoryId = v),
             ),
           const SizedBox(height: 22),
           _sectionLabel('Post Content'),
@@ -413,29 +411,38 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHigh.withValues(alpha: 0.45),
+                    color: theme.colorScheme.surfaceContainerHigh
+                        .withValues(alpha: 0.45),
                     border: Border(
                       bottom: BorderSide(
-                        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.25),
+                        color: theme.colorScheme.outlineVariant
+                            .withValues(alpha: 0.25),
                       ),
                     ),
                   ),
                   child: Row(
                     children: [
                       IconButton(
-                        icon: Icon(Icons.format_bold, size: 20, color: theme.colorScheme.onSurfaceVariant),
+                        icon: Icon(Icons.format_bold,
+                            size: 20,
+                            color: theme.colorScheme.onSurfaceVariant),
                         onPressed: () {},
                         tooltip: 'Bold',
                       ),
                       IconButton(
-                        icon: Icon(Icons.format_italic, size: 20, color: theme.colorScheme.onSurfaceVariant),
+                        icon: Icon(Icons.format_italic,
+                            size: 20,
+                            color: theme.colorScheme.onSurfaceVariant),
                         onPressed: () {},
                         tooltip: 'Italic',
                       ),
                       IconButton(
-                        icon: Icon(Icons.format_list_bulleted, size: 20, color: theme.colorScheme.onSurfaceVariant),
+                        icon: Icon(Icons.format_list_bulleted,
+                            size: 20,
+                            color: theme.colorScheme.onSurfaceVariant),
                         onPressed: () {},
                         tooltip: 'List',
                       ),
@@ -443,15 +450,20 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
                         width: 1,
                         height: 20,
                         margin: const EdgeInsets.symmetric(horizontal: 6),
-                        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+                        color: theme.colorScheme.outlineVariant
+                            .withValues(alpha: 0.45),
                       ),
                       IconButton(
-                        icon: Icon(Icons.link, size: 20, color: theme.colorScheme.onSurfaceVariant),
+                        icon: Icon(Icons.link,
+                            size: 20,
+                            color: theme.colorScheme.onSurfaceVariant),
                         onPressed: () {},
                         tooltip: 'Link',
                       ),
                       IconButton(
-                        icon: Icon(Icons.image_outlined, size: 20, color: theme.colorScheme.onSurfaceVariant),
+                        icon: Icon(Icons.image_outlined,
+                            size: 20,
+                            color: theme.colorScheme.onSurfaceVariant),
                         onPressed: () {},
                         tooltip: 'Image',
                       ),
@@ -471,7 +483,9 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
                   ),
                   decoration: InputDecoration(
                     hintText: 'Start writing your story...',
-                    hintStyle: TextStyle(color: theme.colorScheme.outline.withValues(alpha: 0.4)),
+                    hintStyle: TextStyle(
+                        color:
+                            theme.colorScheme.outline.withValues(alpha: 0.4)),
                     filled: true,
                     fillColor: Colors.transparent,
                     border: InputBorder.none,
@@ -487,8 +501,12 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
             controller: _excerpt,
             minLines: 3,
             maxLines: 5,
-            style: GoogleFonts.inter(fontSize: 14, height: 1.45, color: theme.colorScheme.onSurfaceVariant),
-            decoration: _filledDeco(theme, hint: 'A short summary for previews...'),
+            style: GoogleFonts.inter(
+                fontSize: 14,
+                height: 1.45,
+                color: theme.colorScheme.onSurfaceVariant),
+            decoration:
+                _filledDeco(theme, hint: 'A short summary for previews...'),
           ),
           const SizedBox(height: 22),
           Container(
@@ -496,7 +514,9 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
             decoration: BoxDecoration(
               color: theme.colorScheme.surfaceContainerLow,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.25)),
+              border: Border.all(
+                  color:
+                      theme.colorScheme.outlineVariant.withValues(alpha: 0.25)),
             ),
             child: Row(
               children: [
@@ -529,7 +549,8 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
                   onChanged: (v) => setState(() => _published = v),
                   activeTrackColor: AppTheme.primary,
                   activeThumbColor: Colors.white,
-                  inactiveTrackColor: theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
+                  inactiveTrackColor:
+                      theme.colorScheme.outlineVariant.withValues(alpha: 0.45),
                 ),
               ],
             ),
@@ -540,14 +561,18 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
               onPressed: _confirmDelete,
               style: OutlinedButton.styleFrom(
                 foregroundColor: theme.colorScheme.error,
-                side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.15), width: 2),
+                side: BorderSide(
+                    color: theme.colorScheme.error.withValues(alpha: 0.15),
+                    width: 2),
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.delete_outline_rounded, size: 20, color: theme.colorScheme.error),
+                  Icon(Icons.delete_outline_rounded,
+                      size: 20, color: theme.colorScheme.error),
                   const SizedBox(width: 8),
                   Text(
                     'DELETE POST',
@@ -568,7 +593,8 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
 }
 
 class _FeaturedImageCard extends StatelessWidget {
-  const _FeaturedImageCard({required this.imageUrl, required this.onChangeImage});
+  const _FeaturedImageCard(
+      {required this.imageUrl, required this.onChangeImage});
 
   final String? imageUrl;
   final VoidCallback onChangeImage;
@@ -590,12 +616,15 @@ class _FeaturedImageCard extends StatelessWidget {
                   CachedNetworkImage(
                     imageUrl: imageUrl!,
                     fit: BoxFit.cover,
-                    placeholder: (_, __) => const Center(child: CircularProgressIndicator()),
-                    errorWidget: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined, size: 48)),
+                    placeholder: (_, __) =>
+                        const Center(child: CircularProgressIndicator()),
+                    errorWidget: (_, __, ___) => const Center(
+                        child: Icon(Icons.broken_image_outlined, size: 48)),
                   )
                 else
                   Center(
-                    child: Icon(Icons.add_photo_alternate_outlined, size: 48, color: Theme.of(context).colorScheme.outline),
+                    child: Icon(Icons.add_photo_alternate_outlined,
+                        size: 48, color: Theme.of(context).colorScheme.outline),
                   ),
                 Positioned.fill(
                   child: DecoratedBox(
@@ -620,11 +649,13 @@ class _FeaturedImageCard extends StatelessWidget {
                       onTap: onChangeImage,
                       borderRadius: BorderRadius.circular(999),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 10),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.photo_camera_rounded, size: 20, color: AppTheme.primaryDark),
+                            Icon(Icons.photo_camera_rounded,
+                                size: 20, color: AppTheme.primaryDark),
                             const SizedBox(width: 8),
                             Text(
                               'Change Image',
@@ -644,7 +675,8 @@ class _FeaturedImageCard extends StatelessWidget {
                   left: 12,
                   bottom: 12,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: AppTheme.primaryDark.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(8),

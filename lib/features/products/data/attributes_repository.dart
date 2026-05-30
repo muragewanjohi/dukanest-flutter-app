@@ -92,8 +92,10 @@ class AttributesRepository {
   }
 
   static String uniqueId(String name) {
-    final base = name.toLowerCase().trim().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
-    var s = base.replaceFirst(RegExp(r'^-+'), '').replaceFirst(RegExp(r'-+$'), '');
+    final base =
+        name.toLowerCase().trim().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
+    var s =
+        base.replaceFirst(RegExp(r'^-+'), '').replaceFirst(RegExp(r'-+$'), '');
     if (s.isEmpty) s = 'attribute';
     var candidate = s;
     var n = 2;

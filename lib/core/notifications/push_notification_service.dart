@@ -10,7 +10,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../api/api_client.dart';
 
-final pushNotificationServiceProvider = Provider<PushNotificationService>((ref) {
+final pushNotificationServiceProvider =
+    Provider<PushNotificationService>((ref) {
   final service = PushNotificationService(ref.read(apiClientProvider));
   ref.onDispose(service.dispose);
   return service;
@@ -85,12 +86,15 @@ class PushNotificationService {
         sound: true,
       );
 
-      _tokenRefreshSubscription = messaging.onTokenRefresh.listen((token) async {
+      _tokenRefreshSubscription =
+          messaging.onTokenRefresh.listen((token) async {
         await registerDeviceToken(tokenOverride: token);
       });
 
-      _foregroundSubscription = FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-      _openedAppSubscription = FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      _foregroundSubscription =
+          FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+      _openedAppSubscription =
+          FirebaseMessaging.onMessageOpenedApp.listen((message) {
         _onTap?.call(_dataFromMessage(message));
       });
     } catch (e, st) {
@@ -106,7 +110,8 @@ class PushNotificationService {
       requestSoundPermission: false,
     );
     await _localNotifications.initialize(
-      settings: const InitializationSettings(android: androidInit, iOS: iosInit),
+      settings:
+          const InitializationSettings(android: androidInit, iOS: iosInit),
       onDidReceiveNotificationResponse: (response) {
         final payload = response.payload;
         if (payload == null || payload.isEmpty) return;
@@ -121,8 +126,9 @@ class PushNotificationService {
 
     // Create the channel up-front so importance is respected the first time a
     // notification is posted (creating it lazily can fall back to "default").
-    final androidImpl = _localNotifications
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    final androidImpl =
+        _localNotifications.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
     await androidImpl?.createNotificationChannel(_ordersChannel);
   }
 
@@ -135,8 +141,8 @@ class PushNotificationService {
       final android = message.notification?.android;
       final data = _dataFromMessage(message);
 
-      final title = notification?.title ??
-          (data['title']?.toString() ?? 'New order');
+      final title =
+          notification?.title ?? (data['title']?.toString() ?? 'New order');
       final body = notification?.body ??
           (data['body']?.toString() ?? data['message']?.toString() ?? '');
 
@@ -182,7 +188,8 @@ class PushNotificationService {
 
   Future<void> registerDeviceToken({String? tokenOverride}) async {
     try {
-      final token = tokenOverride ?? await FirebaseMessaging.instance.getToken();
+      final token =
+          tokenOverride ?? await FirebaseMessaging.instance.getToken();
       if (token == null || token.isEmpty) {
         return;
       }
@@ -203,7 +210,8 @@ class PushNotificationService {
       if (result.success) {
         _lastRegisteredToken = token;
       } else {
-        debugPrint('Device token registration failed: ${result.error?.message}');
+        debugPrint(
+            'Device token registration failed: ${result.error?.message}');
       }
     } catch (e, st) {
       debugPrint('Device token registration skipped: $e\n$st');

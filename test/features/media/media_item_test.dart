@@ -19,7 +19,8 @@ void main() {
     test('prefers url, then public variants, then path/src', () {
       expect(mediaItemUrl({'url': 'https://h/u.png'}), 'https://h/u.png');
       expect(mediaItemUrl({'publicUrl': 'https://h/p.png'}), 'https://h/p.png');
-      expect(mediaItemUrl({'public_url': 'https://h/s.png'}), 'https://h/s.png');
+      expect(
+          mediaItemUrl({'public_url': 'https://h/s.png'}), 'https://h/s.png');
       expect(mediaItemUrl({'path': '/x.png'}), '/x.png');
       expect(mediaItemUrl({'src': 'y.png'}), 'y.png');
     });

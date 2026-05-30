@@ -51,7 +51,6 @@ class LandingScreen extends StatelessWidget {
                         ),
                       ),
                       SizedBox(height: compact ? 18 : 28),
-
                       Text(
                         'Run your shop, see your growth.',
                         style: theme.textTheme.headlineSmall?.copyWith(
@@ -72,16 +71,13 @@ class LandingScreen extends StatelessWidget {
                         textAlign: TextAlign.center,
                       ),
                       SizedBox(height: compact ? 18 : 26),
-
                       const _RevenueShowcaseCard(),
                       SizedBox(height: compact ? 32 : 48),
-
                       _PrimaryStartTrialButton(
                         onPressed: () => context.go('/register'),
                         compact: compact,
                       ),
                       SizedBox(height: compact ? 16 : 20),
-
                       _SecondarySignInButton(
                         onPressed: () => context.go('/login'),
                         compact: compact,

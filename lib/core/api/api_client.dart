@@ -760,7 +760,8 @@ class ApiClient {
 
   // --- Inventory mutations ---
 
-  Future<ApiResponse<dynamic>> adjustInventory(Map<String, dynamic> body) async {
+  Future<ApiResponse<dynamic>> adjustInventory(
+      Map<String, dynamic> body) async {
     final response = await _dio.post('/dashboard/inventory/adjust', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
@@ -887,8 +888,7 @@ class ApiClient {
 
   Future<ApiResponse<dynamic>> createBlogCategory(
       Map<String, dynamic> body) async {
-    final response =
-        await _dio.post('/dashboard/blogs/categories', data: body);
+    final response = await _dio.post('/dashboard/blogs/categories', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
@@ -1032,8 +1032,7 @@ class ApiClient {
 
   Future<ApiResponse<dynamic>> updateCurrentTheme(
       Map<String, dynamic> body) async {
-    final response =
-        await _dio.patch('/dashboard/themes/current', data: body);
+    final response = await _dio.patch('/dashboard/themes/current', data: body);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 

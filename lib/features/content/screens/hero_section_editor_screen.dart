@@ -28,7 +28,8 @@ class HeroSectionEditorScreen extends ConsumerStatefulWidget {
 }
 
 class _HeroSectionEditorScreenState
-    extends ConsumerState<HeroSectionEditorScreen> with FormErrorHighlightMixin {
+    extends ConsumerState<HeroSectionEditorScreen>
+    with FormErrorHighlightMixin {
   final _title = TextEditingController();
   final _subtitle = TextEditingController();
   final _description = TextEditingController();
@@ -83,10 +84,10 @@ class _HeroSectionEditorScreenState
       _title.text = settingsPick(hero, ['title', 'heading']);
       _subtitle.text = settingsPick(hero, ['subtitle', 'subheading']);
       _description.text = settingsPick(hero, ['description', 'text', 'body']);
-      _ctaText.text = settingsPick(
-          hero, ['cta_text', 'ctaText', 'button_text', 'buttonText', 'cta_label']);
-      final ctaLink = settingsPick(
-          hero, ['cta_link', 'ctaLink', 'button_link', 'buttonLink', 'href', 'link']);
+      _ctaText.text = settingsPick(hero,
+          ['cta_text', 'ctaText', 'button_text', 'buttonText', 'cta_label']);
+      final ctaLink = settingsPick(hero,
+          ['cta_link', 'ctaLink', 'button_link', 'buttonLink', 'href', 'link']);
       if (ctaLink.isNotEmpty) _ctaLink.text = ctaLink;
       final bg = settingsPick(
           hero, ['background_color', 'backgroundColor', 'bg_color', 'bgColor']);
@@ -169,11 +170,15 @@ class _HeroSectionEditorScreenState
       return;
     }
     if (_ctaText.text.trim().isEmpty) {
-      reportFieldError(fieldId: 'ctaText', message: 'Call-to-action button text is required.');
+      reportFieldError(
+          fieldId: 'ctaText',
+          message: 'Call-to-action button text is required.');
       return;
     }
     if (_ctaLink.text.trim().isEmpty) {
-      reportFieldError(fieldId: 'ctaLink', message: 'Call-to-action button link is required.');
+      reportFieldError(
+          fieldId: 'ctaLink',
+          message: 'Call-to-action button link is required.');
       return;
     }
     clearAllFieldErrors();
@@ -239,7 +244,9 @@ class _HeroSectionEditorScreenState
     final errorColor = theme.colorScheme.error;
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: isInvalid ? BorderSide(color: errorColor, width: 1.5) : BorderSide.none,
+      borderSide: isInvalid
+          ? BorderSide(color: errorColor, width: 1.5)
+          : BorderSide.none,
     );
     return InputDecoration(
       filled: true,
@@ -318,12 +325,14 @@ class _HeroSectionEditorScreenState
                   onTap: _saving || _loading ? null : _save,
                   borderRadius: BorderRadius.circular(10),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
                     child: _saving
                         ? const SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
                           )
                         : Text(
                             'Save',
@@ -351,7 +360,8 @@ class _HeroSectionEditorScreenState
                       children: [
                         Text(_error!, textAlign: TextAlign.center),
                         const SizedBox(height: 16),
-                        FilledButton(onPressed: _load, child: const Text('Retry')),
+                        FilledButton(
+                            onPressed: _load, child: const Text('Retry')),
                       ],
                     ),
                   ),
@@ -403,9 +413,11 @@ class _HeroSectionEditorScreenState
                 child: TextField(
                   controller: _title,
                   onChanged: (_) => clearFieldError('title'),
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14),
-                  decoration: _inputDeco(theme, isInvalid: isFieldInvalid('title'))
-                      .copyWith(hintText: 'Hero Title'),
+                  style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w500, fontSize: 14),
+                  decoration:
+                      _inputDeco(theme, isInvalid: isFieldInvalid('title'))
+                          .copyWith(hintText: 'Hero Title'),
                 ),
               ),
               const SizedBox(height: 18),
@@ -414,7 +426,8 @@ class _HeroSectionEditorScreenState
               TextField(
                 controller: _subtitle,
                 style: GoogleFonts.inter(fontSize: 14),
-                decoration: _inputDeco(theme).copyWith(hintText: 'Sub-heading text'),
+                decoration:
+                    _inputDeco(theme).copyWith(hintText: 'Sub-heading text'),
               ),
               const SizedBox(height: 18),
               _fieldLabel('Description'),
@@ -424,7 +437,8 @@ class _HeroSectionEditorScreenState
                 minLines: 3,
                 maxLines: 5,
                 style: GoogleFonts.inter(fontSize: 14),
-                decoration: _inputDeco(theme).copyWith(hintText: 'Detailed brand story...'),
+                decoration: _inputDeco(theme)
+                    .copyWith(hintText: 'Detailed brand story...'),
               ),
             ],
           ),
@@ -472,9 +486,12 @@ class _HeroSectionEditorScreenState
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: _parseHex(_bgHex.text) ?? const Color(0xFFF5F5F5),
+                        color:
+                            _parseHex(_bgHex.text) ?? const Color(0xFFF5F5F5),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35)),
+                        border: Border.all(
+                            color: theme.colorScheme.outlineVariant
+                                .withValues(alpha: 0.35)),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -482,7 +499,8 @@ class _HeroSectionEditorScreenState
                       child: TextField(
                         controller: _bgHex,
                         onChanged: (_) => setState(() {}),
-                        style: GoogleFonts.robotoMono(fontSize: 14, fontWeight: FontWeight.w500),
+                        style: GoogleFonts.robotoMono(
+                            fontSize: 14, fontWeight: FontWeight.w500),
                         decoration: const InputDecoration(
                           border: InputBorder.none,
                           isDense: true,
@@ -519,7 +537,8 @@ class _HeroSectionEditorScreenState
                             _roundImageAction(
                               icon: Icons.delete_outline_rounded,
                               color: theme.colorScheme.error,
-                              bg: theme.colorScheme.errorContainer.withValues(alpha: 0.95),
+                              bg: theme.colorScheme.errorContainer
+                                  .withValues(alpha: 0.95),
                               onTap: () => setState(() {
                                 _imageCleared = true;
                                 _pendingLocalImagePath = null;
@@ -556,9 +575,11 @@ class _HeroSectionEditorScreenState
                 child: TextField(
                   controller: _ctaText,
                   onChanged: (_) => clearFieldError('ctaText'),
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14),
-                  decoration: _inputDeco(theme, isInvalid: isFieldInvalid('ctaText'))
-                      .copyWith(hintText: 'CTA Label'),
+                  style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w500, fontSize: 14),
+                  decoration:
+                      _inputDeco(theme, isInvalid: isFieldInvalid('ctaText'))
+                          .copyWith(hintText: 'CTA Label'),
                 ),
               ),
               const SizedBox(height: 18),
@@ -570,9 +591,12 @@ class _HeroSectionEditorScreenState
                   controller: _ctaLink,
                   onChanged: (_) => clearFieldError('ctaLink'),
                   style: GoogleFonts.inter(fontSize: 14),
-                  decoration: _inputDeco(theme, isInvalid: isFieldInvalid('ctaLink')).copyWith(
+                  decoration:
+                      _inputDeco(theme, isInvalid: isFieldInvalid('ctaLink'))
+                          .copyWith(
                     hintText: 'e.g. /shop',
-                    prefixIcon: Icon(Icons.link, color: theme.colorScheme.outline, size: 22),
+                    prefixIcon: Icon(Icons.link,
+                        color: theme.colorScheme.outline, size: 22),
                   ),
                 ),
               ),
@@ -592,7 +616,8 @@ class _HeroSectionEditorScreenState
       return CachedNetworkImage(
         imageUrl: url,
         fit: BoxFit.cover,
-        placeholder: (_, __) => ColoredBox(color: theme.colorScheme.surfaceContainerLowest),
+        placeholder: (_, __) =>
+            ColoredBox(color: theme.colorScheme.surfaceContainerLowest),
         errorWidget: (_, __, ___) => ColoredBox(
           color: theme.colorScheme.surfaceContainerLowest,
           child: const Icon(Icons.broken_image_outlined),
@@ -605,11 +630,13 @@ class _HeroSectionEditorScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.add_photo_alternate_outlined, color: theme.colorScheme.outline, size: 36),
+            Icon(Icons.add_photo_alternate_outlined,
+                color: theme.colorScheme.outline, size: 36),
             const SizedBox(height: 6),
             Text(
               'Tap edit to add an image',
-              style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                  fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
             ),
           ],
         ),

@@ -23,7 +23,8 @@ class CategoriesManagementScreen extends ConsumerStatefulWidget {
       _CategoriesManagementScreenState();
 }
 
-class _CategoriesManagementScreenState extends ConsumerState<CategoriesManagementScreen> {
+class _CategoriesManagementScreenState
+    extends ConsumerState<CategoriesManagementScreen> {
   final _searchController = TextEditingController();
   String _query = '';
 
@@ -79,7 +80,9 @@ class _CategoriesManagementScreenState extends ConsumerState<CategoriesManagemen
       data: (categories) {
         final filtered = _query.isEmpty
             ? categories
-            : categories.where((c) => c.name.toLowerCase().contains(_query)).toList();
+            : categories
+                .where((c) => c.name.toLowerCase().contains(_query))
+                .toList();
 
         final fabBottom = MediaQuery.of(context).padding.bottom + 24;
 
@@ -109,7 +112,8 @@ class _CategoriesManagementScreenState extends ConsumerState<CategoriesManagemen
                   borderRadius: BorderRadius.circular(999),
                   onTap: () => context.push('/categories/new'),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 16),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -138,183 +142,195 @@ class _CategoriesManagementScreenState extends ConsumerState<CategoriesManagemen
             },
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              buildDashboardSliverAppBar(
-                context: context,
-                title: 'Categories',
-                actions: [
-                  IconButton(
-                    icon: Icon(Icons.add_rounded, color: AppTheme.primaryDark),
-                    onPressed: () => context.push('/categories/new'),
-                  ),
-                ],
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 100),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    TextField(
-                      controller: _searchController,
-                      style: GoogleFonts.inter(fontSize: 15, color: colorScheme.onSurface),
-                      decoration: InputDecoration(
-                        hintText: 'Search categories...',
-                        hintStyle: GoogleFonts.inter(
-                          color: AppTheme.onSurfaceVariant.withValues(alpha: 0.5),
-                        ),
-                        prefixIcon: Icon(Icons.search, color: colorScheme.outline),
-                        filled: true,
-                        fillColor: AppTheme.surfaceContainerLow,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: AppTheme.primaryDark.withValues(alpha: 0.2),
-                            width: 2,
-                          ),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 18,
-                        ),
-                      ),
+              slivers: [
+                buildDashboardSliverAppBar(
+                  context: context,
+                  title: 'Categories',
+                  actions: [
+                    IconButton(
+                      icon:
+                          Icon(Icons.add_rounded, color: AppTheme.primaryDark),
+                      onPressed: () => context.push('/categories/new'),
                     ),
-                    const SizedBox(height: 32),
-                    SizedBox(
-                      height: 128,
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: AppTheme.primary.withValues(alpha: 0.05),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: AppTheme.primaryDark.withValues(alpha: 0.05),
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'TOTAL ITEMS',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppTheme.primaryDark,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                                    textBaseline: TextBaseline.alphabetic,
-                                    children: [
-                                      Text(
-                                        NumberFormat.decimalPattern('en_US')
-                                            .format(_totalProducts(categories)),
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.w800,
-                                          color: AppTheme.primaryDark,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        '+12%',
-                                        style: GoogleFonts.inter(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                          color: theme.colorScheme.secondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
+                  ],
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 100),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      TextField(
+                        controller: _searchController,
+                        style: GoogleFonts.inter(
+                            fontSize: 15, color: colorScheme.onSurface),
+                        decoration: InputDecoration(
+                          hintText: 'Search categories...',
+                          hintStyle: GoogleFonts.inter(
+                            color: AppTheme.onSurfaceVariant
+                                .withValues(alpha: 0.5),
+                          ),
+                          prefixIcon:
+                              Icon(Icons.search, color: colorScheme.outline),
+                          filled: true,
+                          fillColor: AppTheme.surfaceContainerLow,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color:
+                                  AppTheme.primaryDark.withValues(alpha: 0.2),
+                              width: 2,
                             ),
                           ),
-                          const SizedBox(width: 16),
-                          SizedBox(
-                            width: 96,
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: AppTheme.surfaceContainerLow,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.category_rounded, color: AppTheme.primaryDark),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    '${categories.length}',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w800,
-                                      color: colorScheme.onSurface,
-                                    ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 18,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        height: 128,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color:
+                                      AppTheme.primary.withValues(alpha: 0.05),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: AppTheme.primaryDark
+                                        .withValues(alpha: 0.05),
                                   ),
-                                ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'TOTAL ITEMS',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppTheme.primaryDark,
+                                        letterSpacing: 0.8,
+                                      ),
+                                    ),
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.baseline,
+                                      textBaseline: TextBaseline.alphabetic,
+                                      children: [
+                                        Text(
+                                          NumberFormat.decimalPattern('en_US')
+                                              .format(
+                                                  _totalProducts(categories)),
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 28,
+                                            fontWeight: FontWeight.w800,
+                                            color: AppTheme.primaryDark,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '+12%',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                            color: theme.colorScheme.secondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
+                            ),
+                            const SizedBox(width: 16),
+                            SizedBox(
+                              width: 96,
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.surfaceContainerLow,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.category_rounded,
+                                        color: AppTheme.primaryDark),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '${categories.length}',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w800,
+                                        color: colorScheme.onSurface,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'All Categories',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.primaryDark,
+                            ),
+                          ),
+                          Text(
+                            'Sorted by Name',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: colorScheme.outline,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 40),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'All Categories',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.primaryDark,
+                      const SizedBox(height: 16),
+                      ...filtered.map(
+                        (c) => Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: _CategoryTile(
+                            category: c,
+                            onTap: () =>
+                                context.push('/categories/edit/${c.id}'),
                           ),
-                        ),
-                        Text(
-                          'Sorted by Name',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: colorScheme.outline,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    ...filtered.map(
-                      (c) => Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: _CategoryTile(
-                          category: c,
-                          onTap: () => context.push('/categories/edit/${c.id}'),
                         ),
                       ),
-                    ),
-                    if (filtered.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 48),
-                        child: Center(
-                          child: Text(
-                            'No categories match your search',
-                            style: GoogleFonts.inter(
-                              color: AppTheme.onSurfaceVariant,
+                      if (filtered.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 48),
+                          child: Center(
+                            child: Text(
+                              'No categories match your search',
+                              style: GoogleFonts.inter(
+                                color: AppTheme.onSurfaceVariant,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                  ]),
+                    ]),
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           ),
         );
       },
@@ -359,7 +375,8 @@ class _CategoryTileState extends State<_CategoryTile> {
                 width: _pressed ? 4 : 0,
                 decoration: BoxDecoration(
                   color: AppTheme.primary,
-                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
+                  borderRadius:
+                      const BorderRadius.horizontal(left: Radius.circular(12)),
                 ),
               ),
             ),
@@ -377,7 +394,8 @@ class _CategoryTileState extends State<_CategoryTile> {
                               File(c.localImagePath!),
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => ColoredBox(
-                                color: theme.colorScheme.surfaceContainerHighest,
+                                color:
+                                    theme.colorScheme.surfaceContainerHighest,
                                 child: Icon(
                                   Icons.category_outlined,
                                   color: theme.colorScheme.outline,
@@ -389,7 +407,8 @@ class _CategoryTileState extends State<_CategoryTile> {
                                   c.imageUrl!,
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) => ColoredBox(
-                                    color: theme.colorScheme.surfaceContainerHighest,
+                                    color: theme
+                                        .colorScheme.surfaceContainerHighest,
                                     child: Icon(
                                       Icons.category_outlined,
                                       color: theme.colorScheme.outline,
@@ -397,7 +416,8 @@ class _CategoryTileState extends State<_CategoryTile> {
                                   ),
                                 )
                               : ColoredBox(
-                                  color: theme.colorScheme.surfaceContainerHighest,
+                                  color:
+                                      theme.colorScheme.surfaceContainerHighest,
                                   child: Icon(
                                     Icons.category_outlined,
                                     color: AppTheme.primaryDark,
@@ -430,7 +450,8 @@ class _CategoryTileState extends State<_CategoryTile> {
                               ),
                             ),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 8),
                               child: Container(
                                 width: 4,
                                 height: 4,
@@ -441,9 +462,11 @@ class _CategoryTileState extends State<_CategoryTile> {
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: AppTheme.primaryDark.withValues(alpha: 0.1),
+                                color:
+                                    AppTheme.primaryDark.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                               child: Text(
@@ -463,7 +486,9 @@ class _CategoryTileState extends State<_CategoryTile> {
                   ),
                   Icon(
                     Icons.chevron_right_rounded,
-                    color: _pressed ? AppTheme.primaryDark : AppTheme.outlineVariant,
+                    color: _pressed
+                        ? AppTheme.primaryDark
+                        : AppTheme.outlineVariant,
                   ),
                 ],
               ),

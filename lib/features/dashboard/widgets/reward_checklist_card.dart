@@ -155,9 +155,8 @@ class _StepRow extends StatelessWidget {
                 ? Icons.check_circle_rounded
                 : Icons.radio_button_unchecked_rounded,
             size: 20,
-            color: step.done
-                ? Colors.green.shade600
-                : theme.colorScheme.outline,
+            color:
+                step.done ? Colors.green.shade600 : theme.colorScheme.outline,
           ),
           const SizedBox(width: 10),
           Expanded(

@@ -5,10 +5,10 @@ part 'api_response.g.dart';
 @JsonSerializable(genericArgumentFactories: true)
 class ApiResponse<T> {
   final bool success;
-  
+
   // Retrofit passes null data safely if T is nullable, but we allow nullable data
   final T? data;
-  
+
   final ApiError? error;
   final ApiPagination? pagination;
 
@@ -42,7 +42,8 @@ class ApiError {
     this.details,
   });
 
-  factory ApiError.fromJson(Map<String, dynamic> json) => _$ApiErrorFromJson(json);
+  factory ApiError.fromJson(Map<String, dynamic> json) =>
+      _$ApiErrorFromJson(json);
   Map<String, dynamic> toJson() => _$ApiErrorToJson(this);
 }
 
@@ -60,6 +61,7 @@ class ApiPagination {
     required this.totalPages,
   });
 
-  factory ApiPagination.fromJson(Map<String, dynamic> json) => _$ApiPaginationFromJson(json);
+  factory ApiPagination.fromJson(Map<String, dynamic> json) =>
+      _$ApiPaginationFromJson(json);
   Map<String, dynamic> toJson() => _$ApiPaginationToJson(this);
 }
