@@ -66,39 +66,50 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(22),
             children: [
+              Icon(
+                Icons.cloud_off_rounded,
+                size: 48,
+                color: theme.colorScheme.error.withValues(alpha: 0.85),
+              ),
+              const SizedBox(height: 16),
               Text(
-                'Could not load subscription.',
-                style: theme.textTheme.titleMedium,
+                'Could not load subscription',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
-                e.toString(),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
+                e is StateError
+                    ? e.message
+                    : 'Something went wrong. Pull down or tap Retry.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  height: 1.4,
                 ),
+              ),
+              if (e is StateError &&
+                  e.message.contains('Our servers could not')) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'This is usually a temporary server issue (HTTP 500). '
+                  'Other dashboard features may still work. If it persists, '
+                  'contact support with your store name.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: _refreshAll,
+                style: _primaryButton(theme),
+                child: const Text('Retry'),
               ),
             ],
           ),
           data: (data) {
-            if (data == null) {
-              return ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(22),
-                children: [
-                  Text(
-                    'No subscription snapshot yet.',
-                    style: theme.textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: _refreshAll,
-                    style: _primaryButton(theme),
-                    child: const Text('Retry'),
-                  ),
-                ],
-              );
-            }
-
             final plans = _parsePlans(data);
             final currentLabel = _currentPlanLabel(data);
             final currentId = _currentPlanId(data);

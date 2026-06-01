@@ -5,6 +5,7 @@ import '../../config/app_config.dart';
 import '../auth/token_storage.dart';
 import 'auth_interceptor.dart';
 import 'api_response.dart';
+import 'dio_envelope.dart';
 
 final dioProvider = Provider<Dio>((ref) {
   final tokenStorage = ref.watch(tokenStorageProvider);
@@ -676,8 +677,7 @@ class ApiClient {
   // --- Subscription & billing ---
 
   Future<ApiResponse<dynamic>> getSubscription() async {
-    final response = await _dio.get('/dashboard/subscription');
-    return ApiResponse.fromJson(response.data, (json) => json);
+    return dioGetEnvelope(_dio, '/dashboard/subscription');
   }
 
   Future<ApiResponse<dynamic>> getSubscriptionBilling() async {
@@ -709,8 +709,7 @@ class ApiClient {
   }
 
   Future<ApiResponse<dynamic>> getPesapalConfig() async {
-    final response = await _dio.get('/dashboard/subscription/pesapal/config');
-    return ApiResponse.fromJson(response.data, (json) => json);
+    return dioGetEnvelope(_dio, '/dashboard/subscription/pesapal/config');
   }
 
   Future<ApiResponse<dynamic>> initiatePesapalCheckout(
@@ -723,8 +722,7 @@ class ApiClient {
   // --- Dashboard reward checklist ---
 
   Future<ApiResponse<dynamic>> getRewardChecklist() async {
-    final response = await _dio.get('/dashboard/reward-checklist');
-    return ApiResponse.fromJson(response.data, (json) => json);
+    return dioGetEnvelope(_dio, '/dashboard/reward-checklist');
   }
 
   // --- Customers ---

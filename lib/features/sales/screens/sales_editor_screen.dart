@@ -10,6 +10,7 @@ import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
+import '../../dashboard/providers/dashboard_reward_checklist_provider.dart';
 import 'sales_list_screen.dart';
 
 class SalesEditorScreen extends ConsumerStatefulWidget {
@@ -437,9 +438,15 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
         }
       }
       ref.read(salesListRefreshTokenProvider.notifier).state++;
+      ref.invalidate(dashboardRewardChecklistProvider);
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Sale saved')));
+        final msg = _status == 'active' && _products.length >= 2
+            ? 'Sale saved. Pull to refresh on Home if reward steps do not update yet.'
+            : _status != 'active'
+                ? 'Sale saved as ${_status.toUpperCase()}. '
+                    'Onboarding reward counts only Active sales.'
+                : 'Sale saved. Add at least 2 products to this sale for the reward step.';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
         context.pop();
       }
     } catch (e) {
@@ -569,7 +576,11 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
             initialValue: _status,
-            decoration: const InputDecoration(labelText: 'Status'),
+            decoration: const InputDecoration(
+              labelText: 'Status',
+              helperText:
+                  'Onboarding reward steps require status Active, with 2+ products on one sale.',
+            ),
             items: const [
               DropdownMenuItem(value: 'draft', child: Text('Draft')),
               DropdownMenuItem(value: 'active', child: Text('Active')),

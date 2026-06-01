@@ -4,11 +4,23 @@ import '../../../core/api/api_client.dart';
 
 /// Mobile `GET /dashboard/subscription` — unwraps nested `data` when present.
 final subscriptionProvider =
-    FutureProvider.autoDispose<Map<String, dynamic>?>((ref) async {
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
   final api = ref.watch(apiClientProvider);
   final response = await api.getSubscription();
-  if (!response.success || response.data == null) return null;
-  return _unwrapDataMap(response.data);
+  if (!response.success) {
+    throw StateError(
+      response.error?.message ??
+          'Could not load subscription. Please try again.',
+    );
+  }
+  if (response.data == null) {
+    throw StateError('Subscription data was empty. Please try again.');
+  }
+  final unwrapped = _unwrapDataMap(response.data);
+  if (unwrapped == null) {
+    throw StateError('Subscription data was empty. Please try again.');
+  }
+  return unwrapped;
 });
 
 Map<String, dynamic>? _unwrapDataMap(dynamic payload) {

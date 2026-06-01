@@ -5,7 +5,14 @@
 library;
 
 /// A single checklist step row.
-typedef RewardStep = ({String title, String subtitle, bool done});
+typedef RewardStep = ({
+  String title,
+  String subtitle,
+  bool done,
+  String stepId,
+  String href,
+  String actionLabel,
+});
 
 /// Truthy across the various shapes the backend uses for booleans/status.
 bool rewardBool(dynamic v) =>
@@ -42,18 +49,25 @@ List<RewardStep> rewardSteps(Map<String, dynamic> data) {
       return '';
     }
 
-    final title = pick(['label', 'title', 'name', 'step', 'key']);
-    if (title.isEmpty) continue;
+    final rawKey = pick(['id', 'key', 'stepKey', 'step', 'step_id']);
+    final title = pick(['label', 'title', 'name']);
+    final displayTitle =
+        title.isNotEmpty ? title : (rawKey.isNotEmpty ? rawKey : '');
+    if (displayTitle.isEmpty) continue;
     final done = rewardBool(m['completed'] ??
         m['done'] ??
         m['complete'] ??
         m['isComplete'] ??
         m['isCompleted'] ??
         m['status']);
+    final cta = pick(['cta', 'actionLabel', 'action_label', 'buttonText']);
     out.add((
-      title: humanizeRewardKey(title),
+      title: humanizeRewardKey(displayTitle),
       subtitle: pick(['description', 'hint', 'subtitle', 'helpText']),
       done: done,
+      stepId: rawKey.isNotEmpty ? rawKey : displayTitle,
+      href: pick(['href', 'link', 'path', 'route', 'deepLink', 'deep_link']),
+      actionLabel: cta.isEmpty ? 'Continue' : cta,
     ));
   }
   return out;
