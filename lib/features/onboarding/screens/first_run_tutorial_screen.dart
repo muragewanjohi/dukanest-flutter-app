@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +14,7 @@ import '../../../core/providers/first_run_tutorial_seen_provider.dart';
 import '../../../core/providers/store_identity_provider.dart';
 import '../../dashboard/providers/dashboard_getting_started_provider.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
+import '../../products/demo_product_cleanup.dart';
 
 class _TutorialStep {
   const _TutorialStep({
@@ -68,6 +71,9 @@ class _FirstRunTutorialScreenState
   final Set<String> _localCompleted = <String>{};
   int _index = 0;
   bool _finishing = false;
+  bool _pageSyncScheduled = false;
+  int? _lastChecklistScrollTarget;
+  final Map<int, GlobalKey> _checklistItemKeys = <int, GlobalKey>{};
 
   static const _fallbackSteps = <_TutorialStep>[
     _TutorialStep(
@@ -111,7 +117,8 @@ class _FirstRunTutorialScreenState
     _TutorialStep(
       key: 'payment',
       title: 'Set up payment preferences',
-      description: 'Enable Cash, M-Pesa, or other payment methods.',
+      description:
+          'Turn on Tumizi wallet as your preferred method. You can also enable Cash or M-Pesa.',
       actionLabel: 'Set up payments',
       completed: false,
       icon: Icons.payments_outlined,
@@ -270,18 +277,151 @@ class _FirstRunTutorialScreenState
     return 'Continue';
   }
 
+  bool _isStepMarkedCompleteLocally(
+    String stepKey,
+    String canonical,
+    Set<String> syncedCompletions,
+  ) {
+    final raw = stepKey.toLowerCase();
+    if (_localCompleted.contains(raw)) return true;
+    if (canonical.isNotEmpty && _localCompleted.contains(canonical)) {
+      return true;
+    }
+    return canonical.isNotEmpty && syncedCompletions.contains(canonical);
+  }
+
+  void _persistGettingStartedPreviewOrShare({
+    required String stepKey,
+    required bool preview,
+  }) {
+    final raw = stepKey.trim().toLowerCase();
+    final canonical = canonicalDashboardOnboardingStepKey(stepKey);
+    if (raw.isNotEmpty) _localCompleted.add(raw);
+    if (canonical.isNotEmpty) _localCompleted.add(canonical);
+
+    final storeKey = preview
+        ? DashboardOnboardingStepKeys.previewStore
+        : DashboardOnboardingStepKeys.shareStore;
+    ref.read(dashboardLocalStepCompletionsProvider.notifier).markComplete(
+          storeKey,
+        );
+    unawaited(
+      ref.read(apiClientProvider).postGettingStartedAction(
+            preview ? 'preview_done' : 'share_done',
+          ),
+    );
+  }
+
+  List<_TutorialStep> _mergedSteps() {
+    final gsData = ref.read(dashboardGettingStartedProvider).valueOrNull;
+    final syncedCompletions = ref.read(dashboardLocalStepCompletionsProvider);
+    final stepsBase = _stepsFromGettingStarted(gsData);
+    return stepsBase.map((s) {
+      final canonical = canonicalDashboardOnboardingStepKey(s.key);
+      final done = s.completed ||
+          _isStepMarkedCompleteLocally(s.key, canonical, syncedCompletions);
+      return s.copyWith(completed: done);
+    }).toList();
+  }
+
+  /// Index to show in the carousel and checklist when the current step is done.
+  int _resolveFocusIndex(List<_TutorialStep> steps) {
+    if (steps.isEmpty) return 0;
+    final idx = _index.clamp(0, steps.length - 1);
+    if (!steps[idx].completed) return idx;
+
+    for (var i = idx + 1; i < steps.length; i++) {
+      if (!steps[i].completed) return i;
+    }
+    for (var i = 0; i < idx; i++) {
+      if (!steps[i].completed) return i;
+    }
+    return idx;
+  }
+
+  void _schedulePageSyncIfNeeded(List<_TutorialStep> steps) {
+    final target = _resolveFocusIndex(steps);
+    if (target == _index || _pageSyncScheduled) return;
+    _pageSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _pageSyncScheduled = false;
+      if (!mounted) return;
+      await _goToStep(target);
+    });
+  }
+
+  Future<void> _goToStep(int target) async {
+    if (!mounted) return;
+    final merged = _mergedSteps();
+    if (merged.isEmpty) return;
+    final clamped = target.clamp(0, merged.length - 1);
+    if (clamped != _index) {
+      setState(() => _index = clamped);
+      if (_pageController.hasClients) {
+        await _pageController.animateToPage(
+          clamped,
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOut,
+        );
+      }
+    }
+    _scrollChecklistToIndex(clamped);
+  }
+
+  GlobalKey _checklistKeyFor(int index) {
+    return _checklistItemKeys.putIfAbsent(
+      index,
+      () => GlobalKey(debugLabel: 'tutorial_checklist:$index'),
+    );
+  }
+
+  void _scrollChecklistToIndex(int index) {
+    if (_lastChecklistScrollTarget == index) return;
+    _lastChecklistScrollTarget = index;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _checklistKeyFor(index).currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        alignment: 0.35,
+      );
+    });
+  }
+
+  void _syncChecklistScrollToFocus(int focusIndex) {
+    _scrollChecklistToIndex(focusIndex);
+  }
+
   Future<void> _primaryFooterAction(
       List<_TutorialStep> steps, int total) async {
     if (_finishing) return;
-    final safeIndex = _index.clamp(0, total - 1);
+    final safeIndex = _resolveFocusIndex(steps).clamp(0, total - 1);
     final isLast = safeIndex >= total - 1;
-    if (isLast) {
+    if (isLast && steps[safeIndex].completed) {
       await _completeTutorial();
       return;
     }
     final step = steps[safeIndex];
-    if (_canExecuteStep(step)) {
+    if (!step.completed && _canExecuteStep(step)) {
       await _openStep(step);
+      if (!mounted) return;
+      _schedulePageSyncIfNeeded(_mergedSteps());
+      return;
+    }
+    if (!step.completed) {
+      await _next(total);
+      return;
+    }
+    final nextFocus = _resolveFocusIndex(steps);
+    if (nextFocus != safeIndex) {
+      await _goToStep(nextFocus);
+      return;
+    }
+    if (isLast) {
+      await _completeTutorial();
       return;
     }
     await _next(total);
@@ -476,6 +616,9 @@ class _FirstRunTutorialScreenState
     final uri = Uri.parse(route);
     final nextQuery = Map<String, String>.from(uri.queryParameters);
     nextQuery['tutorial'] = '1';
+    if (_isLogoStep(step)) {
+      nextQuery['focus'] = 'logo';
+    }
     final routedUri = uri.replace(queryParameters: nextQuery);
     await context.push(routedUri.toString());
     if (!mounted) return;
@@ -510,6 +653,16 @@ class _FirstRunTutorialScreenState
     final key = step.key.toLowerCase();
     final title = step.title.toLowerCase();
     return key.contains('attribute') || title.contains('attribute');
+  }
+
+  bool _isLogoStep(_TutorialStep step) {
+    final key = step.key.toLowerCase();
+    final title = step.title.toLowerCase();
+    return key.contains('logo') ||
+        key.contains('store_identity') ||
+        key.contains('branding') ||
+        (title.contains('logo') && title.contains('store')) ||
+        title.contains('store logo');
   }
 
   _TutorialIllustrKind _illustrationKind(_TutorialStep step) {
@@ -598,9 +751,13 @@ class _FirstRunTutorialScreenState
         );
         return;
       }
-      _localCompleted.add(step.key);
+      _persistGettingStartedPreviewOrShare(
+        stepKey: step.key,
+        preview: true,
+      );
       setState(() {});
       ref.invalidate(dashboardGettingStartedProvider);
+      _schedulePageSyncIfNeeded(_mergedSteps());
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -631,9 +788,13 @@ class _FirstRunTutorialScreenState
       }
       await SharePlus.instance.share(ShareParams(text: storeUrl));
       if (!mounted) return;
-      _localCompleted.add(step.key);
+      _persistGettingStartedPreviewOrShare(
+        stepKey: step.key,
+        preview: false,
+      );
       setState(() {});
       ref.invalidate(dashboardGettingStartedProvider);
+      _schedulePageSyncIfNeeded(_mergedSteps());
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Store link shared.')),
       );
@@ -646,29 +807,11 @@ class _FirstRunTutorialScreenState
   }
 
   Future<void> _removeDemoProducts(_TutorialStep step) async {
-    try {
-      final api = ref.read(apiClientProvider);
-      final res = await api.removeDemoProducts();
-      if (!mounted) return;
-      if (!res.success) {
-        final msg = res.error?.message ?? 'Failed to remove demo products.';
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(msg)));
-        return;
-      }
-      _localCompleted.add(step.key);
-      setState(() {});
-      ref.invalidate(dashboardGettingStartedProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Demo products removed.')),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Unable to remove demo products right now.')),
-      );
-    }
+    await handleDemoProductCleanup(context: context, ref: ref);
+    if (!mounted) return;
+    _localCompleted.add(step.key);
+    setState(() {});
+    _schedulePageSyncIfNeeded(_mergedSteps());
   }
 
   @override
@@ -680,19 +823,33 @@ class _FirstRunTutorialScreenState
     final descriptionSize = compact ? 15.0 : 17.0;
     final cardPadding = compact ? 16.0 : 20.0;
     final checklistHeight = compact ? 108.0 : 130.0;
+    ref.listen<AsyncValue<Map<String, dynamic>?>>(
+      dashboardGettingStartedProvider,
+      (_, next) {
+        next.whenData((_) {
+          if (!mounted) return;
+          _schedulePageSyncIfNeeded(_mergedSteps());
+        });
+      },
+    );
+
     final gsData = ref.watch(dashboardGettingStartedProvider).valueOrNull;
     final syncedCompletions = ref.watch(dashboardLocalStepCompletionsProvider);
     final stepsBase = _stepsFromGettingStarted(gsData);
     final steps = stepsBase.map((s) {
       final canonical = canonicalDashboardOnboardingStepKey(s.key);
-      final synced =
-          canonical.isNotEmpty && syncedCompletions.contains(canonical);
-      return s.copyWith(
-        completed: s.completed || _localCompleted.contains(s.key) || synced,
-      );
+      final done = s.completed ||
+          _isStepMarkedCompleteLocally(s.key, canonical, syncedCompletions);
+      return s.copyWith(completed: done);
     }).toList();
+    _schedulePageSyncIfNeeded(steps);
+
     final total = steps.isEmpty ? 1 : steps.length;
-    final safeIndex = _index.clamp(0, total - 1);
+    final safeIndex = _resolveFocusIndex(steps).clamp(0, total - 1);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncChecklistScrollToFocus(safeIndex);
+    });
     final isLast = safeIndex == total - 1;
     final completedCount = steps.where((s) => s.completed).length;
     final progress =
@@ -753,7 +910,11 @@ class _FirstRunTutorialScreenState
               child: PageView.builder(
                 controller: _pageController,
                 itemCount: total,
-                onPageChanged: (i) => setState(() => _index = i),
+                onPageChanged: (i) {
+                  setState(() => _index = i);
+                  _lastChecklistScrollTarget = null;
+                  _scrollChecklistToIndex(i);
+                },
                 itemBuilder: (context, i) {
                   final step = steps[i];
                   final isInProgress = !step.completed && i == safeIndex;
@@ -875,6 +1036,11 @@ class _FirstRunTutorialScreenState
                             child: _TutorialIllustration(
                               kind: _illustrationKind(step),
                               compact: compact,
+                              onTap: _isLogoStep(step) &&
+                                      !step.completed &&
+                                      _canExecuteStep(step)
+                                  ? () => _openStep(step)
+                                  : null,
                             ),
                           ),
                         ],
@@ -911,6 +1077,7 @@ class _FirstRunTutorialScreenState
                       child: InkWell(
                         borderRadius: BorderRadius.circular(10),
                         onTap: () async {
+                          _lastChecklistScrollTarget = null;
                           await _pageController.animateToPage(
                             i,
                             duration: const Duration(milliseconds: 220),
@@ -918,6 +1085,7 @@ class _FirstRunTutorialScreenState
                           );
                         },
                         child: Container(
+                          key: _checklistKeyFor(i),
                           padding: EdgeInsets.symmetric(
                             horizontal: compact ? 8 : 10,
                             vertical: compact ? 7 : 8,
@@ -1057,10 +1225,12 @@ class _TutorialIllustration extends StatelessWidget {
   const _TutorialIllustration({
     required this.kind,
     required this.compact,
+    this.onTap,
   });
 
   final _TutorialIllustrKind kind;
   final bool compact;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1103,7 +1273,7 @@ class _TutorialIllustration extends StatelessWidget {
                       _TutorialIllustrKind.payment =>
                         const _PaymentIllustrationBody(),
                       _TutorialIllustrKind.logo =>
-                        const _LogoIllustrationBody(),
+                        _LogoIllustrationBody(onTap: onTap),
                       _TutorialIllustrKind.share ||
                       _TutorialIllustrKind.preview =>
                         const _StorefrontIllustrationBody(),
@@ -1721,47 +1891,61 @@ class _PaymentIllustrationBody extends StatelessWidget {
 }
 
 class _LogoIllustrationBody extends StatelessWidget {
-  const _LogoIllustrationBody();
+  const _LogoIllustrationBody({this.onTap});
+
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final logoPreview = CustomPaint(
+      painter: _DashedRoundedRectPainter(
+        color: theme.colorScheme.primary.withValues(alpha: 0.45),
+        radius: 16,
+      ),
+      child: Container(
+        width: 220,
+        height: 120,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.add_photo_alternate_outlined,
+              size: 36,
+              color: theme.colorScheme.primary.withValues(alpha: 0.7),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              onTap != null ? 'Tap to add logo' : 'Logo preview',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         const _IllustrCaption(text: 'Your brand on the storefront'),
         const SizedBox(height: 12),
-        CustomPaint(
-          painter: _DashedRoundedRectPainter(
-            color: theme.colorScheme.primary.withValues(alpha: 0.45),
-            radius: 16,
-          ),
-          child: Container(
-            width: 220,
-            height: 120,
-            alignment: Alignment.center,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.add_photo_alternate_outlined,
-                  size: 36,
-                  color: theme.colorScheme.primary.withValues(alpha: 0.7),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Logo preview',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
+        if (onTap != null)
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(16),
+              child: logoPreview,
             ),
-          ),
-        ),
+          )
+        else
+          logoPreview,
       ],
     );
   }

@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../theme_list_data.dart';
 
@@ -71,7 +73,7 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '$e';
+        _error = apiErrorMessage(e);
         _loading = false;
       });
     }
@@ -93,7 +95,7 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      showApiErrorSnackBar(context, e);
     } finally {
       if (mounted) setState(() => _busyId = null);
     }
@@ -122,7 +124,7 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      showApiErrorSnackBar(context, e);
     } finally {
       if (mounted) setState(() => _busyId = null);
     }
@@ -402,7 +404,7 @@ class _ThemeCustomizationScreenState
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '$e';
+        _error = apiErrorMessage(e);
         _loading = false;
       });
     }
@@ -429,7 +431,7 @@ class _ThemeCustomizationScreenState
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _saving = false);

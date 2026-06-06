@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 
 final notificationsProvider =
@@ -124,7 +126,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         }
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update preference: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     } finally {
       if (mounted) {
@@ -302,27 +304,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    e.toString(),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: () => ref.invalidate(notificationsProvider),
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+        error: (e, st) => ApiErrorView(
+          error: e,
+          title: 'Could not load notifications',
+          onRetry: () => ref.invalidate(notificationsProvider),
+        ),
       ),
     );
   }

@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../data/categories_repository.dart';
 import '../providers/categories_list_provider.dart';
@@ -60,21 +61,10 @@ class _CategoriesManagementScreenState
       error: (err, _) => Scaffold(
         backgroundColor: AppTheme.surface,
         appBar: const DashboardAppBar(title: 'Categories'),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(err.toString(), textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => ref.invalidate(categoriesListProvider),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
+        body: ApiErrorView(
+          error: err,
+          title: 'Could not load categories',
+          onRetry: () => ref.invalidate(categoriesListProvider),
         ),
       ),
       data: (categories) {

@@ -75,3 +75,75 @@ String dioUserMessage(DioException e, {String? fallback}) {
   }
   return fallback ?? (e.message ?? 'Network error. Check your connection.');
 }
+
+/// Runs a PATCH and always returns an [ApiResponse], even on 4xx/5xx.
+Future<ApiResponse<dynamic>> dioPatchEnvelope(
+  Dio dio,
+  String path, {
+  Object? data,
+}) async {
+  try {
+    final response = await dio.patch(path, data: data);
+    final map = asObjectMap(response.data);
+    if (map == null) {
+      return const ApiResponse(
+        success: false,
+        error: ApiError(code: 'INVALID', message: 'Invalid server response'),
+      );
+    }
+    return ApiResponse.fromJson(map, (json) => json);
+  } on DioException catch (e) {
+    final errMap = asObjectMap(e.response?.data);
+    if (errMap != null) {
+      return ApiResponse.fromJson(errMap, (json) => json);
+    }
+    return ApiResponse(
+      success: false,
+      error: ApiError(
+        code: dioErrorCode(e),
+        message: dioUserMessage(e),
+      ),
+    );
+  }
+}
+
+/// User-facing message from provider/UI errors (never raw [DioException] dumps).
+String apiErrorMessage(Object error) {
+  if (error is StateError) {
+    final msg = error.message.trim();
+    if (msg.isNotEmpty) return msg;
+  }
+  if (error is DioException) {
+    return dioUserMessage(error);
+  }
+  if (error is FormatException) {
+    final msg = error.message.trim();
+    if (msg.isNotEmpty) return msg;
+  }
+  if (error is Exception) {
+    final text = error.toString();
+    if (!text.startsWith('Exception:')) {
+      final msg = text.trim();
+      if (msg.isNotEmpty && !msg.startsWith('DioException')) return msg;
+    }
+  }
+  final text = error.toString();
+  if (text.startsWith('DioException')) {
+    return 'Could not reach the server. Check your connection and try again.';
+  }
+  if (text.startsWith('StateError:')) {
+    return text.replaceFirst('StateError:', '').trim();
+  }
+  return 'Something went wrong. Please try again.';
+}
+
+bool isSessionExpiredApiError(Object error) {
+  if (error is DioException) {
+    return error.response?.statusCode == 401;
+  }
+  if (error is StateError) {
+    final msg = error.message.toLowerCase();
+    return msg.contains('sign in') || msg.contains('session');
+  }
+  return false;
+}

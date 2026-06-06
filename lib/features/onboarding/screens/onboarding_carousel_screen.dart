@@ -153,29 +153,27 @@ class _OnboardingCarouselScreenState
                                 duration: const Duration(milliseconds: 1000),
                                 curve: Curves.easeOutCubic,
                                 builder: (context, value, child) {
-                                  return Opacity(
-                                    opacity: value,
-                                    child: Transform.scale(
-                                      scale: 0.8 + (0.2 * value),
-                                      child: child,
+                                  // Avoid Opacity widget — Impeller cannot apply
+                                  // inherited opacity to box-shadow layers.
+                                  return Transform.scale(
+                                    scale: 0.8 + (0.2 * value),
+                                    child: Container(
+                                      width: 260,
+                                      height: 260,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: AppTheme.primary
+                                                .withValues(alpha: 0.12 * value),
+                                            blurRadius: 100,
+                                            spreadRadius: 30,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   );
                                 },
-                                child: Container(
-                                  width: 260,
-                                  height: 260,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppTheme.primary
-                                            .withValues(alpha: 0.12),
-                                        blurRadius: 100,
-                                        spreadRadius: 30,
-                                      ),
-                                    ],
-                                  ),
-                                ),
                               ),
                             ),
                             TweenAnimationBuilder<double>(
@@ -184,12 +182,10 @@ class _OnboardingCarouselScreenState
                               duration: const Duration(milliseconds: 700),
                               curve: Curves.easeOutCubic,
                               builder: (context, value, child) {
+                                // Slide only — do not wrap fl_chart / gradients in Opacity.
                                 return Transform.translate(
                                   offset: Offset(0, 24 * (1 - value)),
-                                  child: Opacity(
-                                    opacity: value,
-                                    child: child,
-                                  ),
+                                  child: child,
                                 );
                               },
                               child: ConstrainedBox(
@@ -324,16 +320,14 @@ class _StoreShowcase extends StatelessWidget {
             right: 14,
             child: Transform.rotate(
               angle: -0.055,
-              child: Opacity(
-                opacity: 0.6,
-                child: const _ProductTile(
-                  title: 'Canvas Sneakers',
-                  category: 'Footwear',
-                  price: 'KSh 2,100',
-                  icon: Icons.directions_walk_rounded,
-                  stockCount: 15,
-                  dense: true,
-                ),
+              child: const _ProductTile(
+                title: 'Canvas Sneakers',
+                category: 'Footwear',
+                price: 'KSh 2,100',
+                icon: Icons.directions_walk_rounded,
+                stockCount: 15,
+                dense: true,
+                muted: true,
               ),
             ),
           ),
@@ -408,12 +402,11 @@ class _OrdersShowcaseState extends State<_OrdersShowcase> {
             top: _showBack ? 22 : 40,
             left: 18,
             right: 18,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 500),
-              opacity: _showBack ? 0.55 : 0.0,
+            child: IgnorePointer(
+              ignoring: !_showBack,
               child: Transform.rotate(
                 angle: 0.055,
-                child: const _OrderCard(
+                child: _OrderCard(
                   orderId: 'DN-2839',
                   customer: 'Brian Otieno',
                   items: 2,
@@ -421,7 +414,8 @@ class _OrdersShowcaseState extends State<_OrdersShowcase> {
                   status: 'Processing',
                   statusTone: _ChipTone.neutral,
                   dense: true,
-                  avatarColors: [Color(0xFF00C6FF), Color(0xFF0072FF)],
+                  muted: true,
+                  avatarColors: const [Color(0xFF00C6FF), Color(0xFF0072FF)],
                 ),
               ),
             ),
@@ -433,9 +427,8 @@ class _OrdersShowcaseState extends State<_OrdersShowcase> {
             top: _showFront ? 96 : 130,
             left: 0,
             right: 0,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 400),
-              opacity: _showFront ? 1.0 : 0.0,
+            child: IgnorePointer(
+              ignoring: !_showFront,
               child: const _OrderCard(
                 orderId: 'DN-2841',
                 customer: 'Jane Mwangi',
@@ -453,9 +446,8 @@ class _OrdersShowcaseState extends State<_OrdersShowcase> {
             curve: Curves.elasticOut,
             top: _showBadge ? -6 : 10,
             left: _showBadge ? 4 : 20,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 300),
-              opacity: _showBadge ? 1.0 : 0.0,
+            child: IgnorePointer(
+              ignoring: !_showBadge,
               child: const _FloatingChip(
                 icon: Icons.notifications_active_rounded,
                 label: '3 new orders',
@@ -653,25 +645,36 @@ class _AnalyticsShowcaseState extends State<_AnalyticsShowcase> {
 // ---------------------------------------------------------------------------
 
 class _ShowcaseCard extends StatelessWidget {
-  const _ShowcaseCard({required this.child, required this.padding});
+  const _ShowcaseCard({
+    required this.child,
+    required this.padding,
+    this.muted = false,
+  });
 
   final Widget child;
   final EdgeInsets padding;
+  final bool muted;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final emphasis = muted ? 0.6 : 1.0;
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLowest,
+        color: Color.lerp(
+          colorScheme.surfaceContainerLowest,
+          colorScheme.surface,
+          muted ? 0.35 : 0.0,
+        ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+          color: colorScheme.outlineVariant
+              .withValues(alpha: 0.4 * emphasis),
         ),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.primary.withValues(alpha: 0.12),
+            color: AppTheme.primary.withValues(alpha: 0.12 * emphasis),
             blurRadius: 32,
             offset: const Offset(0, 12),
           ),
@@ -690,6 +693,7 @@ class _ProductTile extends StatelessWidget {
     required this.icon,
     required this.stockCount,
     this.dense = false,
+    this.muted = false,
   });
 
   final String title;
@@ -698,13 +702,16 @@ class _ProductTile extends StatelessWidget {
   final IconData icon;
   final int stockCount;
   final bool dense;
+  final bool muted;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final emphasis = muted ? 0.6 : 1.0;
 
     return _ShowcaseCard(
+      muted: muted,
       padding: EdgeInsets.symmetric(
         horizontal: dense ? 12 : 16,
         vertical: dense ? 12 : 16,
@@ -717,8 +724,8 @@ class _ProductTile extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppTheme.primary.withValues(alpha: 0.18),
-                  AppTheme.primary.withValues(alpha: 0.08),
+                  AppTheme.primary.withValues(alpha: 0.18 * emphasis),
+                  AppTheme.primary.withValues(alpha: 0.08 * emphasis),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -727,7 +734,7 @@ class _ProductTile extends StatelessWidget {
             ),
             child: Icon(
               icon,
-              color: AppTheme.primary,
+              color: AppTheme.primary.withValues(alpha: emphasis),
               size: dense ? 22 : 28,
             ),
           ),
@@ -740,7 +747,8 @@ class _ProductTile extends StatelessWidget {
                 Text(
                   category.toUpperCase(),
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
+                    color: colorScheme.onSurfaceVariant
+                        .withValues(alpha: emphasis),
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.6,
                     fontSize: 10,
@@ -751,7 +759,7 @@ class _ProductTile extends StatelessWidget {
                   title,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.secondary,
+                    color: AppTheme.secondary.withValues(alpha: emphasis),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -764,7 +772,7 @@ class _ProductTile extends StatelessWidget {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: dense ? 13 : 15,
                         fontWeight: FontWeight.w800,
-                        color: AppTheme.primary,
+                        color: AppTheme.primary.withValues(alpha: emphasis),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -793,6 +801,7 @@ class _OrderCard extends StatelessWidget {
     required this.statusTone,
     this.avatarColors,
     this.dense = false,
+    this.muted = false,
   });
 
   final String orderId;
@@ -803,13 +812,16 @@ class _OrderCard extends StatelessWidget {
   final _ChipTone statusTone;
   final List<Color>? avatarColors;
   final bool dense;
+  final bool muted;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final emphasis = muted ? 0.55 : 1.0;
 
     return _ShowcaseCard(
+      muted: muted,
       padding: EdgeInsets.symmetric(
         horizontal: dense ? 14 : 16,
         vertical: dense ? 12 : 16,
@@ -824,7 +836,7 @@ class _OrderCard extends StatelessWidget {
                 'Order #$orderId',
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: AppTheme.secondary,
+                  color: AppTheme.secondary.withValues(alpha: emphasis),
                 ),
               ),
               const Spacer(),
@@ -860,7 +872,7 @@ class _OrderCard extends StatelessWidget {
                 child: Text(
                   customer,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.secondary,
+                    color: AppTheme.secondary.withValues(alpha: emphasis),
                     fontWeight: FontWeight.w600,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -869,7 +881,8 @@ class _OrderCard extends StatelessWidget {
               Text(
                 '$items items',
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
+                  color: colorScheme.onSurfaceVariant
+                      .withValues(alpha: emphasis),
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -896,7 +909,7 @@ class _OrderCard extends StatelessWidget {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: dense ? 15 : 18,
                   fontWeight: FontWeight.w800,
-                  color: AppTheme.primary,
+                  color: AppTheme.primary.withValues(alpha: emphasis),
                   letterSpacing: -0.3,
                 ),
               ),

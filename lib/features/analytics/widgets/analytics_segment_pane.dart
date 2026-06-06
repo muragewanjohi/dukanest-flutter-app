@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../analytics_segment_parse.dart';
 import '../providers/analytics_segment_provider.dart';
 
@@ -23,29 +24,85 @@ class AnalyticsSegmentPane extends ConsumerStatefulWidget {
   final String segment;
   final int days;
 
-  static Map<String, dynamic>? queryForSegment(String segment, int days) {
-    if (segment == 'overview') return null;
-    final end = DateTime.now();
-    final startCalendar = DateTime(end.year, end.month, end.day)
-        .subtract(Duration(days: days - 1));
-    String fmt(DateTime d) =>
-        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-    return {'startDate': fmt(startCalendar), 'endDate': fmt(end)};
-  }
+  static AnalyticsSegmentParams paramsFor(String segment, int days) =>
+      analyticsSegmentParamsFor(segment, days);
 
   @override
   ConsumerState<AnalyticsSegmentPane> createState() =>
       _AnalyticsSegmentPaneState();
 }
 
+/// Loads segment data only after the user opens this tab (avoids 10+ parallel
+/// analytics calls when opening Analytics Center or changing the date range).
+class LazyAnalyticsSegmentPane extends StatefulWidget {
+  const LazyAnalyticsSegmentPane({
+    super.key,
+    required this.tabIndex,
+    required this.tabController,
+    required this.segment,
+    required this.days,
+  });
+
+  final int tabIndex;
+  final TabController tabController;
+  final String segment;
+  final int days;
+
+  @override
+  State<LazyAnalyticsSegmentPane> createState() =>
+      _LazyAnalyticsSegmentPaneState();
+}
+
+class _LazyAnalyticsSegmentPaneState extends State<LazyAnalyticsSegmentPane> {
+  bool _activated = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _activated = widget.tabController.index == widget.tabIndex;
+    widget.tabController.addListener(_onTabChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.tabController.removeListener(_onTabChanged);
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (_activated || widget.tabController.index != widget.tabIndex) return;
+    setState(() => _activated = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_activated) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(height: 120),
+          Center(
+            child: Text(
+              'Open this tab to load analytics',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      );
+    }
+    return AnalyticsSegmentPane(
+      key: ValueKey('${widget.segment}-${widget.days}'),
+      segment: widget.segment,
+      days: widget.days,
+    );
+  }
+}
+
 class _AnalyticsSegmentPaneState extends ConsumerState<AnalyticsSegmentPane> {
   bool _exporting = false;
 
-  ({String segment, Map<String, dynamic>? query}) get _params => (
-        segment: widget.segment,
-        query:
-            AnalyticsSegmentPane.queryForSegment(widget.segment, widget.days),
-      );
+  AnalyticsSegmentParams get _params =>
+      AnalyticsSegmentPane.paramsFor(widget.segment, widget.days);
 
   String get _title {
     final spaced = widget.segment
@@ -67,8 +124,7 @@ class _AnalyticsSegmentPaneState extends ConsumerState<AnalyticsSegmentPane> {
       final Response<dynamic> res = await api.exportAnalytics(
         type: widget.segment,
         format: 'csv',
-        queryParameters:
-            AnalyticsSegmentPane.queryForSegment(widget.segment, widget.days),
+        queryParameters: queryFromAnalyticsSegmentParams(_params),
       );
       final status = res.statusCode ?? 0;
       if (status < 200 || status >= 300) {
@@ -102,7 +158,7 @@ class _AnalyticsSegmentPaneState extends ConsumerState<AnalyticsSegmentPane> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -131,7 +187,18 @@ class _AnalyticsSegmentPaneState extends ConsumerState<AnalyticsSegmentPane> {
         error: (e, _) => _scroll([
           _header(theme),
           const SizedBox(height: 16),
-          Text('$e', style: TextStyle(color: theme.colorScheme.error)),
+          Text(
+            apiErrorMessage(e),
+            style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: FilledButton(
+              onPressed: () => ref.invalidate(analyticsSegmentProvider(_params)),
+              child: const Text('Retry'),
+            ),
+          ),
         ]),
         data: (data) {
           if (data == null || data.isEmpty) {

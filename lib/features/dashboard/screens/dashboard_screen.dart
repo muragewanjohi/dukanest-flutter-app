@@ -16,28 +16,14 @@ import '../../../core/widgets/dashboard_page_header.dart';
 import '../../onboarding/providers/auth_provider.dart';
 import '../providers/dashboard_getting_started_provider.dart';
 import '../providers/dashboard_local_onboarding_provider.dart';
+import '../providers/dashboard_overview_provider.dart';
 import '../providers/dashboard_reward_checklist_provider.dart';
+import '../../products/demo_product_cleanup.dart';
 import '../widgets/reward_checklist_card.dart';
 
 /// Home dashboard aligned with Stitch screen
 /// `projects/13184140852829986275/screens/a93fc25cee2c4ac98d30472dc7535058`
 /// (HTML + screenshot in `docs/backend-context/stitch-exports/`).
-final dashboardOverviewProvider =
-    FutureProvider<Map<String, dynamic>?>((ref) async {
-  try {
-    final api = ref.read(apiClientProvider);
-    final response = await api.getDashboardOverview();
-    if (!response.success || response.data == null) return null;
-    final payload = response.data;
-    if (payload is! Map<String, dynamic>) return null;
-    final data = payload['data'] is Map<String, dynamic>
-        ? Map<String, dynamic>.from(payload['data'] as Map)
-        : payload;
-    return data;
-  } catch (_) {
-    return null;
-  }
-});
 
 final dashboardLastSyncedAtProvider = StateProvider<DateTime?>((ref) => null);
 
@@ -164,10 +150,14 @@ bool _onboardingStepUiIsShare(_OnboardingStepUi s) {
       title.contains('store link');
 }
 
+List<_OnboardingStepUi> _excludeAttributesFromGettingStarted(
+  List<_OnboardingStepUi> steps,
+) =>
+    steps.where((s) => !_onboardingStepUiIsAttributes(s)).toList();
+
 List<_OnboardingStepUi> _orderOnboardingSteps(List<_OnboardingStepUi> steps) {
   final products = <_OnboardingStepUi>[];
   final categories = <_OnboardingStepUi>[];
-  final attributes = <_OnboardingStepUi>[];
   final middle = <_OnboardingStepUi>[];
   final previews = <_OnboardingStepUi>[];
   final shares = <_OnboardingStepUi>[];
@@ -181,14 +171,13 @@ List<_OnboardingStepUi> _orderOnboardingSteps(List<_OnboardingStepUi> steps) {
     } else if (_onboardingStepUiIsCategory(s)) {
       categories.add(s);
     } else if (_onboardingStepUiIsAttributes(s)) {
-      attributes.add(s);
+      continue;
     } else {
       middle.add(s);
     }
   }
   return [
     ...categories,
-    ...attributes,
     ...products,
     ...middle,
     ...previews,
@@ -412,7 +401,9 @@ List<_OnboardingStepUi> _parseOnboardingStepsFromOverview(
       onAction: null,
     ));
   }
-  return out.isEmpty ? defaultSteps : _orderOnboardingSteps(out);
+  return out.isEmpty
+      ? _excludeAttributesFromGettingStarted(defaultSteps)
+      : _excludeAttributesFromGettingStarted(_orderOnboardingSteps(out));
 }
 
 /// Matches web dashboard onboarding; only SMS alerts complete right after registration.
@@ -427,14 +418,6 @@ List<_OnboardingStepUi> _defaultOnboardingStepsAfterRegistration() {
       durationHint: 'Takes 1 minute',
       actionLabel: 'Add Category',
       stepKey: 'category',
-    ),
-    _OnboardingStepUi(
-      completed: false,
-      title: 'Add product attributes',
-      description: 'Create options like Size, Weight, and Colour for products.',
-      durationHint: 'Takes 2 minutes',
-      actionLabel: 'Add attribute',
-      stepKey: 'attributes',
     ),
     _OnboardingStepUi(
       completed: false,
@@ -454,7 +437,8 @@ List<_OnboardingStepUi> _defaultOnboardingStepsAfterRegistration() {
     _OnboardingStepUi(
       completed: false,
       title: 'Set up payment preferences',
-      description: 'Enable Cash, M-Pesa, or other payment methods.',
+      description:
+          'Turn on Tumizi wallet as your preferred method. You can also enable Cash or M-Pesa.',
       actionLabel: 'Set up payments',
       stepKey: 'payment',
     ),
@@ -648,54 +632,14 @@ class DashboardScreen extends ConsumerWidget {
       } else if (k == 'demo_products' ||
           k.contains('demo_product') ||
           k == 'remove_demo_products') {
-        onAction = () async {
-          final ok = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Remove demo products?'),
-              content: const Text(
-                'This archives sample catalog items so only your real products remain.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Remove'),
-                ),
-              ],
-            ),
-          );
-          if (ok != true || !context.mounted) return;
-          try {
-            final response =
-                await ref.read(apiClientProvider).removeDemoProducts();
-            if (!response.success) {
-              throw StateError(response.error?.message ?? 'Request failed');
-            }
-            if (!context.mounted) return;
-            ref.invalidate(dashboardGettingStartedProvider);
-            ref.invalidate(dashboardOverviewProvider);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Demo products removed')),
-            );
-          } catch (_) {
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Could not remove demo products. Try again.'),
-              ),
-            );
-          }
-        };
+        onAction = () => handleDemoProductCleanup(context: context, ref: ref);
       } else if (k == 'payment' || k == 'payments' || k == 'checkout') {
         onAction = () => context.push('/payment-settings');
       } else if (k == 'shipping' || k == 'delivery') {
         onAction = () => context.push('/shipping-delivery');
       } else if (k == 'logo' || k == 'store_logo') {
-        onAction = () => context.push('/store-identity');
+        onAction = () =>
+            context.push('/store-identity?tutorial=1&focus=logo');
       } else if (k == 'design' ||
           k == 'theme' ||
           k == 'branding' ||
@@ -755,51 +699,11 @@ class DashboardScreen extends ConsumerWidget {
         } else if (t.contains('shipping') || t.contains('delivery')) {
           onAction = () => context.push('/shipping-delivery');
         } else if (t.contains('logo')) {
-          onAction = () => context.push('/store-identity');
+          onAction = () =>
+              context.push('/store-identity?tutorial=1&focus=logo');
         } else if (t.contains('demo') &&
             (t.contains('product') || t.contains('sample'))) {
-          onAction = () async {
-            final ok = await showDialog<bool>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Remove demo products?'),
-                content: const Text(
-                  'This archives sample catalog items so only your real products remain.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('Cancel'),
-                  ),
-                  FilledButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text('Remove'),
-                  ),
-                ],
-              ),
-            );
-            if (ok != true || !context.mounted) return;
-            try {
-              final response =
-                  await ref.read(apiClientProvider).removeDemoProducts();
-              if (!response.success) {
-                throw StateError(response.error?.message ?? 'Request failed');
-              }
-              if (!context.mounted) return;
-              ref.invalidate(dashboardGettingStartedProvider);
-              ref.invalidate(dashboardOverviewProvider);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Demo products removed')),
-              );
-            } catch (_) {
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Could not remove demo products. Try again.'),
-                ),
-              );
-            }
-          };
+          onAction = () => handleDemoProductCleanup(context: context, ref: ref);
         } else if (t.contains('phone')) {
           onAction = () => context.push('/settings');
         } else if (t.contains('design') || t.contains('customize')) {
@@ -966,10 +870,11 @@ class DashboardScreen extends ConsumerWidget {
         ref.watch(dashboardLocalStepCompletionsProvider);
     final mergedSteps =
         _mergeLocalStepCompletion(parsedSteps, localStepCompletions);
+    final gettingStartedSteps = _excludeAttributesFromGettingStarted(mergedSteps);
     final onboardingSteps = _attachOnboardingActions(
       context,
       ref,
-      steps: mergedSteps,
+      steps: gettingStartedSteps,
       storeName: displayStoreName,
       storeUrl: storeUrl,
     );
@@ -2008,6 +1913,11 @@ class _GettingStartedCarouselState extends State<_GettingStartedCarousel> {
   late final PageController _pageController;
   late int _index;
   bool _expanded = false;
+  int? _lastChecklistScrollTarget;
+  final Map<int, GlobalKey> _checklistItemKeys = <int, GlobalKey>{};
+
+  static const _checklistHeight = 118.0;
+  static const _doneGreen = Color(0xFF16A34A);
 
   @override
   void initState() {
@@ -2025,6 +1935,95 @@ class _GettingStartedCarouselState extends State<_GettingStartedCarousel> {
     super.dispose();
   }
 
+  int _firstIncompleteStepIndex(List<_OnboardingStepUi> steps) {
+    final idx = steps.indexWhere((s) => !s.completed);
+    return idx >= 0 ? idx : 0;
+  }
+
+  int _resolveFocusIndex(List<_OnboardingStepUi> steps) {
+    if (steps.isEmpty) return 0;
+    final idx = _index.clamp(0, steps.length - 1);
+    if (!steps[idx].completed) return idx;
+    for (var i = idx + 1; i < steps.length; i++) {
+      if (!steps[i].completed) return i;
+    }
+    for (var i = 0; i < idx; i++) {
+      if (!steps[i].completed) return i;
+    }
+    return idx;
+  }
+
+  GlobalKey _checklistKeyFor(int index) {
+    return _checklistItemKeys.putIfAbsent(
+      index,
+      () => GlobalKey(debugLabel: 'getting_started_checklist:$index'),
+    );
+  }
+
+  void _scrollChecklistToIndex(int index) {
+    if (_lastChecklistScrollTarget == index) return;
+    _lastChecklistScrollTarget = index;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _checklistKeyFor(index).currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        alignment: 0.35,
+      );
+    });
+  }
+
+  Future<void> _goToStep(int target) async {
+    if (!mounted) return;
+    final steps = widget.steps;
+    if (steps.isEmpty) return;
+    final clamped = target.clamp(0, steps.length - 1);
+    if (clamped != _index) {
+      setState(() => _index = clamped);
+      if (_pageController.hasClients) {
+        await _pageController.animateToPage(
+          clamped,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    }
+    _lastChecklistScrollTarget = null;
+    _scrollChecklistToIndex(clamped);
+  }
+
+  bool _stepsCompletionChanged(
+    List<_OnboardingStepUi> before,
+    List<_OnboardingStepUi> after,
+  ) {
+    if (before.length != after.length) return true;
+    for (var i = 0; i < before.length; i++) {
+      if (before[i].completed != after[i].completed) return true;
+    }
+    return false;
+  }
+
+  @override
+  void didUpdateWidget(covariant _GettingStartedCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_stepsCompletionChanged(oldWidget.steps, widget.steps)) return;
+
+    final focus = _resolveFocusIndex(widget.steps);
+    if (focus != _index && _pageController.hasClients) {
+      setState(() => _index = focus);
+      _pageController.animateToPage(
+        focus,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+      );
+    }
+    _lastChecklistScrollTarget = null;
+    _scrollChecklistToIndex(focus);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -2033,6 +2032,11 @@ class _GettingStartedCarouselState extends State<_GettingStartedCarousel> {
 
     final safeTotal = widget.total <= 0 ? 1 : widget.total;
     final progress = (widget.completed / safeTotal).clamp(0.0, 1.0);
+    final focusIndex = _resolveFocusIndex(steps);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_expanded) return;
+      _scrollChecklistToIndex(focusIndex);
+    });
 
     return Container(
       decoration: BoxDecoration(
@@ -2119,7 +2123,11 @@ class _GettingStartedCarouselState extends State<_GettingStartedCarousel> {
                   child: PageView.builder(
                     controller: _pageController,
                     itemCount: steps.length,
-                    onPageChanged: (i) => setState(() => _index = i),
+                    onPageChanged: (i) {
+                      setState(() => _index = i);
+                      _lastChecklistScrollTarget = null;
+                      _scrollChecklistToIndex(i);
+                    },
                     itemBuilder: (context, i) {
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -2134,12 +2142,7 @@ class _GettingStartedCarouselState extends State<_GettingStartedCarousel> {
                   children: [
                     IconButton.filledTonal(
                       onPressed: _index > 0
-                          ? () {
-                              _pageController.previousPage(
-                                duration: const Duration(milliseconds: 280),
-                                curve: Curves.easeOutCubic,
-                              );
-                            }
+                          ? () => _goToStep(_index - 1)
                           : null,
                       icon: const Icon(Icons.chevron_left),
                     ),
@@ -2153,12 +2156,7 @@ class _GettingStartedCarouselState extends State<_GettingStartedCarousel> {
                     ),
                     IconButton.filledTonal(
                       onPressed: _index < steps.length - 1
-                          ? () {
-                              _pageController.nextPage(
-                                duration: const Duration(milliseconds: 280),
-                                curve: Curves.easeOutCubic,
-                              );
-                            }
+                          ? () => _goToStep(_index + 1)
                           : null,
                       icon: const Icon(Icons.chevron_right),
                     ),
@@ -2182,6 +2180,110 @@ class _GettingStartedCarouselState extends State<_GettingStartedCarousel> {
                       ),
                     );
                   }),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppTheme.outlineVariant.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: SizedBox(
+                    height: _checklistHeight,
+                    child: ListView.separated(
+                      itemCount: steps.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 6),
+                      itemBuilder: (context, i) {
+                        final step = steps[i];
+                        final selected = i == focusIndex;
+                        final inProgress = selected && !step.completed;
+                        return Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () => _goToStep(i),
+                            child: Container(
+                              key: _checklistKeyFor(i),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 7,
+                              ),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? AppTheme.primary.withValues(alpha: 0.08)
+                                    : AppTheme.surfaceContainerLowest,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: selected
+                                      ? AppTheme.primary.withValues(alpha: 0.3)
+                                      : AppTheme.outlineVariant
+                                          .withValues(alpha: 0.25),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    step.completed
+                                        ? Icons.check_circle_rounded
+                                        : inProgress
+                                            ? Icons.hourglass_top_rounded
+                                            : Icons
+                                                .radio_button_unchecked_rounded,
+                                    size: 16,
+                                    color: step.completed
+                                        ? _doneGreen
+                                        : inProgress
+                                            ? AppTheme.primary
+                                            : theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      step.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.labelMedium
+                                          ?.copyWith(
+                                        fontWeight: selected
+                                            ? FontWeight.w700
+                                            : FontWeight.w600,
+                                        color: step.completed
+                                            ? theme.colorScheme.onSurfaceVariant
+                                            : selected
+                                                ? AppTheme.primaryDark
+                                                : theme.colorScheme.onSurface,
+                                        decoration: step.completed
+                                            ? TextDecoration.lineThrough
+                                            : null,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    step.completed
+                                        ? 'Done'
+                                        : inProgress
+                                            ? 'Next'
+                                            : 'Todo',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      color: step.completed
+                                          ? _doneGreen
+                                          : inProgress
+                                              ? AppTheme.primary
+                                              : theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ],
             ),

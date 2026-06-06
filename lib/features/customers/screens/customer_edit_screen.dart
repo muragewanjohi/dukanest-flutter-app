@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
 import '../providers/customer_detail_provider.dart';
 
@@ -23,22 +25,10 @@ class CustomerEditScreen extends ConsumerWidget {
       backgroundColor: AppTheme.surface,
       body: asyncDetail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('$e', textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () =>
-                      ref.invalidate(customerDetailProvider(customerId)),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
+        error: (e, _) => ApiErrorView(
+          error: e,
+          title: 'Could not load customer',
+          onRetry: () => ref.invalidate(customerDetailProvider(customerId)),
         ),
         data: (data) => _CustomerEditForm(
           customerId: customerId,
@@ -134,7 +124,7 @@ class _CustomerEditFormState extends State<_CustomerEditForm> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _saving = false);

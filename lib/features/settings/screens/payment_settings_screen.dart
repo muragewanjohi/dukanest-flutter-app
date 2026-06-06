@@ -7,6 +7,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
@@ -41,6 +43,9 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
   /// Server snapshot signature; avoids re-applying GET data on every local [setState] while still hydrating after refetch.
   String _lastHydratedPaymentSignature = '';
 
+  /// One-shot Tumizi-first defaults when opened from Getting started (`?tutorial=1`).
+  bool _gettingStartedPaymentDefaultsApplied = false;
+
   final _sendMoneyPhone = TextEditingController();
   final _tillNumber = TextEditingController();
   final _paybillNumber = TextEditingController();
@@ -55,6 +60,17 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     _accountNumber.dispose();
     _pochiPhone.dispose();
     super.dispose();
+  }
+
+  bool _isGettingStartedEntry() {
+    final qp = GoRouterState.of(context).uri.queryParameters;
+    return qp['tutorial'] == '1';
+  }
+
+  /// Getting started expects Tumizi enabled and marked preferred (see flutter_apis.md).
+  void _applyGettingStartedPaymentDefaults() {
+    _tumiziEnabled = true;
+    _defaultMethod = _DefaultPaymentMethod.tumizi;
   }
 
   void _hydrateFrom(Map<String, dynamic>? root) {
@@ -134,7 +150,12 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
       'pochiPhone',
       'pochi'
     ]);
-    _applyTumiziPreferredDefault();
+    if (_isGettingStartedEntry() && !_gettingStartedPaymentDefaultsApplied) {
+      _applyGettingStartedPaymentDefaults();
+      _gettingStartedPaymentDefaultsApplied = true;
+    } else {
+      _applyTumiziPreferredDefault();
+    }
   }
 
   /// Tumizi on when the API omits flags; explicit `false` is respected.
@@ -434,7 +455,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e')),
+          SnackBar(content: Text(apiErrorMessage(e))),
         );
       }
     } finally {
@@ -488,21 +509,10 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
       error: (err, _) => Scaffold(
         backgroundColor: AppTheme.surface,
         appBar: const DashboardAppBar(title: 'Payments'),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('$err', textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => ref.invalidate(dashboardSettingsProvider),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
+        body: ApiErrorView(
+          error: err,
+          title: 'Could not load payment settings',
+          onRetry: () => ref.invalidate(dashboardSettingsProvider),
         ),
       ),
       data: (root) {
@@ -560,9 +570,9 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                 _methodToggleRow(
                   theme,
                   icon: Icons.account_balance_wallet_rounded,
-                  title: 'Tumizi wallet',
+                  title: 'Mpesa Wallet',
                   subtitle:
-                      'Customers pay with an M-Pesa STK prompt; payments confirm automatically when this is on.',
+                      'Customers pay to your Tumizi Mpesa wallet; payments confirm automatically when this is on.',
                   value: _tumiziEnabled,
                   isPreferred: _defaultMethod == _DefaultPaymentMethod.tumizi &&
                       _tumiziEnabled,
@@ -708,7 +718,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
         children: [
           tile(
             value: _DefaultPaymentMethod.tumizi,
-            label: 'Tumizi wallet',
+            label: 'Mpesa Wallet',
             enabled: _tumiziEnabled,
           ),
           tile(
@@ -718,7 +728,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
           ),
           tile(
             value: _DefaultPaymentMethod.mpesa,
-            label: 'M-Pesa',
+            label: 'Manual Verification',
             enabled: _mpesaEnabled,
           ),
         ],
@@ -939,7 +949,7 @@ class _PaymentSettingsScreenState extends ConsumerState<PaymentSettingsScreen>
                         children: [
                           Flexible(
                             child: Text(
-                              'M-Pesa',
+                              'Manual Verification',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,

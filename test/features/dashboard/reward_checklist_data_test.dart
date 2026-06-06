@@ -102,4 +102,38 @@ void main() {
       expect(steps[2].done, isTrue);
     });
   });
+
+  group('ensureAttributesRewardStep', () {
+    test('injects attributes after categories when missing from parsed steps', () {
+      final data = {
+        'items': [
+          {'id': 'categories_two', 'label': 'Add categories', 'completed': false},
+          {'id': 'products_five', 'label': 'Add products', 'completed': false},
+        ],
+      };
+      final merged = ensureAttributesRewardStep(rewardSteps(data), data);
+
+      expect(merged.length, 3);
+      expect(merged[1].stepId, 'attributes');
+      expect(merged[1].title, 'Add product attributes');
+      expect(merged[1].href, '/attributes/new');
+    });
+
+    test('does not duplicate when API already includes attributes', () {
+      final data = {
+        'items': [
+          {
+            'id': 'attributes',
+            'label': 'Add attributes',
+            'completed': true,
+          },
+        ],
+      };
+      final merged = ensureAttributesRewardStep(rewardSteps(data), data);
+
+      expect(merged.length, 1);
+      expect(merged.single.stepId, 'attributes');
+      expect(merged.single.done, isTrue);
+    });
+  });
 }

@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../data/attribute_value_format.dart';
@@ -96,7 +98,7 @@ class _AttributesManagementScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not delete: $e')),
+          SnackBar(content: Text(apiErrorMessage(e))),
         );
       }
     }
@@ -112,21 +114,10 @@ class _AttributesManagementScreenState
       backgroundColor: AppTheme.surface,
       body: asyncAttrs.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('$e', textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => ref.invalidate(dashboardAttributesProvider),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
+        error: (e, _) => ApiErrorView(
+          error: e,
+          title: 'Could not load attributes',
+          onRetry: () => ref.invalidate(dashboardAttributesProvider),
         ),
         data: (attributes) {
           if (attributes.isNotEmpty) {

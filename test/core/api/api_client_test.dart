@@ -46,6 +46,30 @@ void main() {
       expect(res.error?.code, 'FORBIDDEN');
     });
 
+    test('getDashboardReferrals returns parsed success envelope', () async {
+      final (dio, adapter) = buildMockDio();
+      adapter.onGet(
+        '/dashboard/referrals',
+        (server) => server.reply(200, {
+          'success': true,
+          'data': {
+            'shareSubdomain': 'demo-shop',
+            'referralLink': 'https://www.dukanest.com/ref/demo-shop',
+            'referralCount': 4,
+            'rewardedMonths': 1,
+          },
+        }),
+      );
+
+      final api = ApiClient(dio);
+      final res = await api.getDashboardReferrals();
+
+      expect(res.success, isTrue);
+      final data = res.data as Map;
+      expect(data['shareSubdomain'], 'demo-shop');
+      expect(data['referralCount'], 4);
+    });
+
     test('login posts credentials and parses the response', () async {
       final (dio, adapter) = buildMockDio();
       adapter.onPost(

@@ -4,8 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../providers/billing_history_provider.dart';
+import '../subscription_snapshot_helpers.dart';
+import '../widgets/subscription_status_banners.dart';
 
 class BillingHistoryScreen extends ConsumerWidget {
   const BillingHistoryScreen({super.key});
@@ -35,18 +38,12 @@ class BillingHistoryScreen extends ConsumerWidget {
         child: async.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => ListView(
-            padding: const EdgeInsets.all(24),
+            physics: const AlwaysScrollableScrollPhysics(),
             children: [
-              Text(
-                'Could not load billing history.',
-                style: theme.textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                e.toString(),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
+              ApiErrorView(
+                error: e,
+                title: 'Could not load billing history',
+                onRetry: () => ref.invalidate(billingHistoryProvider),
               ),
             ],
           ),
@@ -61,7 +58,7 @@ class BillingHistoryScreen extends ConsumerWidget {
               );
             }
 
-            final items = _extractRows(data);
+            final items = extractBillingHistoryRows(data);
 
             final metaChunks = <String>[];
             _appendIfPresent(metaChunks, data, 'planName', 'plan');
@@ -76,6 +73,15 @@ class BillingHistoryScreen extends ConsumerWidget {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: [
+                SubscriptionRenewalCta(
+                  data: data,
+                  onPayNow: () => context.push('/subscription'),
+                ),
+                if (needsRenewalPayment(data)) const SizedBox(height: 8),
+                SubscriptionAccessBanner(
+                  data: data,
+                  onRenew: () => context.push('/subscription'),
+                ),
                 if (metaChunks.isNotEmpty) ...[
                   _MetaCard(theme: theme, lines: metaChunks),
                   const SizedBox(height: 16),
@@ -269,26 +275,4 @@ String _formatAmount(dynamic raw, NumberFormat currencyFormat) {
     } catch (_) {}
   }
   return raw.toString();
-}
-
-List<Map<String, dynamic>> _extractRows(Map<String, dynamic> data) {
-  for (final key in [
-    'items',
-    'history',
-    'billing',
-    'invoices',
-    'payments',
-    'transactions',
-    'records',
-  ]) {
-    final v = data[key];
-    if (v is List) {
-      final out = <Map<String, dynamic>>[];
-      for (final item in v) {
-        if (item is Map) out.add(Map<String, dynamic>.from(item));
-      }
-      if (out.isNotEmpty) return out;
-    }
-  }
-  return const [];
 }

@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
 import '../providers/dashboard_settings_provider.dart';
@@ -140,7 +142,7 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e')),
+          SnackBar(content: Text(apiErrorMessage(e))),
         );
       }
     } finally {
@@ -188,21 +190,10 @@ class _TaxSettingsScreenState extends ConsumerState<TaxSettingsScreen>
       error: (err, _) => Scaffold(
         backgroundColor: AppTheme.surface,
         appBar: const DashboardAppBar(title: 'Tax Settings'),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('$err', textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => ref.invalidate(dashboardSettingsProvider),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
+        body: ApiErrorView(
+          error: err,
+          title: 'Could not load tax settings',
+          onRetry: () => ref.invalidate(dashboardSettingsProvider),
         ),
       ),
       data: (root) {

@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../../../core/util/store_media_url.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
@@ -109,7 +110,7 @@ class _HeroSectionEditorScreenState
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = '$e';
+        _error = apiErrorMessage(e);
       });
     }
   }
@@ -132,7 +133,7 @@ class _HeroSectionEditorScreenState
         _imageCleared = false;
       });
     } catch (e) {
-      _toast('Could not pick image: $e');
+      _toast(apiErrorMessage(e));
     }
   }
 
@@ -234,7 +235,7 @@ class _HeroSectionEditorScreenState
       _toast('Hero section saved');
       if (context.canPop()) context.pop();
     } catch (e) {
-      _toast('Save failed: $e');
+      _toast(apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

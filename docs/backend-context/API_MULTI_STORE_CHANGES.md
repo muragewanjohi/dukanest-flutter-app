@@ -167,9 +167,9 @@ Server implementation delegates to the web register handler (`src/app/api/v1/mob
 
 `POST /api/v1/mobile/auth/register` and `POST /api/tenants/register` use the **same registration logic** on the server.
 
-If a newly created store is empty (no products/categories/sales/blogs), this is typically a **request payload** issue, not a different endpoint issue.
+New stores start with a **clean catalog** (no demo products, categories, sales, or blogs from registration). Merchants add inventory from the dashboard; optional `businessType` / `selling` are still useful for theme defaults and onboarding UX.
 
-Starter/demo content generation depends on onboarding fields in the body (see **Starter content trigger checklist** below).
+To add sample catalog data to an **existing** tenant, use theme installation with demo content (see theme install API) or admin tooling — not `POST /api/tenants/register`.
 
 ### Request body (core fields)
 
@@ -189,21 +189,27 @@ Validated by `registerTenantSchema` in `src/app/api/tenants/register/route.ts`:
 | `planId`, `themeId` | No | UUIDs when applicable |
 | `businessType`, `selling` | No | Onboarding |
 | `starterPackJobId` | No | If using async starter pack |
-| `includeDemoContent`, `includeDemoAttributes` | No | Booleans |
+| `includeDemoContent`, `includeDemoAttributes` | No | Ignored at registration (clean catalog); accepted for API compatibility |
 | `supabaseAccessToken` | Optional (Google) | Existing Supabase access token for the same Google user (equivalent to Authorization Bearer token) |
 | `googleIdToken` | Optional (Google) | Google OIDC id_token; server can exchange via Supabase when no Supabase token is provided |
 | `googleAccessToken` | Optional (Google) | Companion access token for id_token flows that include `at_hash` |
+| `referrerSubdomain` | No | Referrer’s **store subdomain** (friend who referred this merchant). Lowercase `a-z`, digits, hyphens; min 3 chars. Creates a `tenant_referrals` row when valid. Same as web register field / `?ref=` query param. |
+| `billingCountry` | No | ISO 3166-1 alpha-2 billing region for subscription pricing (`KE` → KES plan prices, else USD). If omitted, server uses client geo headers + phone country. |
 
-### Starter content trigger checklist (for non-empty new stores)
+### Referral code at signup (web + mobile)
 
-To match the web onboarding behavior (AI/starter-pack flow), send these fields on registration:
+There is **no** separate “submit referral” endpoint. Attribution happens **once** during registration.
 
-- `includeDemoContent: true`
-- `includeDemoAttributes: true` (recommended when demo content is on)
-- `businessType`: non-empty string
-- `selling`: non-empty string
+| Platform | How the user enters it |
+|----------|-------------------------|
+| **Web** | Optional field on `/register`, or pre-filled from `https://…/register?ref={referrer-subdomain}` |
+| **Mobile** | Optional `referrerSubdomain` in the **same** register JSON body |
 
-If those are missing/false, registration still succeeds, but store content seeding may be skipped and the store can start empty.
+Both use identical server logic (`createTenantReferralAttribution` after tenant create). Invalid or self-referral values are skipped (registration still succeeds).
+
+### Optional onboarding fields (no automatic catalog)
+
+Sending `businessType` and `selling` is still recommended so the server can pick theme defaults and tenant metadata, but **registration does not seed products or categories** regardless of these flags.
 
 #### Minimal example payload for Flutter (email sign-up)
 
@@ -216,9 +222,21 @@ If those are missing/false, registration still succeeds, but store content seedi
   "adminPhone": "+254700000000",
   "adminPhoneCountry": "KE",
   "businessType": "Fashion",
-  "selling": "Clothes and accessories",
-  "includeDemoContent": true,
-  "includeDemoAttributes": true
+  "selling": "Clothes and accessories"
+}
+```
+
+With an optional referral (friend’s shop subdomain):
+
+```json
+{
+  "name": "My Store",
+  "subdomain": "my-store",
+  "adminEmail": "owner@example.com",
+  "adminPassword": "your-strong-password",
+  "adminPhone": "+254700000000",
+  "adminPhoneCountry": "KE",
+  "referrerSubdomain": "friend-store"
 }
 ```
 

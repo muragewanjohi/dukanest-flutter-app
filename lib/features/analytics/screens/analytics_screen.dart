@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
 import '../analytics_parse.dart';
 import '../providers/dashboard_analytics_provider.dart';
@@ -80,7 +81,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _exportingSummary = false);
@@ -286,19 +287,78 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
                     ],
                   ),
                 ),
-                AnalyticsSegmentPane(segment: 'overview', days: _days),
-                AnalyticsSegmentPane(segment: 'revenue', days: _days),
-                AnalyticsSegmentPane(segment: 'sales', days: _days),
-                AnalyticsSegmentPane(segment: 'customers', days: _days),
-                AnalyticsSegmentPane(segment: 'inventory', days: _days),
-                AnalyticsSegmentPane(segment: 'traffic-sources', days: _days),
-                AnalyticsSegmentPane(segment: 'conversion-funnel', days: _days),
-                AnalyticsSegmentPane(segment: 'geographic', days: _days),
-                AnalyticsSegmentPane(
-                    segment: 'product-performance', days: _days),
-                AnalyticsSegmentPane(segment: 'refunds', days: _days),
-                AnalyticsSegmentPane(segment: 'compare', days: _days),
-                AnalyticsSegmentPane(segment: 'realtime', days: _days),
+                LazyAnalyticsSegmentPane(
+                  tabIndex: 1,
+                  tabController: _segmentTabs,
+                  segment: 'overview',
+                  days: _days,
+                ),
+                LazyAnalyticsSegmentPane(
+                  tabIndex: 2,
+                  tabController: _segmentTabs,
+                  segment: 'revenue',
+                  days: _days,
+                ),
+                LazyAnalyticsSegmentPane(
+                  tabIndex: 3,
+                  tabController: _segmentTabs,
+                  segment: 'sales',
+                  days: _days,
+                ),
+                LazyAnalyticsSegmentPane(
+                  tabIndex: 4,
+                  tabController: _segmentTabs,
+                  segment: 'customers',
+                  days: _days,
+                ),
+                LazyAnalyticsSegmentPane(
+                  tabIndex: 5,
+                  tabController: _segmentTabs,
+                  segment: 'inventory',
+                  days: _days,
+                ),
+                LazyAnalyticsSegmentPane(
+                  tabIndex: 6,
+                  tabController: _segmentTabs,
+                  segment: 'traffic-sources',
+                  days: _days,
+                ),
+                LazyAnalyticsSegmentPane(
+                  tabIndex: 7,
+                  tabController: _segmentTabs,
+                  segment: 'conversion-funnel',
+                  days: _days,
+                ),
+                LazyAnalyticsSegmentPane(
+                  tabIndex: 8,
+                  tabController: _segmentTabs,
+                  segment: 'geographic',
+                  days: _days,
+                ),
+                LazyAnalyticsSegmentPane(
+                  tabIndex: 9,
+                  tabController: _segmentTabs,
+                  segment: 'product-performance',
+                  days: _days,
+                ),
+                LazyAnalyticsSegmentPane(
+                  tabIndex: 10,
+                  tabController: _segmentTabs,
+                  segment: 'refunds',
+                  days: _days,
+                ),
+                LazyAnalyticsSegmentPane(
+                  tabIndex: 11,
+                  tabController: _segmentTabs,
+                  segment: 'compare',
+                  days: _days,
+                ),
+                LazyAnalyticsSegmentPane(
+                  tabIndex: 12,
+                  tabController: _segmentTabs,
+                  segment: 'realtime',
+                  days: _days,
+                ),
               ],
             ),
           ),

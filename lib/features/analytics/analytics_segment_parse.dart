@@ -169,6 +169,33 @@ String _currencyOf(Map<String, dynamic> root) {
 String _shorten(String label) =>
     label.length <= 10 ? label : '${label.substring(0, 9)}…';
 
+final _isoDatePrefix = RegExp(r'^\d{4}-\d{2}-\d{2}');
+
+/// Strips time from ISO / API date-time strings for metric and table display.
+String? _formatDateOnly(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty || !_isoDatePrefix.hasMatch(trimmed)) return null;
+  final dt = DateTime.tryParse(trimmed);
+  if (dt == null) return null;
+  return DateFormat.yMMMd().format(dt.toLocal());
+}
+
+String? _formatStringMetric(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return null;
+  final dateOnly = _formatDateOnly(trimmed);
+  if (dateOnly != null) return dateOnly;
+  if (trimmed.length <= 24) return trimmed;
+  return null;
+}
+
+String _formatCellValue(dynamic value) {
+  if (value is String) {
+    return _formatDateOnly(value) ?? value;
+  }
+  return (value ?? '').toString();
+}
+
 void _consume(
   Map<String, dynamic> map,
   String prefix,
@@ -195,8 +222,9 @@ void _consume(
       return;
     }
     if (value is String) {
-      if (value.length <= 24) {
-        out.metrics.add(SegmentMetric(label, value));
+      final display = _formatStringMetric(value);
+      if (display != null) {
+        out.metrics.add(SegmentMetric(label, display));
       }
       return;
     }
@@ -264,7 +292,9 @@ void _consumeList(
         out.series.add(SegmentSeries(
           '$label (${_humanize(numeric.key!)})',
           rows.map((r) => r.value).toList(),
-          rows.map((r) => _shorten(r.label)).toList(),
+          rows
+              .map((r) => _shorten(_formatDateOnly(r.label) ?? r.label))
+              .toList(),
         ));
       } else {
         rows.sort((a, b) => b.value.compareTo(a.value));
@@ -290,7 +320,7 @@ void _consumeList(
   }
   if (columns.isEmpty) return;
   final tableRows = maps.take(12).map((m) {
-    return columns.map((c) => (m[c] ?? '').toString()).toList();
+    return columns.map((c) => _formatCellValue(m[c])).toList();
   }).toList();
   out.tables.add(SegmentTable(
     label,

@@ -11,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../../../core/auth/token_storage.dart';
 import '../../../core/util/store_media_url.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
@@ -125,6 +126,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   DateTime? _lastSyncedAt;
   bool _hasSeenRefreshHint = false;
   bool _refreshHintPrefLoaded = false;
+  bool _skuExpanded = false;
 
   /// Tracks the single field currently flagged as invalid so we can highlight
   /// it in red and scroll it into view. Cleared when the user edits the field
@@ -422,6 +424,9 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     final costRaw = p['costPrice'] ?? p['cost_price'] ?? p['cost'];
     _costPrice.text = costRaw == null ? '' : _moneyToKes(costRaw);
     _sku.text = _asString(p['sku'] ?? p['code'], fallback: _sku.text);
+    if (_sku.text.trim().isNotEmpty) {
+      _skuExpanded = true;
+    }
     final stock = p['stock'] ??
         p['stockQuantity'] ??
         p['stock_quantity'] ??
@@ -532,14 +537,10 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       }
     } catch (e) {
       if (mounted) {
-        final friendlyMessage =
-            e is DioException && e.response?.statusCode == 401
-                ? 'Session expired. Please sign in again.'
-                : e.toString();
         setState(() {
           _isLiveData = false;
           _isLoadingRemote = false;
-          _dataSourceError = friendlyMessage;
+          _dataSourceError = apiErrorMessage(e);
         });
       }
     }
@@ -554,7 +555,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       if (!mounted) return;
       if (attrsAsync.hasError) {
         _showVariantSetupRequired(
-          'Could not load product attributes: ${attrsAsync.error}',
+          'Could not load product attributes. ${apiErrorMessage(attrsAsync.error!)}',
         );
         return;
       }
@@ -1984,7 +1985,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       }
       if (e.message != null && e.message!.isNotEmpty) return e.message!;
     }
-    return e.toString();
+    return apiErrorMessage(e);
   }
 
   /// Pulls a friendly multi-line description out of a structured backend
@@ -2279,7 +2280,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not pick photo: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     }
   }
@@ -2347,6 +2348,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     _salePrice = TextEditingController();
     _costPrice = TextEditingController();
     _sku = TextEditingController(text: widget.initialSku ?? '');
+    _skuExpanded = (widget.initialSku ?? '').trim().isNotEmpty;
     _stock = TextEditingController();
     _remoteImageUrls.clear();
     _localImagePaths.clear();
@@ -2981,49 +2983,111 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                               ),
                             ),
                             const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _LabeledField(
-                                    label: 'SKU',
-                                    child: TextField(
-                                      controller: _sku,
-                                      style: theme.textTheme.bodyMedium
-                                          ?.copyWith(
-                                              fontWeight: FontWeight.w600),
-                                      decoration: _inventoryFieldDeco(theme,
-                                          hint: 'Auto if empty'),
-                                    ),
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () =>
+                                    setState(() => _skuExpanded = !_skuExpanded),
+                                borderRadius: BorderRadius.circular(10),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 6,
+                                    horizontal: 2,
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: KeyedSubtree(
-                                    key: _keyFor('stock'),
-                                    child: _LabeledField(
-                                      label: 'Stock',
-                                      child: TextField(
-                                        controller: _stock,
-                                        keyboardType: TextInputType.number,
-                                        enabled: !hasVariants,
-                                        onChanged: (_) =>
-                                            _clearErrorFor('stock'),
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(
-                                                fontWeight: FontWeight.w600),
-                                        decoration: _inventoryFieldDeco(
-                                          theme,
-                                          hint: hasVariants
-                                              ? 'Managed by variants'
-                                              : '0',
-                                          isInvalid: _isInvalid('stock'),
-                                          locked: hasVariants,
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Custom SKU (optional)',
+                                              style: theme
+                                                  .textTheme.labelLarge
+                                                  ?.copyWith(
+                                                color: theme.colorScheme
+                                                    .onSurfaceVariant,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            if (!_skuExpanded) ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                _sku.text.trim().isEmpty
+                                                    ? 'Leave collapsed to auto-generate on publish'
+                                                    : 'Using: ${_sku.text.trim()}',
+                                                style: theme
+                                                    .textTheme.bodySmall
+                                                    ?.copyWith(
+                                                  color: theme.colorScheme
+                                                      .onSurfaceVariant,
+                                                  height: 1.3,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                       ),
-                                    ),
+                                      AnimatedRotation(
+                                        turns: _skuExpanded ? 0.5 : 0,
+                                        duration:
+                                            const Duration(milliseconds: 180),
+                                        child: Icon(
+                                          Icons.keyboard_arrow_down_rounded,
+                                          color: theme
+                                              .colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ],
+                              ),
+                            ),
+                            AnimatedCrossFade(
+                              firstChild: const SizedBox.shrink(),
+                              secondChild: Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: _LabeledField(
+                                  label: 'SKU',
+                                  child: TextField(
+                                    controller: _sku,
+                                    style: theme.textTheme.bodyMedium
+                                        ?.copyWith(
+                                            fontWeight: FontWeight.w600),
+                                    decoration: _inventoryFieldDeco(theme,
+                                        hint: 'Auto if empty'),
+                                  ),
+                                ),
+                              ),
+                              crossFadeState: _skuExpanded
+                                  ? CrossFadeState.showSecond
+                                  : CrossFadeState.showFirst,
+                              duration: const Duration(milliseconds: 180),
+                              sizeCurve: Curves.easeOutCubic,
+                            ),
+                            const SizedBox(height: 12),
+                            KeyedSubtree(
+                              key: _keyFor('stock'),
+                              child: _LabeledField(
+                                label: 'Stock',
+                                child: TextField(
+                                  controller: _stock,
+                                  keyboardType: TextInputType.number,
+                                  enabled: !hasVariants,
+                                  onChanged: (_) => _clearErrorFor('stock'),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.w600),
+                                  decoration: _inventoryFieldDeco(
+                                    theme,
+                                    hint: hasVariants
+                                        ? 'Managed by variants'
+                                        : '0',
+                                    isInvalid: _isInvalid('stock'),
+                                    locked: hasVariants,
+                                  ),
+                                ),
+                              ),
                             ),
                             if (hasVariants) ...[
                               const SizedBox(height: 8),
@@ -3167,7 +3231,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                           _CardShell(
                             child: Padding(
                               padding: const EdgeInsets.all(16),
-                              child: Text('$error',
+                              child: Text(apiErrorMessage(error),
                                   style: theme.textTheme.bodySmall),
                             ),
                           ),
@@ -3319,7 +3383,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                       }
                                       if (async.hasError) {
                                         _showVariantSetupRequired(
-                                          'Could not load product attributes: ${async.error}',
+                                          'Could not load product attributes. ${apiErrorMessage(async.error!)}',
                                         );
                                         return;
                                       }
@@ -3870,6 +3934,22 @@ class _PriceField extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final errorColor = theme.colorScheme.error;
+    final idleOutline =
+        theme.colorScheme.outlineVariant.withValues(alpha: 0.7);
+    final enabledBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(
+        color: isInvalid ? errorColor : idleOutline,
+        width: isInvalid ? 1.5 : 1,
+      ),
+    );
+    final focusedBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(
+        color: isInvalid ? errorColor : theme.colorScheme.primary,
+        width: 1.5,
+      ),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -3882,41 +3962,30 @@ class _PriceField extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        Container(
-          decoration: BoxDecoration(
-            color: isInvalid
-                ? errorColor.withValues(alpha: 0.06)
-                : theme.colorScheme.surfaceContainerLowest,
-            borderRadius: BorderRadius.circular(10),
-            border:
-                isInvalid ? Border.all(color: errorColor, width: 1.5) : null,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 4,
-                offset: const Offset(0, 1),
-              ),
-            ],
+        TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          onChanged: onChanged,
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: accent,
+            fontWeight: FontWeight.w800,
           ),
-          child: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            onChanged: onChanged,
-            style: theme.textTheme.titleSmall?.copyWith(
+          decoration: InputDecoration(
+            hintText: hintText,
+            prefixText: 'KES ',
+            prefixStyle: theme.textTheme.labelLarge?.copyWith(
               color: accent,
               fontWeight: FontWeight.w800,
             ),
-            decoration: InputDecoration(
-              hintText: hintText,
-              prefixText: 'KES ',
-              prefixStyle: theme.textTheme.labelLarge?.copyWith(
-                color: accent,
-                fontWeight: FontWeight.w800,
-              ),
-              border: InputBorder.none,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            ),
+            filled: true,
+            fillColor: isInvalid
+                ? errorColor.withValues(alpha: 0.06)
+                : theme.colorScheme.surfaceContainerHighest,
+            border: enabledBorder,
+            enabledBorder: enabledBorder,
+            focusedBorder: focusedBorder,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           ),
         ),
       ],

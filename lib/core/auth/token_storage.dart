@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -5,6 +7,11 @@ final tokenStorageProvider = Provider<TokenStorage>((ref) => TokenStorage());
 
 class TokenStorage {
   static const _storage = FlutterSecureStorage();
+  static final StreamController<void> _sessionClearedController =
+      StreamController<void>.broadcast();
+
+  /// Fires when [clearTokens] runs (e.g. after a failed refresh on HTTP 401).
+  Stream<void> get sessionCleared => _sessionClearedController.stream;
   static const _accessTokenKey = 'access_token';
   static const _refreshTokenKey = 'refresh_token';
   static const _storeNameKey = 'store_name';
@@ -47,6 +54,9 @@ class TokenStorage {
     await _storage.delete(key: _storeUrlKey);
     await _storage.delete(key: _storeLogoUrlKey);
     await _storage.delete(key: _firstRunTutorialSeenKey);
+    if (!_sessionClearedController.isClosed) {
+      _sessionClearedController.add(null);
+    }
   }
 
   Future<void> saveStoreIdentity({

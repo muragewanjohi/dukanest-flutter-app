@@ -13,9 +13,11 @@ import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_response.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../../../core/auth/token_storage.dart';
 import '../../../core/providers/store_identity_provider.dart';
 import '../../../core/util/store_media_url.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
 import '../../dashboard/providers/dashboard_getting_started_provider.dart';
@@ -87,6 +89,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
   /// Snapshot after hydrate / successful save so we can skip redundant PATCHes.
   String _baselineFormSignature = '';
 
+  final ScrollController _scrollController = ScrollController();
+
   static const _businessTypeOptions = [
     'Retail',
     'Wholesale',
@@ -119,6 +123,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     _decimalPlaces.dispose();
     _thousandSeparator.dispose();
     _decimalSeparator.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -788,7 +793,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e')),
+          SnackBar(content: Text(apiErrorMessage(e))),
         );
       }
     } finally {
@@ -966,7 +971,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Request failed: $e')),
+          SnackBar(content: Text(apiErrorMessage(e))),
         );
       }
     }
@@ -1018,21 +1023,10 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       error: (err, _) => Scaffold(
         backgroundColor: AppTheme.surface,
         appBar: const DashboardAppBar(title: 'Store Settings'),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('$err', textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => ref.invalidate(dashboardSettingsProvider),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
+        body: ApiErrorView(
+          error: err,
+          title: 'Could not load store settings',
+          onRetry: () => ref.invalidate(dashboardSettingsProvider),
         ),
       ),
       data: (data) {
@@ -1052,8 +1046,15 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
         showDivider: true,
       ),
       body: ListView(
+        controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         children: [
+          _SectionCard(
+            theme: theme,
+            icon: Icons.branding_watermark_outlined,
+            title: 'Store Logo',
+            child: _buildLogoUploader(theme),
+          ),
           _SectionCard(
             theme: theme,
             icon: Icons.storefront_outlined,
@@ -1260,12 +1261,6 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                 ),
               ],
             ),
-          ),
-          _SectionCard(
-            theme: theme,
-            icon: Icons.branding_watermark_outlined,
-            title: 'Store Logo',
-            child: _buildLogoUploader(theme),
           ),
           _SectionCard(
             theme: theme,
@@ -1745,16 +1740,21 @@ class _SectionCard extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.child,
+    this.sectionKey,
+    this.highlighted = false,
   });
 
   final ThemeData theme;
   final IconData icon;
   final String title;
   final Widget child;
+  final Key? sectionKey;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
+      key: sectionKey,
       padding: const EdgeInsets.only(bottom: 16),
       child: Container(
         padding: const EdgeInsets.all(22),
@@ -1762,7 +1762,11 @@ class _SectionCard extends StatelessWidget {
           color: theme.colorScheme.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35)),
+            color: highlighted
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+            width: highlighted ? 2 : 1,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),

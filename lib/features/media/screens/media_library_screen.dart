@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../../../core/util/store_media_url.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
 import '../media_item.dart';
@@ -91,7 +92,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '$e';
+        _error = apiErrorMessage(e);
         _loading = false;
       });
     }
@@ -153,7 +154,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Update failed: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     } finally {
       titleCtrl.dispose();
@@ -195,7 +196,7 @@ class _MediaLibraryScreenState extends ConsumerState<MediaLibraryScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Delete failed: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     }
   }

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
 
 /// Lists and manages `GET/POST/DELETE /dashboard/analytics/scheduled-reports`.
@@ -62,7 +63,7 @@ class _ScheduledReportsScreenState
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '$e';
+        _error = apiErrorMessage(e);
         _loading = false;
       });
     }
@@ -98,7 +99,7 @@ class _ScheduledReportsScreenState
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not create: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     }
   }
@@ -137,7 +138,7 @@ class _ScheduledReportsScreenState
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not delete: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     }
   }

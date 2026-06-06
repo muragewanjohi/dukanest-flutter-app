@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 
 class FormsListScreen extends ConsumerStatefulWidget {
@@ -79,7 +80,7 @@ class _FormsListScreenState extends ConsumerState<FormsListScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '$e';
+        _error = apiErrorMessage(e);
         _loading = false;
       });
     }

@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../config/app_config.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../../../core/auth/token_storage.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
 import '../../../core/widgets/illustrated_empty_state.dart';
@@ -19,6 +20,7 @@ import '../data/attributes_repository.dart';
 import '../data/categories_repository.dart';
 import '../providers/attributes_list_provider.dart';
 import '../providers/categories_list_provider.dart';
+import '../providers/products_list_refresh_signal_provider.dart';
 
 /// Product catalog — Stitch: "Product Catalog (with Quick Actions)"
 /// Project DukaNest Tenant App Plan, screen 62433aa938834d55bc36fd5d1a134124.
@@ -29,7 +31,9 @@ typedef ProductListItem = ({
   String status,
   bool active,
   bool isDemo,
+  int stockNum,
   String stock,
+  bool stockOut,
   bool stockWarn,
   String price,
   String sku,
@@ -266,7 +270,13 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
         final stockNum = stockValue is num
             ? stockValue.toInt()
             : int.tryParse(stockValue.toString()) ?? 0;
+        final stockOut = stockNum <= 0;
         final stockWarn = stockNum > 0 && stockNum <= 5;
+        final stockLabel = stockOut
+            ? 'No stock'
+            : stockWarn
+                ? 'Low ($stockNum)'
+                : '$stockNum units';
         final statusRaw = (p['status'] ?? '').toString().toLowerCase();
         final active = statusRaw.isEmpty
             ? (p['isActive'] == true || p['active'] == true)
@@ -289,7 +299,9 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
           status: status,
           active: active,
           isDemo: isDemo,
-          stock: stockWarn ? 'Low ($stockNum)' : '$stockNum units',
+          stockNum: stockNum,
+          stock: stockLabel,
+          stockOut: stockOut,
           stockWarn: stockWarn,
           price: price,
           sku: sku,
@@ -326,7 +338,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
         _totalPages = 1;
         _totalItems = _products.length;
         _isLiveData = false;
-        _errorMessage = e.toString();
+        _errorMessage = apiErrorMessage(e);
         _isLoading = false;
       });
     }
@@ -353,9 +365,30 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
   String _categoryFor(ProductListItem product) =>
       product.meta.split('•').first.trim();
 
-  int _stockNumber(ProductListItem product) {
-    final match = RegExp(r'\d+').firstMatch(product.stock);
-    return match == null ? 0 : int.tryParse(match.group(0)!) ?? 0;
+  int _stockNumber(ProductListItem product) => product.stockNum;
+
+  int _stockAlertPriority(ProductListItem product) {
+    if (product.stockOut) return 0;
+    if (product.stockWarn) return 1;
+    return 2;
+  }
+
+  void _sortStockAlertsFirst(List<ProductListItem> items) {
+    items.sort((a, b) {
+      final alertCompare =
+          _stockAlertPriority(a).compareTo(_stockAlertPriority(b));
+      if (alertCompare != 0) return alertCompare;
+      if (_sortOption == _ProductsSortOption.lowStock) {
+        return _stockNumber(a).compareTo(_stockNumber(b));
+      }
+      if (_sortOption == _ProductsSortOption.highestPrice) {
+        return _priceNumber(b).compareTo(_priceNumber(a));
+      }
+      if (_sortOption == _ProductsSortOption.lowestPrice) {
+        return _priceNumber(a).compareTo(_priceNumber(b));
+      }
+      return 0;
+    });
   }
 
   double _priceNumber(ProductListItem product) {
@@ -387,20 +420,16 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
 
     switch (_sortOption) {
       case _ProductsSortOption.newest:
+        _sortStockAlertsFirst(filtered);
         return filtered;
       case _ProductsSortOption.lowStock:
-        filtered.sort((a, b) {
-          final warnCompare =
-              (b.stockWarn ? 1 : 0).compareTo(a.stockWarn ? 1 : 0);
-          if (warnCompare != 0) return warnCompare;
-          return _stockNumber(a).compareTo(_stockNumber(b));
-        });
+        _sortStockAlertsFirst(filtered);
         return filtered;
       case _ProductsSortOption.highestPrice:
-        filtered.sort((a, b) => _priceNumber(b).compareTo(_priceNumber(a)));
+        _sortStockAlertsFirst(filtered);
         return filtered;
       case _ProductsSortOption.lowestPrice:
-        filtered.sort((a, b) => _priceNumber(a).compareTo(_priceNumber(b)));
+        _sortStockAlertsFirst(filtered);
         return filtered;
     }
   }
@@ -679,7 +708,9 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                           status: nextStatus,
                           active: nextActive,
                           isDemo: old.isDemo,
+                          stockNum: old.stockNum,
                           stock: old.stock,
+                          stockOut: old.stockOut,
                           stockWarn: old.stockWarn,
                           price: old.price,
                           sku: old.sku,
@@ -708,7 +739,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                     } catch (e) {
                       if (rootContext.mounted) {
                         ScaffoldMessenger.of(rootContext).showSnackBar(
-                          SnackBar(content: Text('Status update failed: $e')),
+                          SnackBar(content: Text(apiErrorMessage(e))),
                         );
                       }
                     }
@@ -817,7 +848,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                                   ScaffoldMessenger.of(rootContext)
                                       .showSnackBar(
                                     SnackBar(
-                                        content: Text('Delete failed: $e')),
+                                        content: Text(apiErrorMessage(e))),
                                   );
                                 }
                               }
@@ -844,6 +875,12 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(productsListRefreshSignalProvider, (previous, next) {
+      if (previous == next) return;
+      _invalidateProductsCache();
+      unawaited(_loadProducts());
+    });
+
     final theme = Theme.of(context);
     final products = _products;
     final categoriesAsync = ref.watch(categoriesListProvider);
@@ -856,7 +893,9 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
     final activeProducts = _allProducts.where((p) => p.active).length;
     final totalStock =
         _allProducts.fold<int>(0, (sum, p) => sum + _stockNumber(p));
+    final outOfStockCount = _allProducts.where((p) => p.stockOut).length;
     final lowStockCount = _allProducts.where((p) => p.stockWarn).length;
+    final stockAlertCount = outOfStockCount + lowStockCount;
     final productCategoryNames =
         _allProducts.map(_categoryFor).where((c) => c.isNotEmpty).toSet();
     final categoryNames = <String>{
@@ -954,7 +993,9 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                 _ProductsSummaryCards(
                   totalProducts: totalProducts,
                   totalStock: totalStock,
+                  outOfStockCount: outOfStockCount,
                   lowStockCount: lowStockCount,
+                  stockAlertCount: stockAlertCount,
                 ),
                 const SizedBox(height: 14),
                 _StoreStructureSection(
@@ -1075,7 +1116,14 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                           'Adjust your search filters or add a new product.',
                     ),
                   )
-                else
+                else ...[
+                  if (stockAlertCount > 0) ...[
+                    _StockAlertsBanner(
+                      outOfStockCount: outOfStockCount,
+                      lowStockCount: lowStockCount,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   ...products.map(
                     (p) => Padding(
                       padding: const EdgeInsets.only(bottom: 16),
@@ -1093,6 +1141,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                       ),
                     ),
                   ),
+                ],
                 const SizedBox(height: 8),
                 Divider(
                     color: AppTheme.outlineVariant.withValues(alpha: 0.2),
@@ -1615,15 +1664,31 @@ class _ProductsSummaryCards extends StatelessWidget {
   const _ProductsSummaryCards({
     required this.totalProducts,
     required this.totalStock,
+    required this.outOfStockCount,
     required this.lowStockCount,
+    required this.stockAlertCount,
   });
 
   final int totalProducts;
   final int totalStock;
+  final int outOfStockCount;
   final int lowStockCount;
+  final int stockAlertCount;
+
+  String _alertsCaption() {
+    if (stockAlertCount == 0) return 'All stocked';
+    if (outOfStockCount > 0 && lowStockCount > 0) {
+      return '$outOfStockCount out • $lowStockCount low';
+    }
+    if (outOfStockCount > 0) {
+      return outOfStockCount == 1 ? 'Out of stock' : '$outOfStockCount out of stock';
+    }
+    return lowStockCount == 1 ? 'Low stock' : '$lowStockCount low stock';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final critical = outOfStockCount > 0;
     return Row(
       children: [
         Expanded(
@@ -1646,11 +1711,12 @@ class _ProductsSummaryCards extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: _ProductsSummaryCard(
-            label: 'Low Stock\nAlerts',
-            value: '$lowStockCount',
-            caption: lowStockCount == 0 ? 'All stocked' : 'Need restock',
+            label: 'Stock\nAlerts',
+            value: '$stockAlertCount',
+            caption: _alertsCaption(),
             icon: Icons.warning_amber_rounded,
-            alert: lowStockCount > 0,
+            alert: stockAlertCount > 0,
+            critical: critical,
           ),
         ),
       ],
@@ -1665,6 +1731,7 @@ class _ProductsSummaryCard extends StatelessWidget {
     required this.caption,
     required this.icon,
     this.alert = false,
+    this.critical = false,
   });
 
   final String label;
@@ -1672,22 +1739,27 @@ class _ProductsSummaryCard extends StatelessWidget {
   final String caption;
   final IconData icon;
   final bool alert;
+  final bool critical;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accent =
-        alert ? const Color(0xFFE68600) : theme.colorScheme.onSurfaceVariant;
+    final accent = alert
+        ? (critical ? const Color(0xFFDC2626) : const Color(0xFFE68600))
+        : theme.colorScheme.onSurfaceVariant;
     return Container(
       constraints: const BoxConstraints(minHeight: 88),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color:
-            alert ? const Color(0xFFFFFBEB) : AppTheme.surfaceContainerLowest,
+        color: alert
+            ? (critical ? const Color(0xFFFEF2F2) : const Color(0xFFFFFBEB))
+            : AppTheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: alert
-              ? const Color(0xFFFBBF24)
+              ? (critical
+                  ? const Color(0xFFF87171)
+                  : const Color(0xFFFBBF24))
               : AppTheme.outlineVariant.withValues(alpha: 0.35),
         ),
       ),
@@ -1702,7 +1774,9 @@ class _ProductsSummaryCard extends StatelessWidget {
                   label,
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: alert
-                        ? const Color(0xFFB45309)
+                        ? (critical
+                            ? const Color(0xFFB91C1C)
+                            : const Color(0xFFB45309))
                         : theme.colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w700,
                     height: 1.1,
@@ -2137,6 +2211,12 @@ class _CatalogProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final inactive = !product.active;
+    final hasStockAlert = product.stockOut || product.stockWarn;
+    final critical = product.stockOut;
+    final alertColor =
+        critical ? const Color(0xFFDC2626) : const Color(0xFFD97706);
+    final alertBg =
+        critical ? const Color(0xFFFEF2F2) : const Color(0xFFFFFBEB);
     final titleStyle = GoogleFonts.plusJakartaSans(
       fontSize: 16,
       fontWeight: FontWeight.w800,
@@ -2148,8 +2228,13 @@ class _CatalogProductCard extends StatelessWidget {
       child: Material(
         color: inactive
             ? AppTheme.surfaceContainerLowest.withValues(alpha: 0.65)
-            : AppTheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(12),
+            : (hasStockAlert ? alertBg : AppTheme.surfaceContainerLowest),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: hasStockAlert && !inactive
+              ? BorderSide(color: alertColor.withValues(alpha: 0.45), width: 1.5)
+              : BorderSide.none,
+        ),
         elevation: 0,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
@@ -2178,6 +2263,13 @@ class _CatalogProductCard extends StatelessWidget {
                                 color: AppTheme.onSurfaceVariant,
                               ),
                             ),
+                            if (hasStockAlert && !inactive) ...[
+                              const SizedBox(height: 8),
+                              _StockAlertChip(
+                                label: product.stockOut ? 'No stock' : 'Low stock',
+                                critical: critical,
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -2188,6 +2280,7 @@ class _CatalogProductCard extends StatelessWidget {
                           label: 'STOCK',
                           value: product.stock,
                           warn: product.stockWarn,
+                          critical: product.stockOut,
                           theme: theme),
                       const SizedBox(width: 32),
                       _MetricColumn(
@@ -2237,6 +2330,14 @@ class _CatalogProductCard extends StatelessWidget {
                                     color: AppTheme.onSurfaceVariant,
                                   ),
                                 ),
+                                if (hasStockAlert && !inactive) ...[
+                                  const SizedBox(height: 8),
+                                  _StockAlertChip(
+                                    label:
+                                        product.stockOut ? 'No stock' : 'Low stock',
+                                    critical: critical,
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -2250,6 +2351,7 @@ class _CatalogProductCard extends StatelessWidget {
                               label: 'STOCK',
                               value: product.stock,
                               warn: product.stockWarn,
+                              critical: product.stockOut,
                               theme: theme,
                             ),
                           ),
@@ -2472,23 +2574,146 @@ class _ProductsDataSourceBadge extends StatelessWidget {
   }
 }
 
+class _StockAlertsBanner extends StatelessWidget {
+  const _StockAlertsBanner({
+    required this.outOfStockCount,
+    required this.lowStockCount,
+  });
+
+  final int outOfStockCount;
+  final int lowStockCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final critical = outOfStockCount > 0;
+    final bg = critical ? const Color(0xFFFEF2F2) : const Color(0xFFFFFBEB);
+    final border =
+        critical ? const Color(0xFFF87171) : const Color(0xFFFBBF24);
+    final iconColor =
+        critical ? const Color(0xFFDC2626) : const Color(0xFFD97706);
+    final textColor =
+        critical ? const Color(0xFF991B1B) : const Color(0xFF92400E);
+
+    final parts = <String>[];
+    if (outOfStockCount > 0) {
+      parts.add(
+        outOfStockCount == 1
+            ? '1 product has no stock'
+            : '$outOfStockCount products have no stock',
+      );
+    }
+    if (lowStockCount > 0) {
+      parts.add(
+        lowStockCount == 1
+            ? '1 product is low on stock'
+            : '$lowStockCount products are low on stock',
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, color: iconColor, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Stock alerts',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  parts.join(' • '),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: textColor.withValues(alpha: 0.9),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StockAlertChip extends StatelessWidget {
+  const _StockAlertChip({
+    required this.label,
+    required this.critical,
+  });
+
+  final String label;
+  final bool critical;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = critical ? const Color(0xFFFEE2E2) : const Color(0xFFFFEDD5);
+    final fg = critical ? const Color(0xFFB91C1C) : const Color(0xFFC2410C);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: GoogleFonts.inter(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.4,
+          color: fg,
+        ),
+      ),
+    );
+  }
+}
+
 class _MetricColumn extends StatelessWidget {
   const _MetricColumn({
     required this.label,
     required this.value,
     required this.warn,
     required this.theme,
+    this.critical = false,
     this.emphasize = false,
   });
 
   final String label;
   final String value;
   final bool warn;
+  final bool critical;
   final ThemeData theme;
   final bool emphasize;
 
   @override
   Widget build(BuildContext context) {
+    Color valueColor;
+    if (emphasize) {
+      valueColor = AppTheme.primaryDark;
+    } else if (critical) {
+      valueColor = const Color(0xFFDC2626);
+    } else if (warn) {
+      valueColor = const Color(0xFFD97706);
+    } else {
+      valueColor = theme.colorScheme.onSurface;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2497,7 +2722,11 @@ class _MetricColumn extends StatelessWidget {
           style: GoogleFonts.inter(
             fontSize: 10,
             fontWeight: FontWeight.w800,
-            color: theme.colorScheme.outline,
+            color: critical
+                ? const Color(0xFFDC2626).withValues(alpha: 0.75)
+                : warn
+                    ? const Color(0xFFD97706).withValues(alpha: 0.85)
+                    : theme.colorScheme.outline,
             letterSpacing: 0.4,
           ),
         ),
@@ -2507,11 +2736,7 @@ class _MetricColumn extends StatelessWidget {
           style: GoogleFonts.inter(
             fontSize: 14,
             fontWeight: emphasize ? FontWeight.w800 : FontWeight.w600,
-            color: emphasize
-                ? AppTheme.primaryDark
-                : (warn
-                    ? theme.colorScheme.error
-                    : theme.colorScheme.onSurface),
+            color: valueColor,
           ),
         ),
       ],

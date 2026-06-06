@@ -8,6 +8,7 @@ import 'package:dio/dio.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../providers/dashboard_settings_provider.dart';
 
@@ -118,6 +119,8 @@ Map<String, dynamic> _section(Map<String, dynamic> root, List<String> keys) {
 List<Map<String, dynamic>> _tumiziWalletSearchMaps(Map<String, dynamic> root) {
   final maps = <Map<String, dynamic>>[];
   for (final key in const [
+    'generalInfo',
+    'general_info',
     'wallet',
     'walletAccount',
     'wallet_account',
@@ -514,7 +517,7 @@ class TumiziGeneralInformationScreen extends ConsumerWidget {
       body: data.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => _TumiziErrorState(
-          message: '$e',
+          message: apiErrorMessage(e),
           onRetry: () => ref.invalidate(_tumiziMerchantProvider),
         ),
         data: (root) => _TumiziGeneralInformationBody(root: root),
@@ -531,6 +534,7 @@ class _TumiziGeneralInformationBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final merchant = _section(root, ['merchant', 'merchantInformation']);
+    final generalInfo = _section(root, ['generalInfo', 'general_info']);
     final organisation = _section(root, [
       'organisation',
       'organization',
@@ -540,7 +544,15 @@ class _TumiziGeneralInformationBody extends StatelessWidget {
     final wallet = _section(root, ['wallet', 'walletAccount']);
     final profile = _section(root, ['merchantProfile', 'profile']);
     final owner = _section(root, ['owner', 'ownerProfile']);
-    final sources = [root, merchant, organisation, wallet, profile, owner];
+    final sources = [
+      root,
+      generalInfo,
+      merchant,
+      organisation,
+      wallet,
+      profile,
+      owner,
+    ];
     final status =
         _pick([root, merchant], ['accountStatus', 'status', 'enabled']);
 
@@ -848,7 +860,7 @@ class _TumiziEditMerchantScreenState
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Save failed: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -864,7 +876,7 @@ class _TumiziEditMerchantScreenState
       body: data.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => _TumiziErrorState(
-          message: '$e',
+          message: apiErrorMessage(e),
           onRetry: () => ref.invalidate(_tumiziMerchantProvider),
         ),
         data: (root) {
@@ -978,7 +990,7 @@ class TumiziRefundsScreen extends ConsumerWidget {
       body: refunds.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => _TumiziErrorState(
-          message: '$e',
+          message: apiErrorMessage(e),
           onRetry: () => ref.invalidate(_tumiziRefundsProvider),
         ),
         data: (items) {
@@ -1818,7 +1830,7 @@ class _TumiziMpesaWithdrawalScreenState
       _showTumiziMessage(context, 'Withdrawal request submitted.');
     } catch (e) {
       if (!mounted) return;
-      _showTumiziMessage(context, 'Withdrawal failed: $e');
+      _showTumiziMessage(context, apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -1846,7 +1858,7 @@ class _TumiziMpesaWithdrawalScreenState
         backgroundColor: AppTheme.surface,
         appBar: const DashboardAppBar(title: 'M-Pesa withdrawal'),
         body: _TumiziErrorState(
-          message: '${wallet.error}',
+          message: apiErrorMessage(wallet.error!),
           onRetry: () {
             ref.invalidate(_tumiziWalletProvider);
             ref.invalidate(_tumiziMerchantProvider);

@@ -40,6 +40,10 @@ String? _routeFromStepId(String stepId) {
     case 'category':
     case 'categories':
       return '/categories';
+    case 'attributes':
+    case 'attribute':
+    case 'product_attributes':
+      return '/attributes/new';
     case 'hero_image':
     case 'hero_description':
     case 'hero':
@@ -95,6 +99,7 @@ String? _routeFromHref(String href) {
   }
   if (lower.contains('product')) return '/products';
   if (lower.contains('categor')) return '/categories';
+  if (lower.contains('attribute')) return '/attributes/new';
   if (lower.contains('sale')) return '/sales';
   if (lower.contains('content')) return '/content-management';
 

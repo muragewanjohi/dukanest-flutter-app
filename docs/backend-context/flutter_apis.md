@@ -24,7 +24,8 @@ Companion docs: [API_MULTI_STORE_CHANGES.md](./API_MULTI_STORE_CHANGES.md) (pagi
 4. **Cold start** — Call **`GET /auth/me`** with the access token to restore **`user`** + **`tenant`** context; use **`POST /auth/refresh`** when the access token expires.
 5. **After store registration** — On **`201`** from **`POST /auth/register`**, read **`data.loginUrl`** (see [API_MULTI_STORE_CHANGES.md](./API_MULTI_STORE_CHANGES.md) § *Post-registration redirect*). Open it in a browser or in-app WebView when you want the merchant to use the web dashboard login on the tenant host. For an in-app API-only session, ignore **`loginUrl`** and call **`POST /auth/login`** with the same email/password as usual.
 6. **If the merchant chooses Tumizi during mobile onboarding** — First complete registration, then login and use the returned `accessToken`. Call **`POST /api/v1/mobile/dashboard/tumizi/settings`** with `{ "enabled": true, "createMerchantIfMissing": true }`, then optionally call **`PATCH /api/v1/mobile/dashboard/settings`** to set `payment.tumiziEnabled: true` and `payment.paymentMethod: "tumizi"`.
-7. **Tumizi orders** — Customers pay on the **web storefront**, not in Flutter. The app only manages those orders; do not manually set `payment_status` for `payment_gateway: "tumizi"`. See **[Tumizi orders (merchant app)](#tumizi-orders-merchant-app)**.
+7. **Referral at signup** — Optional field **`referrerSubdomain`** on **`POST /auth/register`** (friend’s store subdomain). No separate referral-submit API. After login, use **`GET /dashboard/referrals`** or overview `referrals` for the merchant’s own share link. See **[Referral program](#referral-program-signup--dashboard)**.
+8. **Tumizi orders** — Customers pay on the **web storefront**, not in Flutter. The app only manages those orders; do not manually set `payment_status` for `payment_gateway: "tumizi"`. See **[Tumizi orders (merchant app)](#tumizi-orders-merchant-app)**.
 
 ---
 
@@ -35,7 +36,7 @@ These paths are relative to **`/api/v1/mobile`** (full URL example: `https://www
 | Method | Path | Notes |
 |--------|------|--------|
 | POST | `/auth/login` | Email/password; MFA flow per response |
-| POST | `/auth/register` | Same body as tenant register; **`data.loginUrl`** points at tenant **`/dashboard/login`** after **201** — see [API_MULTI_STORE_CHANGES.md](./API_MULTI_STORE_CHANGES.md) § *Post-registration redirect* |
+| POST | `/auth/register` | Same body as tenant register (incl. optional **`referrerSubdomain`**); **`data.loginUrl`** after **201** — see [API_MULTI_STORE_CHANGES.md](./API_MULTI_STORE_CHANGES.md) § *Store registration* |
 | POST | `/auth/google` | Google `idToken` (+ `accessToken` if required) |
 | POST | `/auth/refresh` | Rotate session |
 | POST | `/auth/logout` | Invalidate server-side session if applicable |
@@ -44,7 +45,7 @@ These paths are relative to **`/api/v1/mobile`** (full URL example: `https://www
 | POST | `/auth/mfa/status` | MFA status |
 | POST | `/auth/mfa/verify` | Complete MFA |
 | GET | `/auth/me` | Session restore: `user` + `tenant` (dashboard roles); landlord returns `tenant: null` |
-| GET | `/dashboard/overview` | Metrics + recent orders *(checklist: use **`/dashboard/getting-started`**) |
+| GET | `/dashboard/overview` | Metrics + recent orders + `subscription` + `referrals` summary (`shareSubdomain`, `referralLink`) *(checklist: use **`/dashboard/getting-started`**)* |
 | GET | `/dashboard/getting-started` | On **`items[]`** with `id`, `completed`, `progressPercent`, `storeUrl`, … |
 | POST | `/dashboard/getting-started` | Body `{ "action": "preview_done" \| "share_done" }` → persists flags (see below) |
 | GET | `/dashboard/reward-checklist` | Separate **reward** checklist — window + bonus days come from the tenant's **`price_plans`** row (see [Reward checklist](#reward-checklist-earn-1-month-free)) |
@@ -52,8 +53,9 @@ These paths are relative to **`/api/v1/mobile`** (full URL example: `https://www
 | GET | `/dashboard/orders/:id` | Order detail + line items |
 | PATCH | `/dashboard/orders/:id` | `status`, optional `notes`, tracking; **`payment_status` only when `payment_gateway` ≠ `tumizi`** (see [Tumizi orders](#tumizi-orders-merchant-app)) |
 | POST | `/dashboard/orders/:id/cancel` | Cancel order; body `{ reason, refund?, notes? }` — restores stock |
-| GET | `/dashboard/subscription` | Plans, usage, limits, trial/renewal, PesaPal config |
-| GET | `/dashboard/subscription/billing` | Billing history + plan dates |
+| GET | `/dashboard/subscription` | Full subscription snapshot (plans catalog, usage progress, access restrictions, renew/pay CTAs) |
+| GET | `/dashboard/referrals` | Referral subdomain, referral counts, rewarded months |
+| GET | `/dashboard/subscription/billing` | Billing history + renewal flags + dual-currency plan price |
 | POST | `/dashboard/subscription/activate` | Upgrade / schedule downgrade / trial activation (**admin**) |
 | POST | `/dashboard/subscription/mpesa/initiate` | STK push for plan payment (**admin**) |
 | GET | `/dashboard/subscription/mpesa/status` | Poll STK; `checkoutRequestId` query param |
@@ -148,9 +150,9 @@ These paths are relative to **`/api/v1/mobile`** (full URL example: `https://www
 | POST | `/dashboard/settings/delete-account` | Account deletion |
 | GET | `/dashboard/tumizi/settings` | Tumizi integration config snapshot |
 | POST | `/dashboard/tumizi/settings` | Enable/disable Tumizi; can create merchant if missing; **`tenant_admin` only** |
-| GET | `/dashboard/tumizi/merchant` | Tumizi merchant + wallet snapshot (`tenant_admin` + `tenant_staff`) |
+| GET | `/dashboard/tumizi/merchant` | Merchant + normalized `walletAccountNumber`, `availableBalance`, `generalInfo` |
 | PATCH | `/dashboard/tumizi/merchant` | Update Tumizi merchant/owner/wallet fields; **`tenant_admin` only** |
-| GET | `/dashboard/tumizi/wallet` | Wallet balance, withdrawal limits/charges, recent withdrawals |
+| GET | `/dashboard/tumizi/wallet` | Live wallet: `walletAccountNumber`, `availableBalance`, max withdrawable, recent withdrawals |
 | POST | `/dashboard/tumizi/wallet/withdrawals` | Request wallet withdrawal to Kenya M-Pesa; **`tenant_admin` only** |
 | GET | `/dashboard/tumizi/refunds` | Tumizi refund log |
 | GET | `/notifications/list` | In-app notifications |
@@ -196,11 +198,48 @@ Clear the logo with `{ "store": { "logo": null } }` or `{ "store": { "logo": "" 
 
 **Tumizi (M-Pesa via Tumizi) — web vs mobile:** Web exposes Tumizi under **Settings → Payments** (`payment_tumizi_enabled`, default method `tumizi`) and **Settings → Tumizi** (`/api/tumizi/settings`, `/api/tumizi/merchant`, wallet, refunds). Mobile `GET/PATCH /dashboard/settings` includes Tumizi payment parity fields (`payment.tumiziEnabled`, `payment.paymentMethod`, and `payment.defaultMethod` supports `tumizi`). Native mobile Tumizi screens should use the Bearer-token routes under `/api/v1/mobile/dashboard/tumizi/*`; Flutter must never store or send the Tumizi partner API key. **Order payment verification** for Tumizi is automatic — see **[Tumizi orders (merchant app)](#tumizi-orders-merchant-app)**. Settings/wallet parity: **[TUMIZI_MOBILE_AND_SETTINGS.md](./tumizi/TUMIZI_MOBILE_AND_SETTINGS.md)**.
 
+### Referral program (signup + dashboard)
+
+**Entering a friend’s referral code (new store signup)**
+
+| | |
+|--|--|
+| **When** | During **`POST /auth/register`** only (not after the store exists) |
+| **Field** | `referrerSubdomain` (optional string) — the referring merchant’s **shop subdomain**, e.g. `janes-boutique` |
+| **Web equivalent** | Register page “Who referred you?” field or `?ref=janes-boutique` on `/register` |
+| **Validation** | Same rules as `subdomain` (lowercase, 3–63 chars, `a-z0-9-`). Invalid/self-referral is ignored; registration still returns **201** |
+
+```json
+{
+  "name": "My Store",
+  "subdomain": "my-store",
+  "adminEmail": "owner@example.com",
+  "adminPassword": "your-strong-password",
+  "adminPhone": "+254712345678",
+  "adminPhoneCountry": "KE",
+  "authProvider": "email",
+  "referrerSubdomain": "janes-boutique"
+}
+```
+
+Deep link idea for mobile: open signup with a stored referrer value and send it as `referrerSubdomain` (web uses `?ref=`).
+
+**Viewing own referral rewards (existing merchant)**
+
+| Method | Path | Notes |
+|--------|------|--------|
+| GET | `/dashboard/referrals` | Summary + referred friends list |
+| GET | `/dashboard/overview` | `data.referrals` includes `shareSubdomain`, `referralLink`, counts |
+
+Share link format (same as web): `{marketingHost}/register?ref={shareSubdomain}`.
+
+---
+
 ### Mobile registration + Tumizi onboarding flow
 
 If the merchant selects Tumizi during the mobile registration/onboarding flow:
 
-1. Register the store with **`POST /api/v1/mobile/auth/register`**.
+1. Register the store with **`POST /api/v1/mobile/auth/register`** (add **`referrerSubdomain`** here if the user was referred).
 2. Login with **`POST /api/v1/mobile/auth/login`** and store `data.accessToken`.
 3. Enable/provision Tumizi with **`POST /api/v1/mobile/dashboard/tumizi/settings`**:
 
@@ -756,7 +795,7 @@ Public (non-mobile base): `GET /api/tenants/check-subdomain`, `POST /api/tenants
 
 | Status | Method | Path | Purpose | Flutter surface |
 |--------|--------|------|---------|-----------------|
-| Exists | GET | `/dashboard/overview` | Metrics, recent orders, **subscription/trial** snapshot | `DashboardScreen` |
+| Exists | GET | `/dashboard/overview` | Metrics, recent orders, **subscription/trial** + `referrals` snapshot (`shareSubdomain`, `referralLink`) | `DashboardScreen` |
 | Exists | GET | `/dashboard/analytics` | Metrics for last `days` (query `days`, 1–365, default 30) | `AnalyticsScreen` |
 | Exists | GET | `/dashboard/analytics/pnl` | P&L summary (`start_date` / `end_date` or camelCase) | Finance tab |
 | Exists | GET | `/dashboard/analytics/:segment` | Web-parity analytics (see table below) | Analytics sub-screens |
@@ -1417,22 +1456,91 @@ Writes blocked when subscription expired (`canEditData`).
 
 ### Subscription & billing
 
+Mirror the **web** dashboard subscription page: four sections — **Overview**, **Usage & limits**, **Plans & pricing**, **Billing history** — plus grace-period banners and pay/renew CTAs.
+
 | Status | Method | Path | Purpose | Flutter surface |
 |--------|--------|------|---------|-----------------|
-| Exists | GET | `/dashboard/subscription` | Plans, usage, limits, trial/renewal, PesaPal config | `SubscriptionScreen` |
-| Exists | GET | `/dashboard/subscription/billing` | Billing history + plan dates | Billing tab |
-| Exists | POST | `/dashboard/subscription/activate` | **Admin** — upgrade/trial or schedule downgrade | Plan change without payment |
-| Exists | POST | `/dashboard/subscription/mpesa/initiate` | **Admin** — STK `{ planId, phoneNumber }` | M-Pesa checkout |
-| Exists | GET | `/dashboard/subscription/mpesa/status` | Poll `checkoutRequestId` | After STK |
-| Exists | GET | `/dashboard/subscription/pesapal/config` | Yearly discount % | PesaPal UI |
-| Exists | POST | `/dashboard/subscription/pesapal/initiate` | **Admin** — returns `redirectUrl` | WebView checkout |
+| Exists | GET | `/dashboard/subscription` | Full snapshot — see below | `SubscriptionScreen` (all tabs) |
+| Exists | GET | `/dashboard/referrals` | Referral subdomain + referral progress summary | `ReferralScreen` / loyalty section |
+| Exists | GET | `/dashboard/subscription/billing` | Billing history + renewal flags | Billing tab (or lazy-load) |
+| Exists | POST | `/dashboard/subscription/activate` | **Admin** — free activation / schedule downgrade | Downgrade confirm, free plans |
+| Exists | POST | `/dashboard/subscription/mpesa/initiate` | **Admin** — STK `{ planId, phoneNumber }` | M-Pesa checkout (Kenya) |
+| Exists | GET | `/dashboard/subscription/mpesa/status` | Poll `?checkoutRequestId=` | After STK |
+| Exists | GET | `/dashboard/subscription/pesapal/config` | Yearly discount % (public) | Payment sheet |
+| Exists | POST | `/dashboard/subscription/pesapal/initiate` | **Admin** — returns `redirectUrl` | PesaPal WebView |
 
-**Paid upgrade:** M-Pesa → initiate + poll status until `completed`, then refresh `GET /dashboard/subscription`. PesaPal → open `redirectUrl`, refresh after callback. **Downgrade:** `POST …/activate` only.
+**Roles:** `tenant_staff` and `tenant_admin` can **view** subscription + billing. Only **`tenant_admin`** can activate plans or initiate payment.
 
-Exact split between one coarse `PATCH /dashboard/settings` vs fine-grained routes can follow the web dashboard’s API shape; the Flutter app mainly needs **real read/write** instead of demo snackbars.
+**Plan catalog:** `availablePlans` lists **every** `price_plans` row with `status: active` (same as web). If the tenant current plan is inactive, it is still included so the UI never shows an empty catalog when a plan is assigned.
 
 ---
 
+#### `GET /dashboard/subscription` — primary screen payload
+
+```http
+GET /api/v1/mobile/dashboard/subscription
+Authorization: Bearer <token>
+```
+
+**Key `data` fields (camelCase):**
+
+| Field | Web parity / Flutter use |
+|-------|--------------------------|
+| `summary` | Top summary card (plan name, price, renewal date, status) |
+| `currentPlan` | Resolved monthly price in tenant currency (`price`, `currencySymbol`) |
+| `availablePlans[]` | Plan cards; each has `changeType`, `featureHighlights`, `isCurrentPlan`, `isFree` |
+| `usage` / `usageDetails[]` | Usage tab progress bars (`percentage`, `nearLimit`, `atLimit`, `unlimited`) |
+| `planLimits` | `maxProducts`, `maxOrders`, `maxPages`, `maxBlogs`, `maxCustomers`, `maxStorageMb` |
+| `accessRestriction` | Banner when `level` is `read-only` or `restricted` |
+| `needsRenewalPayment` | Show **Pay now** / **Renew now** when true (expired or <=7 days left) |
+| `isExpired`, `isExpiringSoon`, `inTrial`, `daysUntilRenewal` | Status chips and countdown |
+| `scheduledDowngrade` | `{ fromPlanName, toPlanName, effectiveDate }` when downgrade scheduled |
+| `capabilities.paymentMethods` | Kenya: `mpesa` + `pesapal`; otherwise `pesapal` only |
+| `pesapal.yearlyDiscountPercent` | Yearly billing discount in payment sheet |
+
+**`availablePlans[].changeType`:** `upgrade` (paid checkout), `downgrade` (confirm + POST activate), `same` (current plan button disabled), `activation` (no current plan).
+
+**Status badges** — map `accessRestriction.level`:
+
+| `level` | Badge |
+|---------|-------|
+| `full` | Active (green) |
+| `read-only` | Expired grace period (yellow) |
+| `restricted` | Suspended (red) |
+| `blocked` | Deleted |
+
+When `summary.statusLabel` is `expired_grace_period`, show grace banner even if `subscriptionStatus` is still `active`.
+
+**Flutter layout (match web tabs):**
+
+1. Summary card from `summary` + `daysUntilRenewal` badge when `isExpiringSoon`.
+2. Access banner when `accessRestriction.level != full` with **Renew now**.
+3. Renewal CTA when `needsRenewalPayment`.
+4. Tabs: Overview, Usage & limits (`usageDetails`), Plans (`availablePlans`), Billing (`GET …/billing`).
+
+---
+
+#### `GET /dashboard/subscription/billing`
+
+Returns `billingHistory[]` plus `needsRenewalPayment`, `isExpired`, `isExpiringSoon`, `daysUntilRenewal`, and dual-currency `currentPlan` (`price`, `priceUsd`, `priceKes`, `currencySymbol`). Show pay/renew row at top when `needsRenewalPayment` is true.
+
+---
+
+#### Payment flows (**tenant_admin** only)
+
+**PesaPal:** `POST …/pesapal/initiate` body `{ planId, billingInterval: monthly|yearly }` → open `data.redirectUrl` in WebView → refresh `GET /dashboard/subscription`.
+
+**M-Pesa (Kenya):** `POST …/mpesa/initiate` body `{ planId, phoneNumber }` → poll `GET …/mpesa/status?checkoutRequestId=` until `status: completed`.
+
+**Downgrade / free:** `POST …/activate` body `{ planId }` — response `changeType`, `effectiveDate` for scheduled downgrades.
+
+**Grace period:** Payment allowed (`canPayForSubscription`); plan activation blocked until renewed (`canActivatePlans` false when read-only).
+
+Use **`GET /dashboard/overview`** → `data.subscription` for home trial banner only; use **`GET /dashboard/subscription`** for the full screen.
+
+**Paid upgrade:** M-Pesa → initiate + poll until completed, then refresh. PesaPal → WebView + refresh. **Downgrade:** `POST …/activate` only.
+
+---
 ### Categories & attributes (catalog structure)
 
 | Status | Method | Path | Purpose | Flutter surface |

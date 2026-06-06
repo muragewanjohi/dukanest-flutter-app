@@ -25,6 +25,11 @@ void main() {
           rewardStepRoute(_step(stepId: 'hero_image')), '/hero-section/edit');
       expect(rewardStepRoute(_step(stepId: 'products_five')), '/products');
       expect(rewardStepRoute(_step(stepId: 'categories_two')), '/categories');
+      expect(rewardStepRoute(_step(stepId: 'attributes')), '/attributes/new');
+      expect(
+        rewardStepRoute(_step(stepId: 'product_attributes')),
+        '/attributes/new',
+      );
       expect(rewardStepRoute(_step(stepId: 'sale_active')), '/sales');
       expect(
         rewardStepRoute(_step(stepId: 'split_layout_image')),

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 
 /// Bottom sheet for `POST /dashboard/inventory/adjust`.
 ///
@@ -136,7 +137,7 @@ class _AdjustStockSheetBodyState extends State<_AdjustStockSheetBody> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not adjust: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _submitting = false);

@@ -232,9 +232,13 @@ POST /api/tenants/register
   "adminPassword": "SecurePassword123!",
   "adminName": "Store Admin",
   "contactEmail": "contact@mystore.com",
-  "planId": "uuid" // Optional
+  "planId": "uuid", // Optional
+  "referrerSubdomain": "friend-store", // Optional — referring merchant's shop subdomain
+  "billingCountry": "KE" // Optional — ISO 2-letter; affects subscription currency (KE → KES prices)
 }
 ```
+
+**Mobile:** Same body on `POST /api/v1/mobile/auth/register` (mobile `{ success, data }` envelope). See `docs/API_MULTI_STORE_CHANGES.md` and `docs/flutter_apis.md`.
 
 **Response:**
 ```json

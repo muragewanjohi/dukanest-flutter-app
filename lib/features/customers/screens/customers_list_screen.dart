@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
 
 class _CustomerRow {
@@ -144,7 +145,7 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = apiErrorMessage(e);
         _loading = false;
       });
     }
@@ -231,7 +232,7 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _exporting = false);

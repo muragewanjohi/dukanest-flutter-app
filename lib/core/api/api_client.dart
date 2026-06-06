@@ -338,14 +338,12 @@ class ApiClient {
   }
 
   Future<ApiResponse<dynamic>> getDashboardSettings() async {
-    final response = await _dio.get('/dashboard/settings');
-    return ApiResponse.fromJson(response.data, (json) => json);
+    return dioGetEnvelope(_dio, '/dashboard/settings');
   }
 
   Future<ApiResponse<dynamic>> patchDashboardSettings(
       Map<String, dynamic> body) async {
-    final response = await _dio.patch('/dashboard/settings', data: body);
-    return ApiResponse.fromJson(response.data, (json) => json);
+    return dioPatchEnvelope(_dio, '/dashboard/settings', data: body);
   }
 
   Future<ApiResponse<dynamic>> getTumiziSettings() async {
@@ -388,8 +386,7 @@ class ApiClient {
   }
 
   Future<ApiResponse<dynamic>> getDeliveryZones() async {
-    final response = await _dio.get('/dashboard/delivery-zones');
-    return ApiResponse.fromJson(response.data, (json) => json);
+    return dioGetEnvelope(_dio, '/dashboard/delivery-zones');
   }
 
   Future<ApiResponse<dynamic>> createDeliveryZone(
@@ -678,6 +675,10 @@ class ApiClient {
 
   Future<ApiResponse<dynamic>> getSubscription() async {
     return dioGetEnvelope(_dio, '/dashboard/subscription');
+  }
+
+  Future<ApiResponse<dynamic>> getDashboardReferrals() async {
+    return dioGetEnvelope(_dio, '/dashboard/referrals');
   }
 
   Future<ApiResponse<dynamic>> getSubscriptionBilling() async {
@@ -1058,6 +1059,10 @@ class ApiClient {
     final response = await _dio.get(
       '/dashboard/analytics/$segment',
       queryParameters: queryParameters,
+      options: Options(
+        receiveTimeout: const Duration(seconds: 45),
+        sendTimeout: const Duration(seconds: 45),
+      ),
     );
     return ApiResponse.fromJson(response.data, (json) => json);
   }

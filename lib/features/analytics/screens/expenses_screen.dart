@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
+import '../models/expense_category.dart';
 
 class ExpensesScreen extends ConsumerStatefulWidget {
   const ExpensesScreen({super.key});
@@ -19,7 +21,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   static const _pageSize = 20;
 
   List<Map<String, dynamic>> _items = [];
-  List<_LoadedExpenseCategory> _apiCategories = [];
+  List<ExpenseCategory> _apiCategories = [];
   int _page = 1;
   int _totalPages = 1;
   int _totalItems = 0;
@@ -52,38 +54,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       if (!r.success) {
         throw StateError(r.error?.message ?? 'Failed to load categories');
       }
-      final payload = r.data;
-      final root =
-          payload is Map<String, dynamic> ? payload : <String, dynamic>{};
-      final nested = root['data'];
-      final bag = nested is Map<String, dynamic>
-          ? nested
-          : nested is Map
-              ? Map<String, dynamic>.from(nested)
-              : root;
-      final raw = bag['items'] ?? root['items'];
-      final list = raw is List
-          ? raw
-              .whereType<Map>()
-              .map((e) => Map<String, dynamic>.from(e))
-              .toList()
-          : <Map<String, dynamic>>[];
-      final mapped = list
-          .map((row) {
-            final id = '${row['id'] ?? row['_id'] ?? ''}'.trim();
-            final name = '${row['name'] ?? row['title'] ?? 'Category'}'.trim();
-            final label = id.isEmpty ? name : name;
-            final safeId = id.isNotEmpty ? id : '${row['slug'] ?? ''}'.trim();
-            return _LoadedExpenseCategory(
-              id: safeId,
-              label: label.isEmpty ? 'Category' : label,
-            );
-          })
-          .where((c) => c.id.isNotEmpty)
-          .toList();
       if (!mounted) return;
       setState(() {
-        _apiCategories = mapped;
+        _apiCategories = parseExpenseCategoryList(r.data);
         _categoriesLoading = false;
       });
     } catch (_) {
@@ -95,7 +68,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     }
   }
 
-  Future<void> _openCreateCategoryDialog() async {
+  Future<ExpenseCategory?> _createCategoryViaDialog() async {
     final nameCtrl = TextEditingController();
     final slugCtrl = TextEditingController();
     final ok = await showDialog<bool>(
@@ -130,16 +103,12 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
         ],
       ),
     );
-    if (ok != true || !mounted) {
-      nameCtrl.dispose();
-      slugCtrl.dispose();
-      return;
-    }
     final name = nameCtrl.text.trim();
     final slug = slugCtrl.text.trim();
     nameCtrl.dispose();
     slugCtrl.dispose();
-    if (name.isEmpty) return;
+
+    if (ok != true || !mounted || name.isEmpty) return null;
     try {
       final body = <String, dynamic>{
         'name': name,
@@ -149,15 +118,32 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       if (!r.success) {
         throw StateError(r.error?.message ?? 'Create failed');
       }
-      if (!mounted) return;
+      final created = parseExpenseCategoryFromCreateResponse(r.data);
+      if (!mounted) return null;
+      await _loadCategories();
+      if (created != null && created.id.isNotEmpty) return created;
+      for (final c in _apiCategories) {
+        if (c.name == name) return c;
+      }
+      return null;
+    } catch (e) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e is StateError ? e.message : 'Could not create category',
+          ),
+        ),
+      );
+      return null;
+    }
+  }
+
+  Future<void> _openCreateCategoryDialog() async {
+    final created = await _createCategoryViaDialog();
+    if (created != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Category created')),
-      );
-      await _loadCategories();
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not create category')),
       );
     }
   }
@@ -278,6 +264,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       builder: (ctx) => _ExpenseFormSheet(
         expense: expense,
         categories: _apiCategories,
+        onCreateCategory: _createCategoryViaDialog,
       ),
     );
     if (result == null || !mounted) return;
@@ -378,19 +365,10 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   }
 
   String _categoryLabelForExpense(Map<String, dynamic> expense) {
-    final cid = _pickString(expense, const ['category_id', 'categoryId']);
-    if (cid.isNotEmpty) {
-      for (final c in _apiCategories) {
-        if (c.id == cid) return c.label;
-      }
-    }
-    final nested = expense['category'];
-    if (nested is Map && nested['name'] != null) {
-      return '${nested['name']}'.trim();
-    }
-    final legacySlug = _pickString(expense, const ['category'], fallback: '');
-    if (legacySlug.isNotEmpty) return legacySlug;
-    return 'Uncategorized';
+    return expenseCategoryLabelFromExpense(
+      expense,
+      categories: _apiCategories,
+    );
   }
 
   double get _visibleTotal => _items.fold<double>(
@@ -480,6 +458,13 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
               subtitle:
                   'Track costs that reduce net profit, from ads to packaging.',
               actions: [
+                IconButton(
+                  tooltip: 'Manage categories',
+                  onPressed: _categoriesLoading
+                      ? null
+                      : () => context.push('/analytics/expense-categories'),
+                  icon: const Icon(Icons.category_outlined),
+                ),
                 IconButton(
                   tooltip: 'New category',
                   onPressed:
@@ -624,16 +609,6 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       ),
     );
   }
-}
-
-class _LoadedExpenseCategory {
-  const _LoadedExpenseCategory({
-    required this.id,
-    required this.label,
-  });
-
-  final String id;
-  final String label;
 }
 
 class _ExpensesSummaryCard extends StatelessWidget {
@@ -952,10 +927,12 @@ class _ExpenseFormSheet extends StatefulWidget {
   const _ExpenseFormSheet({
     required this.categories,
     this.expense,
+    this.onCreateCategory,
   });
 
-  final List<_LoadedExpenseCategory> categories;
+  final List<ExpenseCategory> categories;
   final Map<String, dynamic>? expense;
+  final Future<ExpenseCategory?> Function()? onCreateCategory;
 
   @override
   State<_ExpenseFormSheet> createState() => _ExpenseFormSheetState();
@@ -966,6 +943,7 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
   late final TextEditingController _taxAmount;
   late final TextEditingController _reference;
   late final TextEditingController _notes;
+  late List<ExpenseCategory> _categories;
   late String _categoryId;
   late String _paymentMethod;
   late DateTime _date;
@@ -976,6 +954,7 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
   @override
   void initState() {
     super.initState();
+    _categories = List<ExpenseCategory>.from(widget.categories);
     final expense = widget.expense ?? const <String, dynamic>{};
     _amount = TextEditingController(text: _moneyText(expense['amount']));
     _taxAmount = TextEditingController(
@@ -985,10 +964,10 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
     );
     _notes = TextEditingController(text: _string(expense['notes']));
     final apiId = _string(expense['category_id'] ?? expense['categoryId']);
-    if (apiId.isNotEmpty && widget.categories.any((c) => c.id == apiId)) {
+    if (apiId.isNotEmpty && _categories.any((c) => c.id == apiId)) {
       _categoryId = apiId;
-    } else if (widget.categories.isNotEmpty) {
-      _categoryId = widget.categories.first.id;
+    } else if (_categories.isNotEmpty) {
+      _categoryId = _categories.first.id;
     } else {
       _categoryId = '';
     }
@@ -1109,21 +1088,20 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
               const SizedBox(height: 16),
               Text('Category', style: theme.textTheme.labelLarge),
               const SizedBox(height: 8),
-              if (widget.categories.isEmpty)
+              if (_categories.isEmpty)
                 Text(
                   'No categories yet — use "+" on the expense list header.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.error,
                   ),
                 )
-              else
+              else ...[
                 DropdownButtonFormField<String>(
-                  initialValue:
-                      widget.categories.any((c) => c.id == _categoryId)
-                          ? _categoryId
-                          : widget.categories.first.id,
+                  initialValue: _categories.any((c) => c.id == _categoryId)
+                      ? _categoryId
+                      : _categories.first.id,
                   decoration: _sheetInputDecoration(theme),
-                  items: widget.categories
+                  items: _categories
                       .map(
                         (category) => DropdownMenuItem(
                           value: category.id,
@@ -1135,6 +1113,27 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
                     if (value != null) setState(() => _categoryId = value);
                   },
                 ),
+                if (widget.onCreateCategory != null) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        final created = await widget.onCreateCategory!();
+                        if (!mounted || created == null) return;
+                        setState(() {
+                          if (!_categories.any((c) => c.id == created.id)) {
+                            _categories = [..._categories, created];
+                          }
+                          _categoryId = created.id;
+                        });
+                      },
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('New category…'),
+                    ),
+                  ),
+                ],
+              ],
               const SizedBox(height: 12),
               Row(
                 children: [

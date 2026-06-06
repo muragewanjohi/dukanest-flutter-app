@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
 import '../../../features/onboarding/providers/auth_provider.dart';
 import '../providers/customer_detail_provider.dart';
@@ -31,20 +33,10 @@ class CustomerDetailScreen extends ConsumerWidget {
       backgroundColor: AppTheme.surface,
       body: asyncDetail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('$e', textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () =>
-                    ref.invalidate(customerDetailProvider(customerId)),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
+        error: (e, _) => ApiErrorView(
+          error: e,
+          title: 'Could not load customer',
+          onRetry: () => ref.invalidate(customerDetailProvider(customerId)),
         ),
         data: (raw) => _CustomerDetailBody(
           customerId: customerId,
@@ -155,7 +147,7 @@ class _CustomerDetailBody extends ConsumerWidget {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not delete: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     }
   }

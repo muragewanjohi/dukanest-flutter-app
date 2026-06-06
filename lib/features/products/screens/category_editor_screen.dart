@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../../../core/widgets/form_error_highlight.dart';
 import '../data/categories_repository.dart';
 import '../providers/categories_list_provider.dart';
@@ -79,7 +80,7 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not load category: $e')),
+          SnackBar(content: Text(apiErrorMessage(e))),
         );
       }
     } finally {
@@ -93,13 +94,53 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    final file = await _picker.pickImage(source: ImageSource.gallery);
-    if (!mounted || file == null) return;
-    setState(() {
-      _localImagePath = file.path;
-      _imageUrl = null;
-    });
+  Future<void> _showImageSourceSheet() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppTheme.surfaceContainerLowest,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take photo'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Upload from gallery'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+    await _pickImageFromSource(source);
+  }
+
+  Future<void> _pickImageFromSource(ImageSource source) async {
+    try {
+      final file = await _picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1800,
+      );
+      if (!mounted || file == null) return;
+      setState(() {
+        _localImagePath = file.path;
+        _imageUrl = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
+    }
   }
 
   void _clearImage() {
@@ -180,7 +221,7 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$e')));
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -221,7 +262,7 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$e')));
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
       }
     }
   }
@@ -428,36 +469,43 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
                           child: SizedBox(
                             height: 192,
                             width: double.infinity,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                if (_localImagePath != null)
-                                  Image.file(
-                                    File(_localImagePath!),
-                                    fit: BoxFit.cover,
-                                  )
-                                else if (_imageUrl != null)
-                                  Image.network(
-                                    _imageUrl!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => ColoredBox(
-                                      color: colorScheme.surfaceContainerHigh,
-                                      child: Icon(
-                                        Icons.image_outlined,
-                                        color: colorScheme.outline,
-                                        size: 48,
+                            child: Material(
+                              color: colorScheme.surfaceContainerHigh,
+                              child: InkWell(
+                                onTap: _showImageSourceSheet,
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    if (_localImagePath != null)
+                                      Image.file(
+                                        File(_localImagePath!),
+                                        fit: BoxFit.cover,
+                                      )
+                                    else if (_imageUrl != null)
+                                      Image.network(
+                                        _imageUrl!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) =>
+                                            ColoredBox(
+                                          color:
+                                              colorScheme.surfaceContainerHigh,
+                                          child: Icon(
+                                            Icons.image_outlined,
+                                            color: colorScheme.outline,
+                                            size: 48,
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      ColoredBox(
+                                        color:
+                                            colorScheme.surfaceContainerHigh,
+                                        child: Icon(
+                                          Icons.add_photo_alternate_outlined,
+                                          color: colorScheme.outline,
+                                          size: 48,
+                                        ),
                                       ),
-                                    ),
-                                  )
-                                else
-                                  ColoredBox(
-                                    color: colorScheme.surfaceContainerHigh,
-                                    child: Icon(
-                                      Icons.image_outlined,
-                                      color: colorScheme.outline,
-                                      size: 48,
-                                    ),
-                                  ),
                                 if (_localImagePath != null ||
                                     _imageUrl != null)
                                   Positioned(
@@ -475,32 +523,69 @@ class _CategoryEditorScreenState extends ConsumerState<CategoryEditorScreen>
                                       ),
                                     ),
                                   ),
-                              ],
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         ),
                         const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: _pickImage,
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor: colorScheme.surfaceContainerHigh,
-                              foregroundColor: colorScheme.onSurface,
-                              side: BorderSide.none,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () =>
+                                    _pickImageFromSource(ImageSource.camera),
+                                style: OutlinedButton.styleFrom(
+                                  backgroundColor:
+                                      colorScheme.surfaceContainerHigh,
+                                  foregroundColor: colorScheme.onSurface,
+                                  side: BorderSide.none,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                icon: const Icon(Icons.photo_camera_outlined,
+                                    size: 18),
+                                label: Text(
+                                  'Take photo',
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 14,
+                                  ),
+                                ),
                               ),
                             ),
-                            icon: const Icon(Icons.photo_library_outlined,
-                                size: 18),
-                            label: Text(
-                              'Change Image',
-                              style: GoogleFonts.inter(
-                                  fontWeight: FontWeight.w500, fontSize: 14),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () =>
+                                    _pickImageFromSource(ImageSource.gallery),
+                                style: OutlinedButton.styleFrom(
+                                  backgroundColor:
+                                      colorScheme.surfaceContainerHigh,
+                                  foregroundColor: colorScheme.onSurface,
+                                  side: BorderSide.none,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                icon: const Icon(Icons.photo_library_outlined,
+                                    size: 18),
+                                label: Text(
+                                  'Upload',
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),

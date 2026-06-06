@@ -67,7 +67,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Onboarding reward'), findsOneWidget);
-    expect(find.text('1/2 done'), findsOneWidget);
+    expect(find.text('1/3 done'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(find.text('View subscription & plan'), findsNothing);
   });
@@ -104,7 +104,7 @@ void main() {
     await _expandRewardCard(tester);
 
     expect(find.byType(PageView), findsOneWidget);
-    expect(find.text('Step 1 of 1'), findsOneWidget);
+    expect(find.text('Step 1 of 2'), findsOneWidget);
     expect(find.byIcon(Icons.chevron_left), findsOneWidget);
   });
 

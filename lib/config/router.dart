@@ -22,6 +22,7 @@ import '../features/products/screens/attributes_management_screen.dart';
 import '../features/products/screens/attribute_editor_screen.dart';
 import '../features/dashboard/screens/more_menu_screen.dart';
 import '../features/analytics/screens/analytics_screen.dart';
+import '../features/analytics/screens/expense_categories_screen.dart';
 import '../features/analytics/screens/expenses_screen.dart';
 import '../features/analytics/screens/scheduled_reports_screen.dart';
 import '../features/themes/screens/themes_screen.dart';
@@ -50,6 +51,7 @@ import '../features/customers/screens/customer_edit_screen.dart';
 import '../features/inventory/screens/inventory_screen.dart';
 import '../features/subscription/screens/subscription_screen.dart';
 import '../features/subscription/screens/billing_history_screen.dart';
+import '../features/subscription/screens/referral_screen.dart';
 import '../features/onboarding/providers/auth_provider.dart';
 import '../core/auth/auth_state.dart';
 import '../core/providers/first_run_tutorial_seen_provider.dart';
@@ -208,7 +210,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/register',
-        builder: (context, state) => const RegisterScreen(),
+        builder: (context, state) {
+          final refCode = state.uri.queryParameters['ref']?.trim();
+          return RegisterScreen(
+            initialReferrerSubdomain:
+                refCode != null && refCode.isNotEmpty ? refCode : null,
+          );
+        },
       ),
       GoRoute(
         path: '/login',
@@ -285,6 +293,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/subscription',
         builder: (context, state) => const SubscriptionScreen(),
+      ),
+      GoRoute(
+        path: '/referrals',
+        builder: (context, state) => const ReferralScreen(),
       ),
       GoRoute(
         path: '/billing-history',
@@ -499,6 +511,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'expenses',
                     builder: (context, state) => const ExpensesScreen(),
+                  ),
+                  GoRoute(
+                    path: 'expense-categories',
+                    builder: (context, state) =>
+                        const ExpenseCategoriesScreen(),
                   ),
                   GoRoute(
                     path: 'scheduled-reports',

@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 
 /// Invalidates after list mutations (save/delete from editor).
@@ -85,7 +86,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
       });
     } catch (e) {
       setState(() {
-        _error = '$e';
+        _error = apiErrorMessage(e);
         _loading = false;
       });
     }
@@ -132,7 +133,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
       }
     }
   }

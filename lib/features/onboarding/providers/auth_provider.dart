@@ -1,14 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../config/app_config.dart';
 import '../../../config/app_mode.dart';
 import '../../../core/auth/auth_service.dart';
 import '../../../core/auth/auth_state.dart';
 import '../../../core/auth/token_storage.dart';
+import '../../../core/notifications/push_notification_service.dart';
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(
     ref.watch(authServiceProvider),
     ref.watch(tokenStorageProvider),
+    ref.read(pushNotificationServiceProvider),
   );
 });
 
@@ -58,9 +62,28 @@ Map<String, dynamic>? _pickMap(Map<String, dynamic> m, List<String> keys) {
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthService _authService;
   final TokenStorage _tokenStorage;
+  final PushNotificationService _pushNotificationService;
+  late final StreamSubscription<void> _sessionClearedSub;
 
-  AuthNotifier(this._authService, this._tokenStorage) : super(AuthState()) {
+  AuthNotifier(
+    this._authService,
+    this._tokenStorage,
+    this._pushNotificationService,
+  ) : super(AuthState()) {
+    _sessionClearedSub = _tokenStorage.sessionCleared.listen((_) {
+      if (state.status == AuthStatus.unauthenticated) return;
+      state = state.copyWith(
+        status: AuthStatus.unauthenticated,
+        error: 'Session expired. Please sign in again.',
+      );
+    });
     _checkInitialAuth();
+  }
+
+  @override
+  void dispose() {
+    _sessionClearedSub.cancel();
+    super.dispose();
   }
 
   String _storeUrlFromSubdomain(String subdomain) {
@@ -488,6 +511,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> logout() async {
     await _authService.logout();
     await _tokenStorage.clearTokens();
+    _pushNotificationService.clearRegistrationCache();
     state = state.copyWith(
       status: AuthStatus.unauthenticated,
       clearUser: true,

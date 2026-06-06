@@ -8,6 +8,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
 import '../../dashboard/providers/dashboard_reward_checklist_provider.dart';
@@ -221,7 +223,7 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
       });
     } catch (e) {
       setState(() {
-        _error = '$e';
+        _error = apiErrorMessage(e);
         _loading = false;
       });
     }
@@ -306,7 +308,7 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      showApiErrorSnackBar(context, e);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -452,7 +454,7 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Save failed: $e')));
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -727,7 +729,7 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
                               } catch (e) {
                                 if (!context.mounted) return;
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('$e')),
+                                  SnackBar(content: Text(apiErrorMessage(e))),
                                 );
                               } finally {
                                 if (mounted) {
@@ -849,7 +851,7 @@ class _SaleProductPickerState extends ConsumerState<_SaleProductPicker> {
       });
     } catch (e) {
       setState(() {
-        _error = '$e';
+        _error = apiErrorMessage(e);
         _loading = false;
       });
     }

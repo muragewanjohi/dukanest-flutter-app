@@ -6,6 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../providers/content_hub_provider.dart';
 import '../../settings/providers/dashboard_settings_provider.dart';
@@ -107,7 +109,7 @@ class _ContentManagementScreenState
       ref.invalidate(contentHubProvider);
       _toast('Page "$title" created');
     } catch (e) {
-      _toast('Create failed: $e');
+      _toast(apiErrorMessage(e));
     }
   }
 
@@ -157,21 +159,10 @@ class _ContentManagementScreenState
       ),
       body: hubAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('$e', textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => ref.invalidate(contentHubProvider),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
+        error: (e, _) => ApiErrorView(
+          error: e,
+          title: 'Could not load content',
+          onRetry: () => ref.invalidate(contentHubProvider),
         ),
         data: (snap) => ListView(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
@@ -724,7 +715,7 @@ class _BlogCategoriesSheetState extends ConsumerState<_BlogCategoriesSheet> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = '$e';
+        _error = apiErrorMessage(e);
       });
     }
   }
@@ -744,7 +735,7 @@ class _BlogCategoriesSheetState extends ConsumerState<_BlogCategoriesSheet> {
       _nameCtrl.clear();
       await _load();
     } catch (e) {
-      _toast('Create failed: $e');
+      _toast(apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -764,7 +755,7 @@ class _BlogCategoriesSheetState extends ConsumerState<_BlogCategoriesSheet> {
       }
       await _load();
     } catch (e) {
-      _toast('Delete failed: $e');
+      _toast(apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

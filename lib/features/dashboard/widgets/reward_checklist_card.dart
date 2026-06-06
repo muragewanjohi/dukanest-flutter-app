@@ -23,10 +23,6 @@ class RewardChecklistCard extends ConsumerWidget {
 
     final reward = rewardMap(data)!;
     final granted = rewardBool(reward['granted']);
-    final completed = data['completedCount'];
-    final total = data['totalCount'];
-    final completedN = completed is num ? completed.toInt() : 0;
-    final totalN = total is num ? total.toInt() : 0;
     final bonus = reward['bonusDays'];
     final daysLeft = reward['daysRemainingInWindow'];
 
@@ -36,12 +32,14 @@ class RewardChecklistCard extends ConsumerWidget {
             ? '${daysLeft.toInt()} day${daysLeft == 1 ? '' : 's'} left — complete every step in the reward window.'
             : 'Complete every step before the reward window closes.');
 
-    final steps = rewardSteps(data);
+    final steps = ensureAttributesRewardStep(rewardSteps(data), data);
     if (steps.isEmpty) return const SizedBox.shrink();
 
+    final stepsCompleted = steps.where((s) => s.done).length;
+
     return _RewardChecklistCarousel(
-      completed: completedN,
-      total: totalN > 0 ? totalN : steps.length,
+      completed: stepsCompleted,
+      total: steps.length,
       subtitle: subtitle,
       granted: granted,
       bonusDays: bonus is num ? bonus.toInt() : 30,

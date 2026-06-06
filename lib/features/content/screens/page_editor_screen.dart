@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../../../core/providers/store_identity_provider.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../providers/content_hub_provider.dart';
@@ -85,7 +86,7 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = '$e';
+        _error = apiErrorMessage(e);
       });
     }
   }
@@ -141,7 +142,7 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
       ref.invalidate(contentHubProvider);
       _toast(publish ? 'Page published' : 'Draft saved');
     } catch (e) {
-      _toast('Save failed: $e');
+      _toast(apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -200,7 +201,7 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
       _toast('Page deleted');
       if (context.canPop()) context.pop();
     } catch (e) {
-      _toast('Delete failed: $e');
+      _toast(apiErrorMessage(e));
     }
   }
 

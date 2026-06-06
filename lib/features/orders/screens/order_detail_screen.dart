@@ -11,6 +11,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../providers/pending_orders_count_provider.dart';
 
@@ -504,6 +506,56 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
     return '${v[0].toUpperCase()}${v.substring(1)}';
   }
 
+  static bool isTerminalOrderStatus(String value) {
+    switch (_normalizeOrderStatus(value)) {
+      case 'delivered':
+      case 'cancelled':
+      case 'refunded':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  static bool canCancelOrder(String value) {
+    switch (_normalizeOrderStatus(value)) {
+      case 'pending':
+      case 'processing':
+      case 'shipped':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  static _OrderStatusAction? nextStatusAction(String value) {
+    switch (_normalizeOrderStatus(value)) {
+      case 'pending':
+        return const _OrderStatusAction(
+          label: 'Start processing',
+          icon: Icons.inventory_2_outlined,
+          targetStatus: 'processing',
+          successMessage: 'Order is now processing',
+        );
+      case 'processing':
+        return const _OrderStatusAction(
+          label: 'Mark as shipped',
+          icon: Icons.local_shipping_outlined,
+          targetStatus: 'shipped',
+          successMessage: 'Order marked as shipped',
+        );
+      case 'shipped':
+        return const _OrderStatusAction(
+          label: 'Mark as delivered',
+          icon: Icons.check_circle_outline,
+          targetStatus: 'delivered',
+          successMessage: 'Order marked as delivered',
+        );
+      default:
+        return null;
+    }
+  }
+
   static num? _optionalAmountFromTotalLabel(String formattedTotal) {
     final digits = formattedTotal.replaceAll(',', '').trim();
     final match = RegExp(r'(-?\d+(?:\.\d+)?)').firstMatch(digits);
@@ -520,6 +572,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   DateTime? _tumiziPollStartedAt;
   String _tumiziPollTrackedId = '';
   bool _tumiziRefreshLoading = false;
+  bool _statusUpdating = false;
 
   @override
   void dispose() {
@@ -581,7 +634,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       ref.invalidate(pendingOrdersCountProvider);
       _toast(context, 'Payment status updated');
     } catch (e) {
-      if (mounted) _toast(context, 'Could not refresh: $e');
+      if (mounted) _toast(context, apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => _tumiziRefreshLoading = false);
     }
@@ -632,9 +685,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                   Navigator.of(dialogContext).pop(true);
                 } catch (e) {
                   if (dialogContext.mounted) setDialogState(() => busy = false);
-                  ScaffoldMessenger.maybeOf(dialogContext)?.showSnackBar(
-                    SnackBar(content: Text('$e')),
-                  );
+                  showApiErrorSnackBar(dialogContext, e);
                 }
               }
 
@@ -732,43 +783,50 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     return p;
   }
 
-  Widget _tumiziPendingBanner(ThemeData theme, _OrderDetailData data) {
+  Widget _tumiziPaymentActions(
+    ThemeData theme,
+    _OrderDetailData data, {
+    required bool paymentPending,
+  }) {
     const accent = Color(0xFF9A3412);
     const noteBg = Color(0xFFFFF7ED);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: noteBg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: accent.withValues(alpha: 0.25)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.info_outline_rounded, color: accent, size: 22),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'M-Pesa payments through Tumizi are confirmed automatically '
-                    'when the customer completes the prompt. Use refresh to poll '
-                    'the latest status, or resend an STK if the customer missed it.',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      height: 1.45,
-                      fontWeight: FontWeight.w500,
-                      color: accent,
+        if (paymentPending) ...[
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: noteBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: accent.withValues(alpha: 0.25)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline_rounded,
+                      color: accent, size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'M-Pesa payments through Tumizi are confirmed automatically '
+                      'when the customer completes the prompt. Use refresh to poll '
+                      'the latest status, or ask the customer to repay if they missed it.',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        height: 1.45,
+                        fontWeight: FontWeight.w500,
+                        color: accent,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 10),
+          const SizedBox(height: 10),
+        ],
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -785,26 +843,30 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                       )
                     : const Icon(Icons.sync_rounded, size: 20),
                 label: Text(
-                  _tumiziRefreshLoading ? 'Refreshing…' : 'Refresh from Tumizi',
+                  _tumiziRefreshLoading
+                      ? 'Refreshing…'
+                      : 'Refresh payment status',
                   style: GoogleFonts.plusJakartaSans(
                       fontWeight: FontWeight.w600, fontSize: 13),
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _tumiziRefreshLoading
-                    ? null
-                    : () => _openResendTumiziStkDialog(data.apiId, data),
-                icon: const Icon(Icons.phone_android_outlined, size: 20),
-                label: Text(
-                  'Resend STK',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontWeight: FontWeight.w600, fontSize: 13),
+            if (paymentPending) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _tumiziRefreshLoading
+                      ? null
+                      : () => _openResendTumiziStkDialog(data.apiId, data),
+                  icon: const Icon(Icons.phone_android_outlined, size: 20),
+                  label: Text(
+                    'Ask Customer to Repay',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ],
@@ -815,15 +877,11 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  void _returnToOrdersList(BuildContext context) {
-    ref.invalidate(pendingOrdersCountProvider);
-    context.go('/orders');
-  }
-
   Future<bool> _patchOrderStatus(
     BuildContext context,
     String status, {
     required String apiId,
+    String? successMessage,
   }) async {
     try {
       final api = ref.read(apiClientProvider);
@@ -834,15 +892,34 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       ref.invalidate(orderDetailProvider(widget.orderKey));
       ref.invalidate(pendingOrdersCountProvider);
       if (context.mounted) {
-        _toast(context, 'Order updated');
+        _toast(context, successMessage ?? 'Order updated');
+        if (OrderDetailScreen._normalizeOrderStatus(status) == 'delivered') {
+          context.go('/orders');
+        }
       }
       return true;
     } catch (e) {
       if (context.mounted) {
-        _toast(context, 'Update failed: $e');
+        _toast(context, apiErrorMessage(e));
       }
       return false;
     }
+  }
+
+  Future<void> _applyNextStatusAction(
+    BuildContext context,
+    _OrderDetailData data,
+    _OrderStatusAction action,
+  ) async {
+    if (_statusUpdating) return;
+    setState(() => _statusUpdating = true);
+    await _patchOrderStatus(
+      context,
+      action.targetStatus,
+      apiId: data.apiId,
+      successMessage: action.successMessage,
+    );
+    if (mounted) setState(() => _statusUpdating = false);
   }
 
   Future<bool> _patchOrderUpdate(
@@ -865,11 +942,14 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       ref.invalidate(pendingOrdersCountProvider);
       if (context.mounted) {
         _toast(context, 'Order updated');
+        if (OrderDetailScreen._normalizeOrderStatus(status) == 'delivered') {
+          context.go('/orders');
+        }
       }
       return true;
     } catch (e) {
       if (context.mounted) {
-        _toast(context, 'Update failed: $e');
+        _toast(context, apiErrorMessage(e));
       }
       return false;
     }
@@ -891,7 +971,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       return true;
     } catch (e) {
       if (context.mounted) {
-        _toast(context, 'Cancel failed: $e');
+        _toast(context, apiErrorMessage(e));
       }
       return false;
     }
@@ -985,10 +1065,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     if (!cancelled || !context.mounted) return;
 
     _toast(context, 'Order cancelled');
-    _returnToOrdersList(context);
   }
 
-  Future<void> _openProcessOrderDialog(
+  Future<void> _openAdvancedStatusSheet(
     BuildContext context,
     _OrderDetailData data,
   ) async {
@@ -1026,7 +1105,6 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               if (!context.mounted || !sheetContext.mounted) return;
               if (ok) {
                 Navigator.of(sheetContext).pop();
-                _returnToOrdersList(context);
               } else {
                 setSheetState(() => isSaving = false);
               }
@@ -1057,7 +1135,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Process Order',
+                      'Advanced status',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -1067,8 +1145,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                     const SizedBox(height: 4),
                     Text(
                       isTumiziOrder
-                          ? 'Select the order status. Tumizi payment status updates automatically.'
-                          : 'Select the order and payment status, then confirm.',
+                          ? 'Override order status manually. Tumizi payment status updates automatically.'
+                          : 'Override order or payment status manually when needed.',
                       style: GoogleFonts.inter(
                         color: theme.colorScheme.onSurfaceVariant,
                         fontSize: 13,
@@ -1160,7 +1238,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                                   strokeWidth: 2, color: Colors.white),
                             )
                           : Text(
-                              'Confirm Update',
+                              'Save changes',
                               style: GoogleFonts.plusJakartaSans(
                                   fontWeight: FontWeight.w700),
                             ),
@@ -1226,22 +1304,10 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       error: (err, _) => Scaffold(
         backgroundColor: AppTheme.surface,
         appBar: const DashboardAppBar(title: 'Orders'),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('$err', textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () =>
-                      ref.invalidate(orderDetailProvider(widget.orderKey)),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
+        body: ApiErrorView(
+          error: err,
+          title: 'Could not load order',
+          onRetry: () => ref.invalidate(orderDetailProvider(widget.orderKey)),
         ),
       ),
       data: (raw) {
@@ -1290,9 +1356,11 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     int pendingOrdersCount,
     String badgeLabel,
   ) {
-    final showTumiziPending = data.isTumiziOrder &&
+    final paymentPending =
         OrderDetailScreen._normalizePaymentStatus(data.paymentStatus) ==
             'pending';
+    final showTumiziPaymentActions =
+        data.isTumiziOrder && paymentPending;
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: DashboardAppBar(
@@ -1322,8 +1390,12 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 const SizedBox(height: 12),
                 _DataSourceBadge(isLiveData: isLiveData),
                 const SizedBox(height: 12),
-                if (showTumiziPending) ...[
-                  _tumiziPendingBanner(theme, data),
+                if (showTumiziPaymentActions) ...[
+                  _tumiziPaymentActions(
+                    theme,
+                    data,
+                    paymentPending: paymentPending,
+                  ),
                   const SizedBox(height: 16),
                 ],
                 _itemsCard(context, data),
@@ -1630,6 +1702,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
 
   Widget _quickActionsCard(BuildContext context, _OrderDetailData data) {
     final theme = Theme.of(context);
+    final nextAction = OrderDetailScreen.nextStatusAction(data.status);
+    final showCancel = OrderDetailScreen.canCancelOrder(data.status);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1656,44 +1731,52 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [AppTheme.primaryDark, AppTheme.primary],
-              ),
+          if (nextAction != null) ...[
+            _primaryStatusActionButton(
+              context: context,
+              data: data,
+              action: nextAction,
             ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
+            const SizedBox(height: 10),
+          ] else if (OrderDetailScreen.isTerminalOrderStatus(data.status)) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceContainerLow,
                 borderRadius: BorderRadius.circular(12),
-                onTap: () =>
-                    _patchOrderStatus(context, 'shipped', apiId: data.apiId),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.local_shipping_outlined,
-                          color: Colors.white, size: 22),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Mark as Shipped',
-                        style: GoogleFonts.plusJakartaSans(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ],
-                  ),
+                border: Border.all(
+                  color: AppTheme.outlineVariant.withValues(alpha: 0.45),
                 ),
               ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.check_circle_outline,
+                    size: 20,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Order ${OrderDetailScreen._statusLabel(data.status).toLowerCase()}',
+                    style: GoogleFonts.plusJakartaSans(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(height: 10),
+          ],
+          TextButton(
+            onPressed: _statusUpdating
+                ? null
+                : () => _openAdvancedStatusSheet(context, data),
+            child: const Text('Advanced status'),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 4),
           Material(
             color: OrderDetailScreen._surfaceContainerHigh,
             borderRadius: BorderRadius.circular(12),
@@ -1721,34 +1804,92 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 10),
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () => _openCancelOrderDialog(context, data),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.cancel_outlined,
-                        color: theme.colorScheme.error, size: 22),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Cancel Order',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: theme.colorScheme.error,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
+          if (showCancel) ...[
+            const SizedBox(height: 10),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _statusUpdating
+                    ? null
+                    : () => _openCancelOrderDialog(context, data),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.cancel_outlined,
+                          color: theme.colorScheme.error, size: 22),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Cancel Order',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: theme.colorScheme.error,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _primaryStatusActionButton({
+    required BuildContext context,
+    required _OrderDetailData data,
+    required _OrderStatusAction action,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppTheme.primaryDark, AppTheme.primary],
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: _statusUpdating
+              ? null
+              : () => _applyNextStatusAction(context, data, action),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (_statusUpdating)
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                else
+                  Icon(action.icon, color: Colors.white, size: 22),
+                const SizedBox(width: 10),
+                Text(
+                  action.label,
+                  style: GoogleFonts.plusJakartaSans(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1920,6 +2061,10 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     final w = MediaQuery.sizeOf(context).width;
     if (w >= 840) return null;
 
+    final nextAction = OrderDetailScreen.nextStatusAction(data.status);
+    final normalizedStatus =
+        OrderDetailScreen._normalizeOrderStatus(data.status);
+
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
@@ -1961,24 +2106,64 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                     ],
                   ),
                   const Spacer(),
-                  FilledButton(
-                    onPressed: () => _openProcessOrderDialog(context, data),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppTheme.primaryDark,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      elevation: 4,
-                      shadowColor: AppTheme.primaryDark.withValues(alpha: 0.35),
+                  if (nextAction == null &&
+                      OrderDetailScreen.isTerminalOrderStatus(normalizedStatus))
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Text(
+                        OrderDetailScreen._statusLabel(normalizedStatus),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: AppTheme.onSurfaceVariant,
+                        ),
+                      ),
                     ),
-                    child: Text(
-                      'Process Order',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.w700, fontSize: 14),
+                  if (nextAction != null) ...[
+                    TextButton(
+                      onPressed: _statusUpdating
+                          ? null
+                          : () => _openAdvancedStatusSheet(context, data),
+                      child: const Text('Advanced'),
                     ),
-                  ),
+                    FilledButton(
+                      onPressed: _statusUpdating
+                          ? null
+                          : () =>
+                              _applyNextStatusAction(context, data, nextAction),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.primaryDark,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        elevation: 4,
+                        shadowColor:
+                            AppTheme.primaryDark.withValues(alpha: 0.35),
+                      ),
+                      child: _statusUpdating
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              nextAction.label,
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontWeight: FontWeight.w700, fontSize: 13),
+                            ),
+                    ),
+                  ] else
+                    TextButton(
+                      onPressed: _statusUpdating
+                          ? null
+                          : () => _openAdvancedStatusSheet(context, data),
+                      child: const Text('Advanced status'),
+                    ),
                 ],
               ),
             ),
@@ -1987,6 +2172,20 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       ),
     );
   }
+}
+
+class _OrderStatusAction {
+  const _OrderStatusAction({
+    required this.label,
+    required this.icon,
+    required this.targetStatus,
+    required this.successMessage,
+  });
+
+  final String label;
+  final IconData icon;
+  final String targetStatus;
+  final String successMessage;
 }
 
 /// Compact, scannable header that pushes the order code into the page body

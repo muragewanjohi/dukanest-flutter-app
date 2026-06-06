@@ -70,15 +70,13 @@ Relevant fields in the flat `settings` object include:
 - `payment_method` / `default_payment_method` — enum includes **`tumizi`**
 - `payment_timing` — affects M-Pesa verification behavior on checkout (see web checkout)
 
-### Staff-initiated Tumizi payment for an existing order (web-only)
+### Staff-initiated Tumizi payment for an existing order
 
 | Method | Path | Auth |
 |--------|------|------|
 | `POST` | `/api/orders/:id/tumizi/initiate-payment` | Session; `tenant_admin` / `tenant_staff` |
 
 Body: `phoneNumber` (required), optional `amount`, `narration`. Used from the **order detail** flow on web.
-
-**DukaNest Flutter:** out of scope. The merchant app manages Tumizi configuration, merchant details, wallet withdrawals, and refunds; it does **not** initiate customer payments.
 
 ### Storefront (no session)
 
@@ -177,6 +175,22 @@ Skip steps 3-4 when the merchant does not choose Tumizi. They can enable it late
 
 Use the `/dashboard/tumizi/*` routes above for the Tumizi integration snapshot, wallet, withdrawals, and refunds.
 
+#### M-Pesa withdrawal screen (wallet account + balance)
+
+**Do not** display `merchantExternalId` (e.g. `storeflow-bd886184-…`) as the wallet account number. That is an internal Tumizi merchant key, not the wallet reference shown on web.
+
+| Field | Source | Example |
+|-------|--------|---------|
+| Wallet account number | `GET …/tumizi/wallet` → **`data.walletAccountNumber`** (or `GET …/tumizi/merchant` → same field) | `STOREFLOWBD88618` |
+| Available balance | `GET …/tumizi/wallet` → **`data.availableBalance`** | `20` |
+| Currency | `data.walletCurrency` | `KES` |
+| Max withdrawable | `data.maxWithdrawableAmount` / `maxWithdrawableCharge` | Web parity |
+| Refresh balance | Re-call `GET …/tumizi/wallet` (live Tumizi wallet API) | Tap refresh icon |
+
+`GET /dashboard/tumizi/merchant` also returns `generalInfo`, `walletSnapshot`, and cached `availableBalance` from the merchant profile (same fallback chain as web before refresh).
+
+`GET /dashboard/tumizi/settings` returns integration config (`walletAccountNumber` from DB) but **not** live balance — always use `/wallet` for the withdrawal UI.
+
 ### 4) Storefront checkout (customer app)
 
 - Host: **storefront tenant domain** (same as web checkout).
@@ -193,7 +207,7 @@ Use the `/dashboard/tumizi/*` routes above for the Tumizi integration snapshot, 
 | Payments: default method `tumizi` only when offered | Same guard as `tumiziOfferedForValidation` |
 | Settings → Tumizi: master switch | `GET/POST /api/v1/mobile/dashboard/tumizi/settings` `{ enabled, createMerchantIfMissing? }` — **admin only for POST** |
 | Tumizi tab: merchant / wallet / refunds | Native Bearer routes: `GET/PATCH /api/v1/mobile/dashboard/tumizi/merchant`, `GET /api/v1/mobile/dashboard/tumizi/wallet`, `POST /api/v1/mobile/dashboard/tumizi/wallet/withdrawals`, `GET /api/v1/mobile/dashboard/tumizi/refunds` |
-| Order detail: initiate Tumizi payment | Web-only / out of scope for the Flutter merchant app |
+| Order detail: initiate Tumizi payment | `POST /api/orders/:id/tumizi/initiate-payment` |
 
 ---
 

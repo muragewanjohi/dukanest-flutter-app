@@ -42,4 +42,26 @@ void main() {
       expect(isPlanFreeActivatable(<String, dynamic>{}), isFalse);
     });
   });
+
+  group('formatPlanPriceLines', () {
+    test('reads generic price field for Pro-style plans', () {
+      final lines = formatPlanPriceLines({
+        'name': 'Pro',
+        'price': 2500,
+        'yearlyPriceKes': 25000,
+        'currencySymbol': 'KSh',
+      });
+
+      expect(lines.monthly, 'KSh 2500');
+      expect(lines.yearly, 'KSh 25000');
+    });
+
+    test('reads priceKes when price is absent', () {
+      final lines = formatPlanPriceLines({
+        'priceKes': 1999,
+      });
+
+      expect(lines.monthly, 'KSh 1999');
+    });
+  });
 }

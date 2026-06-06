@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import 'adjust_stock_sheet.dart';
 
 /// Multi-row bulk stock adjustment via `POST /dashboard/inventory/bulk`.
@@ -130,7 +131,7 @@ class _BulkAdjustBodyState extends State<_BulkAdjustBody> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not adjust: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _submitting = false);

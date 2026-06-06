@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
 import '../../../core/widgets/illustrated_empty_state.dart';
 import '../../../core/widgets/shimmer_list_loader.dart';
@@ -397,7 +398,7 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = apiErrorMessage(e);
         _isLiveData = false;
         _isLoading = false;
         _metricActiveToday = 0;

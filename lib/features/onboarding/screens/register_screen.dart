@@ -21,10 +21,14 @@ import '../data/business_types.dart';
 import '../data/country_dial_codes.dart';
 import '../data/onboarding_trial.dart';
 import '../providers/auth_provider.dart';
+import '../../../core/util/referrer_subdomain.dart';
 import '../widgets/onboarding_step_header.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
-  const RegisterScreen({super.key});
+  const RegisterScreen({super.key, this.initialReferrerSubdomain});
+
+  /// Pre-filled from `/register?ref=` deep links (friend's store subdomain).
+  final String? initialReferrerSubdomain;
 
   @override
   ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
@@ -44,6 +48,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _referrerSubdomainController = TextEditingController();
 
   final Dio _publicDio = Dio(
     BaseOptions(
@@ -97,6 +102,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   void initState() {
     super.initState();
+    final initial = widget.initialReferrerSubdomain;
+    if (initial != null && initial.trim().isNotEmpty) {
+      final parsed = parseReferrerSubdomainInput(initial) ?? initial.trim();
+      _referrerSubdomainController.text = parsed;
+    }
     _termsRecognizer = TapGestureRecognizer()
       ..onTap = () => _openExternalUrl(_termsOfServiceUri);
     _privacyRecognizer = TapGestureRecognizer()
@@ -115,6 +125,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _phoneController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _referrerSubdomainController.dispose();
     super.dispose();
   }
 
@@ -519,10 +530,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         'planId': _defaultRegisterPlanId,
         // Matches tenant `expire_date` / admin tenant update contract; ISO-8601.
         'expire_date': trialEndsAt,
-        // Trigger onboarding starter/demo seed on backend.
-        'includeDemoContent': true,
-        'includeDemoAttributes': true,
+        'billingCountry': countryIso,
       };
+      final referrer = parseReferrerSubdomainInput(
+        _referrerSubdomainController.text,
+      );
+      if (referrer != null &&
+          referrer.isNotEmpty &&
+          referrer != slug.toLowerCase()) {
+        payload['referrerSubdomain'] = referrer;
+      }
       if (!isGooglePath) {
         payload['adminPassword'] = _passwordController.text;
       } else {
@@ -1682,6 +1699,29 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             description: 'We use your phone for order SMS alerts.',
           ),
           const SizedBox(height: 20),
+          _buildFieldLabel(
+            'Referral shop domain (optional)',
+            hint:
+                'If a friend referred you, enter their store subdomain (e.g. janes-boutique). '
+                'This can only be set during signup.',
+          ),
+          TextFormField(
+            controller: _referrerSubdomainController,
+            enabled: !_isLoading,
+            autocorrect: false,
+            decoration: const InputDecoration(
+              hintText: 'janes-boutique',
+            ),
+            validator: (value) {
+              final v = value?.trim() ?? '';
+              if (v.isEmpty) return null;
+              if (parseReferrerSubdomainInput(v) == null) {
+                return 'Use 3–63 lowercase letters, numbers, and hyphens';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 24),
           _buildFieldLabel(
             'Store phone number',
             hint:

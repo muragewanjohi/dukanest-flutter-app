@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
 import '../providers/inventory_providers.dart';
 import '../widgets/adjust_stock_sheet.dart';
@@ -101,7 +102,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _settingsError = '$e';
+        _settingsError = apiErrorMessage(e);
         _settingsLoading = false;
       });
     }
@@ -132,7 +133,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _settingsSaving = false);
@@ -214,7 +215,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       if (refreshAlerts) ref.invalidate(inventoryAlertsProvider);
     } catch (e) {
       setState(() {
-        _stockError = '$e';
+        _stockError = apiErrorMessage(e);
         _stockLoading = false;
       });
     }
@@ -277,7 +278,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       });
     } catch (e) {
       setState(() {
-        _historyError = '$e';
+        _historyError = apiErrorMessage(e);
         _historyLoading = false;
       });
     }

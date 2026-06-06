@@ -7,6 +7,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
 import '../../dashboard/providers/dashboard_getting_started_provider.dart';
@@ -39,6 +41,9 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
   int _handlingDays = 1;
   String _lastHydratedShippingSignature = '';
   bool _saving = false;
+
+  /// One-shot flat-rate suggestion when opened from Getting started (`?tutorial=1`).
+  bool _gettingStartedShippingDefaultsApplied = false;
 
   @override
   void dispose() {
@@ -86,6 +91,10 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     if (shipping == null || shipping.isEmpty) return '';
     final keys = shipping.keys.toList()..sort();
     return jsonEncode({for (final k in keys) k: shipping[k]});
+  }
+
+  bool _isGettingStartedEntry() {
+    return GoRouterState.of(context).uri.queryParameters['tutorial'] == '1';
   }
 
   void _hydrateWhenShippingSectionChanges(Map<String, dynamic>? root) {
@@ -194,6 +203,43 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
       fallback: '1',
     );
     _handlingDays = int.tryParse(daysRaw)?.clamp(0, 90) ?? 1;
+
+    if (_isGettingStartedEntry() && !_gettingStartedShippingDefaultsApplied) {
+      _gettingStartedShippingDefaultsApplied = true;
+      _allowDelivery = true;
+      _rateMode = _ShippingRateMode.flatRate;
+      final current = num.tryParse(_flatRate.text.trim()) ?? 0;
+      if (current <= 0) {
+        _flatRate.text = '250';
+      }
+    }
+  }
+
+  Future<bool> _confirmZeroFlatRateIfNeeded() async {
+    if (_rateMode != _ShippingRateMode.flatRate) return true;
+    final flat = num.tryParse(_flatRate.text.trim());
+    if (flat == null || flat != 0) return true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Free delivery?'),
+        content: const Text(
+          'A flat rate of KES 0 means every order ships with no delivery fee. '
+          'Save free delivery, or go back to enter a positive amount.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Go back'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save KES 0'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
   }
 
   Map<String, dynamic> _shippingSettingsPatch({
@@ -262,7 +308,7 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
         } catch (e) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not verify delivery zones: $e')),
+            SnackBar(content: Text(apiErrorMessage(e))),
           );
           return;
         }
@@ -284,6 +330,7 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
           );
           return;
         }
+        if (!await _confirmZeroFlatRateIfNeeded()) return;
       }
     }
 
@@ -347,7 +394,7 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e')),
+          SnackBar(content: Text(apiErrorMessage(e))),
         );
       }
     } finally {
@@ -404,21 +451,10 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
       error: (err, _) => Scaffold(
         backgroundColor: AppTheme.surface,
         appBar: const DashboardAppBar(title: 'Shipping & Delivery'),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('$err', textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => ref.invalidate(dashboardSettingsProvider),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
+        body: ApiErrorView(
+          error: err,
+          title: 'Could not load shipping settings',
+          onRetry: () => ref.invalidate(dashboardSettingsProvider),
         ),
       ),
       data: (root) {
@@ -591,6 +627,15 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                                 ),
                               ),
                             ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Use 0 for free delivery on every order, or enter a positive amount (e.g. 250).',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: theme.colorScheme.onSurfaceVariant,
+                            height: 1.35,
                           ),
                         ),
                         const SizedBox(height: 18),

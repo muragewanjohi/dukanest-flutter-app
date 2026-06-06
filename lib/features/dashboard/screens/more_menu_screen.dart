@@ -103,6 +103,15 @@ class MoreMenuScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           _MoreItem(
+            icon: Icons.card_giftcard_outlined,
+            iconColor: const Color(0xFF0F766E),
+            iconBackground: const Color(0xFFCCFBF1),
+            title: 'Referral program',
+            subtitle: 'Share your link and earn free subscription months.',
+            onTap: () => context.push('/referrals'),
+          ),
+          const SizedBox(height: 12),
+          _MoreItem(
             icon: Icons.palette_outlined,
             iconColor: const Color(0xFF7C3AED),
             iconBackground: const Color(0xFFEDE9FE),

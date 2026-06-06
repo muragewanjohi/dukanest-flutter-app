@@ -5,11 +5,15 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../subscription_plan.dart';
+import '../subscription_snapshot_helpers.dart';
 import '../providers/subscription_provider.dart';
 import '../widgets/mpesa_checkout_sheet.dart';
 import '../widgets/pesapal_checkout_webview.dart';
+import '../widgets/subscription_status_banners.dart';
 
 class SubscriptionScreen extends ConsumerStatefulWidget {
   const SubscriptionScreen({super.key});
@@ -64,53 +68,16 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(22),
             children: [
-              Icon(
-                Icons.cloud_off_rounded,
-                size: 48,
-                color: theme.colorScheme.error.withValues(alpha: 0.85),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Could not load subscription',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                e is StateError
-                    ? e.message
-                    : 'Something went wrong. Pull down or tap Retry.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  height: 1.4,
-                ),
-              ),
-              if (e is StateError &&
-                  e.message.contains('Our servers could not')) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'This is usually a temporary server issue (HTTP 500). '
-                  'Other dashboard features may still work. If it persists, '
-                  'contact support with your store name.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 20),
-              FilledButton(
-                onPressed: _refreshAll,
-                style: _primaryButton(theme),
-                child: const Text('Retry'),
+              ApiErrorView(
+                error: e,
+                title: 'Could not load subscription',
+                onRetry: _refreshAll,
               ),
             ],
           ),
           data: (data) {
-            final plans = _parsePlans(data);
+            final plans = parseAvailablePlans(data);
             final currentLabel = _currentPlanLabel(data);
             final currentId = _currentPlanId(data);
 
@@ -119,7 +86,16 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
               children: [
                 _TrialBanner(data: data, theme: theme),
-                const SizedBox(height: 8),
+                SubscriptionAccessBanner(
+                  data: data,
+                  onRenew: () => _renewPayment(plans, currentId),
+                ),
+                SubscriptionRenewalCta(
+                  data: data,
+                  onPayNow: () => _renewPayment(plans, currentId),
+                ),
+                ScheduledDowngradeChip(data: data),
+                const SizedBox(height: 12),
                 _SectionTitle(
                   text: 'Current plan',
                   theme: theme,
@@ -130,7 +106,6 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                   label: currentLabel ??
                       (currentId != null ? 'Plan $currentId' : 'Not set'),
                 ),
-                _UsageBlocks(data: data, theme: theme),
                 _PesapalConfigStrip(data: data),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -153,6 +128,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                         onBillingCycleChanged: (v) =>
                             setState(() => _billingCycle = v),
                         isCurrent: currentId != null && _planId(p) == currentId,
+                        changeType: planChangeType(p),
                         onMpesa: () => _onMpesa(p),
                         onPesapal: () => _onPesapal(data, p),
                         onActivateFree: () => _onActivateFree(p),
@@ -175,11 +151,46 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     );
   }
 
-  ButtonStyle _primaryButton(ThemeData theme) => FilledButton.styleFrom(
-        backgroundColor: AppTheme.primaryDark,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+  Future<void> _renewPayment(
+    List<Map<String, dynamic>> plans,
+    String? currentId,
+  ) async {
+    Map<String, dynamic>? target;
+    if (currentId != null && currentId.isNotEmpty) {
+      for (final p in plans) {
+        if (_planId(p) == currentId) {
+          target = p;
+          break;
+        }
+      }
+    }
+    if (target == null) {
+      for (final p in plans) {
+        if (planChangeType(p) == 'upgrade') {
+          target = p;
+          break;
+        }
+      }
+    }
+    target ??= plans.isNotEmpty ? plans.first : null;
+
+    if (target == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Choose a plan below to renew with M-Pesa or PesaPal.'),
+        ),
       );
+      return;
+    }
+
+    if (isPlanFreeActivatable(target)) {
+      await _onActivateFree(target);
+      return;
+    }
+
+    await _onMpesa(target);
+  }
 
   Future<void> _onMpesa(Map<String, dynamic> plan) async {
     final id = _planId(plan);
@@ -266,7 +277,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('PesaPal error: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     }
   }
@@ -357,7 +368,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     }
   }
@@ -412,19 +423,13 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text(apiErrorMessage(e))),
       );
     }
   }
 
   double _extractPrice(Map<String, dynamic> p) {
-    final keys = ['monthlyPrice', 'price', 'monthly', 'cost', 'amount'];
-    for (final k in keys) {
-      final v = p[k];
-      final n = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
-      if (n != null && n >= 0) return n;
-    }
-    return 0;
+    return planMonthlyPriceAmount(p) ?? 0;
   }
 }
 
@@ -563,41 +568,6 @@ class _CurrentPlanCard extends StatelessWidget {
   }
 }
 
-class _UsageBlocks extends StatelessWidget {
-  const _UsageBlocks({required this.data, required this.theme});
-
-  final Map<String, dynamic> data;
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    final usage = _pickMap(data, ['usage', 'limits', 'quota', 'usageSummary']);
-    if (usage == null || usage.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 22),
-        _SectionTitle(text: 'Usage & limits', theme: theme),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: usage.entries.map((e) {
-            final label = _humanizeKey(e.key);
-            final val = e.value?.toString() ?? '—';
-            return Chip(
-              label: Text('$label: $val'),
-              backgroundColor: AppTheme.surfaceContainerLow,
-              side: BorderSide.none,
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-}
-
 class _PesapalConfigStrip extends ConsumerWidget {
   const _PesapalConfigStrip({required this.data});
 
@@ -651,6 +621,7 @@ class _PlanCard extends StatelessWidget {
     required this.billingCycle,
     required this.onBillingCycleChanged,
     required this.isCurrent,
+    required this.changeType,
     required this.onMpesa,
     required this.onPesapal,
     required this.onActivateFree,
@@ -662,10 +633,32 @@ class _PlanCard extends StatelessWidget {
   final String billingCycle;
   final void Function(String) onBillingCycleChanged;
   final bool isCurrent;
+  final String? changeType;
   final VoidCallback onMpesa;
   final VoidCallback onPesapal;
   final VoidCallback onActivateFree;
   final VoidCallback onDowngrade;
+
+  bool get _isSamePlan =>
+      isCurrent || isPlanChangeSame(plan) || changeType == 'same';
+
+  bool get _showActivation =>
+      changeType == 'activation' ||
+      (changeType == null && _isFreeActivatable(plan) && !_isSamePlan);
+
+  bool get _showUpgradeActions {
+    if (_isSamePlan) return false;
+    if (changeType == 'downgrade' || changeType == 'activation') return false;
+    if (changeType == 'upgrade') return true;
+    return !_isFreeActivatable(plan);
+  }
+
+  bool get _showDowngradeAction {
+    if (_isSamePlan) return false;
+    if (changeType == 'upgrade' || changeType == 'activation') return false;
+    if (changeType == 'downgrade') return true;
+    return !_isFreeActivatable(plan);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -673,8 +666,10 @@ class _PlanCard extends StatelessWidget {
 
     final desc = _pickString(plan, ['description', 'summary', 'blurb']);
 
-    final priceMonthly = _formatMaybePrice(plan, 'month');
-    final priceYear = _formatMaybePrice(plan, 'year');
+    final prices = formatPlanPriceLines(plan);
+    final selectedPrice = billingCycle == 'yearly'
+        ? (prices.yearly ?? prices.monthly)
+        : (prices.monthly ?? prices.yearly);
 
     return Card(
       elevation: 0,
@@ -715,6 +710,18 @@ class _PlanCard extends StatelessWidget {
                         color: AppTheme.primaryDark,
                       ),
                     ),
+                  )
+                else if (changeType != null && changeType!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Chip(
+                      label: Text(changeType!),
+                      backgroundColor: AppTheme.surfaceContainerLow,
+                      side: BorderSide.none,
+                      labelStyle: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -729,16 +736,33 @@ class _PlanCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 8),
-            if (priceMonthly != null || priceYear != null)
+            if (selectedPrice != null) ...[
               Text(
-                [
-                  if (priceMonthly != null) 'Monthly: $priceMonthly',
-                  if (priceYear != null) 'Yearly: $priceYear',
-                ].join(' · '),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+                selectedPrice,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.primaryDark,
                 ),
               ),
+              Text(
+                billingCycle == 'yearly' ? 'per year' : 'per month',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: AppTheme.onSurfaceVariant,
+                ),
+              ),
+              if (prices.monthly != null && prices.yearly != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  billingCycle == 'yearly'
+                      ? 'Monthly: ${prices.monthly}'
+                      : 'Yearly: ${prices.yearly}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppTheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
             const SizedBox(height: 12),
             SegmentedButton<String>(
               segments: const [
@@ -754,7 +778,7 @@ class _PlanCard extends StatelessWidget {
               onSelectionChanged: (s) => onBillingCycleChanged(s.first),
             ),
             const SizedBox(height: 14),
-            if (_isFreeActivatable(plan) && !isCurrent)
+            if (_showActivation)
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
@@ -764,13 +788,13 @@ class _PlanCard extends StatelessWidget {
                   label: const Text('Activate (no payment)'),
                 ),
               )
-            else
+            else if (_showUpgradeActions)
               Row(
                 children: [
                   Expanded(
                     child: FilledButton(
                       style: _btn(theme),
-                      onPressed: isCurrent ? null : onMpesa,
+                      onPressed: onMpesa,
                       child: const Text('M-Pesa'),
                     ),
                   ),
@@ -786,13 +810,20 @@ class _PlanCard extends StatelessWidget {
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      onPressed: isCurrent ? null : onPesapal,
+                      onPressed: onPesapal,
                       child: const Text('PesaPal'),
                     ),
                   ),
                 ],
+              )
+            else if (_isSamePlan)
+              Text(
+                'This is your current plan.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: AppTheme.onSurfaceVariant,
+                ),
               ),
-            if (!isCurrent && !_isFreeActivatable(plan)) ...[
+            if (_showDowngradeAction) ...[
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerLeft,
@@ -815,72 +846,9 @@ class _PlanCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12),
       );
 
-  String? _formatMaybePrice(Map<String, dynamic> p, String mode) {
-    final monthlyKeys = [
-      'monthlyPrice',
-      'price_monthly',
-      'monthly_price',
-      'priceMonthly',
-    ];
-    final yearlyKeys = [
-      'yearlyPrice',
-      'price_yearly',
-      'yearly_price',
-      'annualPrice',
-    ];
-    final keysPick = mode == 'month' ? monthlyKeys : yearlyKeys;
-    dynamic raw;
-    for (final k in keysPick) {
-      if (p[k] != null) {
-        raw = p[k];
-        break;
-      }
-    }
-    if (raw == null && p['pricing'] is Map) {
-      final pm = p['pricing'] as Map;
-      raw = pm[mode];
-      raw ??= mode == 'month' ? pm['monthly'] ?? pm['month'] : pm['yearly'];
-    }
-
-    if (raw == null) return null;
-    final n = raw is num ? raw.toDouble() : double.tryParse(raw.toString());
-    if (n == null) return raw.toString();
-    return 'KSh ${n.toStringAsFixed(n == n.roundToDouble() ? 0 : 2)}';
-  }
 }
 
 /// --- Parsing helpers -------------------------------------------------------
-
-List<Map<String, dynamic>> _parsePlans(Map<String, dynamic> data) {
-  for (final key in [
-    'plans',
-    'pricePlans',
-    'price_plans',
-    'catalog',
-    'items',
-    'subscriptionPlans',
-  ]) {
-    final v = data[key];
-    if (v is! List) continue;
-    final out = <Map<String, dynamic>>[];
-    for (final item in v) {
-      if (item is Map) out.add(Map<String, dynamic>.from(item));
-    }
-    if (out.isNotEmpty) return out;
-  }
-
-  final single = data['plan'];
-  if (single is Map) return [Map<String, dynamic>.from(single)];
-  return const [];
-}
-
-Map<String, dynamic>? _pickMap(Map<String, dynamic> data, List<String> keys) {
-  for (final k in keys) {
-    final v = data[k];
-    if (v is Map && v.isNotEmpty) return Map<String, dynamic>.from(v);
-  }
-  return null;
-}
 
 String? _currentPlanLabel(Map<String, dynamic> data) {
   return _pickString(data, ['planName', 'plan_title', 'currentPlanName']) ??
@@ -972,10 +940,3 @@ String? _unwrapMessage(dynamic payload) {
   return _pickString(m, ['message', 'detail', 'status']);
 }
 
-String _humanizeKey(String k) {
-  final s = k.replaceAllMapped(
-    RegExp(r'([A-Z])'),
-    (m) => ' ${m[1]}',
-  );
-  return s.replaceAll('_', ' ').trim();
-}

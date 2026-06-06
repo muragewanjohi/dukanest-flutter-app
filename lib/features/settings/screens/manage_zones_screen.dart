@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../dashboard/providers/dashboard_local_onboarding_provider.dart';
 import '../providers/dashboard_settings_provider.dart';
@@ -81,21 +82,10 @@ class _ManageZonesScreenState extends ConsumerState<ManageZonesScreen> {
       error: (e, _) => Scaffold(
         backgroundColor: AppTheme.surface,
         appBar: const DashboardAppBar(title: 'Manage Zones'),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('$e', textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => ref.invalidate(deliveryZonesListProvider),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
+        body: ApiErrorView(
+          error: e,
+          title: 'Could not load delivery zones',
+          onRetry: () => ref.invalidate(deliveryZonesListProvider),
         ),
       ),
       data: (zones) {

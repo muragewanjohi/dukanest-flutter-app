@@ -186,6 +186,11 @@ class PushNotificationService {
     return out;
   }
 
+  /// Call on logout so the next login re-registers FCM for the new account.
+  void clearRegistrationCache() {
+    _lastRegisteredToken = null;
+  }
+
   Future<void> registerDeviceToken({String? tokenOverride}) async {
     try {
       final token =
