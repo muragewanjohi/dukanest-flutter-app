@@ -47,7 +47,7 @@ String? _routeFromStepId(String stepId) {
     case 'hero_image':
     case 'hero_description':
     case 'hero':
-      return '/hero-section/edit';
+      return '/page-editor/home/sections/hero';
     case 'banner_updated':
     case 'split_layout_image':
     case 'split_layout':
@@ -80,7 +80,7 @@ String? _routeFromHref(String href) {
     '/products',
     '/categories',
     '/attributes',
-    '/hero-section',
+    '/page-editor',
     '/page-editor',
     '/sales',
     '/content-management',
@@ -93,7 +93,7 @@ String? _routeFromHref(String href) {
   }
 
   final lower = path.toLowerCase();
-  if (lower.contains('hero')) return '/hero-section/edit';
+  if (lower.contains('hero')) return '/page-editor/home/sections/hero';
   if (lower.contains('/pages/') && lower.contains('edit')) {
     return '/page-editor/home';
   }

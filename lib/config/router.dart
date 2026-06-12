@@ -43,6 +43,8 @@ import '../features/content/screens/form_editor_screen.dart';
 import '../features/content/screens/form_submissions_screen.dart';
 import '../features/content/screens/page_editor_screen.dart';
 import '../features/content/screens/hero_section_editor_screen.dart';
+import '../features/content/screens/banners_section_editor_screen.dart';
+import '../features/content/screens/split_layout_section_editor_screen.dart';
 import '../features/sales/screens/sales_list_screen.dart';
 import '../features/sales/screens/sales_editor_screen.dart';
 import '../features/customers/screens/customers_list_screen.dart';
@@ -385,10 +387,36 @@ final routerProvider = Provider<GoRouter>((ref) {
           final slug = Uri.decodeComponent(state.pathParameters['slug']!);
           return PageEditorScreen(pageSlug: slug);
         },
+        routes: [
+          GoRoute(
+            path: 'sections/hero',
+            builder: (context, state) {
+              final slug =
+                  Uri.decodeComponent(state.pathParameters['slug']!);
+              return HeroSectionEditorScreen(pageSlug: slug);
+            },
+          ),
+          GoRoute(
+            path: 'sections/banners',
+            builder: (context, state) {
+              final slug =
+                  Uri.decodeComponent(state.pathParameters['slug']!);
+              return BannersSectionEditorScreen(pageSlug: slug);
+            },
+          ),
+          GoRoute(
+            path: 'sections/split-layout',
+            builder: (context, state) {
+              final slug =
+                  Uri.decodeComponent(state.pathParameters['slug']!);
+              return SplitLayoutSectionEditorScreen(pageSlug: slug);
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: '/hero-section/edit',
-        builder: (context, state) => const HeroSectionEditorScreen(),
+        redirect: (context, state) => '/page-editor/home/sections/hero',
       ),
       GoRoute(
         path: '/sales',

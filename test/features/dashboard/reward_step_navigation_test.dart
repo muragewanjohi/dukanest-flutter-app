@@ -22,7 +22,8 @@ void main() {
   group('rewardStepRoute', () {
     test('maps canonical reward step ids', () {
       expect(
-          rewardStepRoute(_step(stepId: 'hero_image')), '/hero-section/edit');
+          rewardStepRoute(_step(stepId: 'hero_image')),
+          '/page-editor/home/sections/hero');
       expect(rewardStepRoute(_step(stepId: 'products_five')), '/products');
       expect(rewardStepRoute(_step(stepId: 'categories_two')), '/categories');
       expect(rewardStepRoute(_step(stepId: 'attributes')), '/attributes/new');
@@ -41,9 +42,9 @@ void main() {
       expect(
         rewardStepRoute(_step(
           stepId: 'unknown',
-          href: '/hero-section/edit',
+          href: '/page-editor/home/sections/hero',
         )),
-        '/hero-section/edit',
+        '/page-editor/home/sections/hero',
       );
     });
 

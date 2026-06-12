@@ -4,8 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../config/theme.dart';
 import '../subscription_snapshot_helpers.dart';
 
-class SubscriptionAccessBanner extends StatelessWidget {
-  const SubscriptionAccessBanner({
+/// Single renewal / payment banner — replaces duplicate grace + pay CTAs.
+class SubscriptionRenewalBanner extends StatelessWidget {
+  const SubscriptionRenewalBanner({
     super.key,
     required this.data,
     this.onRenew,
@@ -17,9 +18,17 @@ class SubscriptionAccessBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final level = accessRestrictionLevel(data);
-    if (level == null || level == 'full') return const SizedBox.shrink();
+    final restricted = level != null && level != 'full';
+    final needsPay = needsRenewalPayment(data);
+    if (!restricted && !needsPay) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
+    final message = _renewalBannerMessage(
+      level: level,
+      needsPay: needsPay,
+      expiringSoon: isExpiringSoon(data),
+    );
+
     final Color bg;
     final Color fg;
     switch (level) {
@@ -27,14 +36,12 @@ class SubscriptionAccessBanner extends StatelessWidget {
         bg = Colors.amber.shade100;
         fg = Colors.amber.shade900;
       case 'restricted':
-        bg = theme.colorScheme.errorContainer;
-        fg = theme.colorScheme.onErrorContainer;
       case 'blocked':
         bg = theme.colorScheme.errorContainer;
         fg = theme.colorScheme.onErrorContainer;
       default:
-        bg = theme.colorScheme.surfaceContainerHighest;
-        fg = theme.colorScheme.onSurface;
+        bg = AppTheme.primary.withValues(alpha: 0.08);
+        fg = AppTheme.primaryDark;
     }
 
     return Container(
@@ -50,7 +57,7 @@ class SubscriptionAccessBanner extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            accessRestrictionBannerMessage(level),
+            message,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -75,6 +82,41 @@ class SubscriptionAccessBanner extends StatelessWidget {
   }
 }
 
+String _renewalBannerMessage({
+  required String? level,
+  required bool needsPay,
+  required bool expiringSoon,
+}) {
+  if (level != null && level != 'full') {
+    return accessRestrictionBannerMessage(level);
+  }
+  if (expiringSoon) {
+    return 'Your plan is expiring soon. Renew to avoid interruption.';
+  }
+  if (needsPay) {
+    return 'Payment is required to keep your subscription active.';
+  }
+  return 'Renew your subscription to restore full access.';
+}
+
+@Deprecated('Use SubscriptionRenewalBanner')
+class SubscriptionAccessBanner extends StatelessWidget {
+  const SubscriptionAccessBanner({
+    super.key,
+    required this.data,
+    this.onRenew,
+  });
+
+  final Map<String, dynamic> data;
+  final VoidCallback? onRenew;
+
+  @override
+  Widget build(BuildContext context) {
+    return SubscriptionRenewalBanner(data: data, onRenew: onRenew);
+  }
+}
+
+@Deprecated('Use SubscriptionRenewalBanner')
 class SubscriptionRenewalCta extends StatelessWidget {
   const SubscriptionRenewalCta({
     super.key,
@@ -87,49 +129,7 @@ class SubscriptionRenewalCta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!needsRenewalPayment(data)) return const SizedBox.shrink();
-
-    final theme = Theme.of(context);
-    final expiring = isExpiringSoon(data);
-    final label = expiring ? 'Renew now' : 'Pay now';
-    final message = expiring
-        ? 'Your plan is expiring soon. Renew to avoid interruption.'
-        : 'Payment is required to keep your subscription active.';
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.25)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            message,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppTheme.primaryDark,
-              fontWeight: FontWeight.w600,
-              height: 1.35,
-            ),
-          ),
-          if (onPayNow != null) ...[
-            const SizedBox(height: 12),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.primaryDark,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: onPayNow,
-              child: Text(label),
-            ),
-          ],
-        ],
-      ),
-    );
+    return SubscriptionRenewalBanner(data: data, onRenew: onPayNow);
   }
 }
 

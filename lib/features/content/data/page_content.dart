@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../../core/api/api_client.dart';
 import '../../settings/providers/dashboard_settings_provider.dart';
 
@@ -24,7 +26,18 @@ class PageContent {
       slug == 'home' || slug == 'about' || slug == 'contact';
 }
 
-Map<String, dynamic> _asMap(dynamic value) {
+/// Parses a page `content` field from API responses (JSON string or map).
+Map<String, dynamic> parseContentField(dynamic value) {
+  if (value is String && value.trim().isNotEmpty) {
+    try {
+      final decoded = jsonDecode(value);
+      if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
+      }
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
   if (value is Map) return Map<String, dynamic>.from(value);
   return <String, dynamic>{};
 }
@@ -49,7 +62,7 @@ PageContent _toPageContent(Map<String, dynamic> row) {
     status: settingsPick(row, ['status', 'publish_status', 'publishStatus'],
         fallback: 'draft'),
     raw: row,
-    content: _asMap(row['content']),
+    content: parseContentField(row['content']),
   );
 }
 
@@ -93,13 +106,14 @@ Future<String?> savePageContent(
   String? metaDescription,
   required bool publish,
 }) async {
+  final encoded = jsonEncode(content);
   final body = <String, dynamic>{
-    'content': content,
+    'content': encoded,
     if (metaTitle != null) 'meta_title': metaTitle,
     if (metaDescription != null) 'meta_description': metaDescription,
     if (publish) ...{
       'status': 'published',
-      'published_content': content,
+      'published_content': encoded,
     } else
       'status': 'draft',
   };
@@ -126,6 +140,28 @@ const Map<String, ({String emoji, String label})> kSectionLabels = {
   'newsletter': (emoji: '✉️', label: 'Newsletter'),
 };
 
+/// Section types that have a dedicated mobile editor.
+const Set<String> kEditableSectionTypes = {
+  'hero',
+  'banners',
+  'split_layout',
+};
+
+/// Builds a route path for editing a section on a page.
+String sectionEditorRoute(String pageSlug, String sectionType) {
+  final slug = Uri.encodeComponent(pageSlug);
+  switch (sectionType.toLowerCase()) {
+    case 'hero':
+      return '/page-editor/$slug/sections/hero';
+    case 'banners':
+      return '/page-editor/$slug/sections/banners';
+    case 'split_layout':
+      return '/page-editor/$slug/sections/split-layout';
+    default:
+      return '/page-editor/$slug';
+  }
+}
+
 /// A storefront section parsed from page content for list display + toggling.
 class PageSection {
   PageSection({
@@ -134,6 +170,7 @@ class PageSection {
     required this.label,
     required this.subtitle,
     required this.enabled,
+    this.sectionIndex,
   });
 
   final String key;
@@ -141,15 +178,59 @@ class PageSection {
   final String label;
   String subtitle;
   bool enabled;
+  final int? sectionIndex;
+
+  bool get isEditable => kEditableSectionTypes.contains(key.toLowerCase());
 }
 
 bool _readSectionEnabled(Map<String, dynamic> section) {
+  final hidden = section['hidden'];
+  if (hidden is bool) return !hidden;
+  if (hidden is String) {
+    final lower = hidden.toLowerCase();
+    if (lower == 'true') return false;
+    if (lower == 'false') return true;
+  }
   for (final k in ['enabled', 'visible', 'is_enabled', 'isEnabled', 'show']) {
     final v = section[k];
     if (v is bool) return v;
     if (v is String) return v.toLowerCase() == 'true';
   }
   return true;
+}
+
+void _writeSectionVisibility(Map<String, dynamic> section, bool enabled) {
+  section['hidden'] = !enabled;
+  section['enabled'] = enabled;
+}
+
+Map<String, dynamic>? _sectionRef(
+  Map<String, dynamic> content, {
+  required String type,
+  int? sectionIndex,
+}) {
+  final normalized = type.toLowerCase();
+  final sections = content['sections'];
+  if (sections is List) {
+    if (sectionIndex != null &&
+        sectionIndex >= 0 &&
+        sectionIndex < sections.length &&
+        sections[sectionIndex] is Map) {
+      return sections[sectionIndex] as Map<String, dynamic>;
+    }
+    for (final s in sections) {
+      if (s is Map) {
+        final m = Map<String, dynamic>.from(s);
+        final key =
+            settingsPick(m, ['type', 'key', 'id', 'name']).toLowerCase();
+        if (key == normalized) return s as Map<String, dynamic>;
+      }
+    }
+  } else if (sections is Map && sections[type] is Map) {
+    return sections[type] as Map<String, dynamic>;
+  }
+  if (content[type] is Map) return content[type] as Map<String, dynamic>;
+  return null;
 }
 
 /// Builds a display list of sections from a content map. Supports both a
@@ -169,9 +250,10 @@ List<PageSection> parseSections(Map<String, dynamic> content) {
     result.add(PageSection(
       key: key,
       emoji: emoji,
-      label: index != null ? '$label #${index + 1}' : label,
+      label: label,
       subtitle: subtitle,
       enabled: _readSectionEnabled(section),
+      sectionIndex: index,
     ));
   }
 
@@ -198,63 +280,127 @@ List<PageSection> parseSections(Map<String, dynamic> content) {
   return result;
 }
 
-/// Writes the `enabled` flag of [section] back into [content] (handles both the
-/// array and named-map shapes).
+/// Writes the visibility of [section] back into [content].
 void applySectionEnabled(
   Map<String, dynamic> content,
   PageSection section,
 ) {
   final sections = content['sections'];
   if (sections is List) {
+    if (section.sectionIndex != null &&
+        section.sectionIndex! >= 0 &&
+        section.sectionIndex! < sections.length &&
+        sections[section.sectionIndex!] is Map) {
+      _writeSectionVisibility(
+          sections[section.sectionIndex!] as Map<String, dynamic>,
+          section.enabled);
+      return;
+    }
     for (final s in sections) {
       if (s is Map) {
         final key = settingsPick(
             Map<String, dynamic>.from(s), ['type', 'key', 'id', 'name']);
         if (key == section.key) {
-          s['enabled'] = section.enabled;
+          _writeSectionVisibility(s as Map<String, dynamic>, section.enabled);
         }
       }
     }
   } else if (sections is Map && sections[section.key] is Map) {
-    (sections[section.key] as Map)['enabled'] = section.enabled;
+    _writeSectionVisibility(
+        sections[section.key] as Map<String, dynamic>, section.enabled);
   } else if (content[section.key] is Map) {
-    (content[section.key] as Map)['enabled'] = section.enabled;
+    _writeSectionVisibility(
+        content[section.key] as Map<String, dynamic>, section.enabled);
   }
 }
 
 /// Returns the hero section object from a content map, if present.
-Map<String, dynamic> readHero(Map<String, dynamic> content) {
-  final sections = content['sections'];
-  if (sections is List) {
-    for (final s in sections.whereType<Map>()) {
-      final m = Map<String, dynamic>.from(s);
-      final key = settingsPick(m, ['type', 'key', 'id', 'name']).toLowerCase();
-      if (key == 'hero') return m;
-    }
-  }
-  if (content['hero'] is Map) return Map<String, dynamic>.from(content['hero']);
+Map<String, dynamic> readHero(
+  Map<String, dynamic> content, {
+  int? sectionIndex,
+}) {
+  final ref = _sectionRef(content, type: 'hero', sectionIndex: sectionIndex);
+  if (ref != null) return Map<String, dynamic>.from(ref);
   return <String, dynamic>{};
 }
 
 /// Writes hero fields back into the content map (matching the read shape).
-void writeHero(Map<String, dynamic> content, Map<String, dynamic> hero) {
+void writeHero(
+  Map<String, dynamic> content,
+  Map<String, dynamic> hero, {
+  int? sectionIndex,
+}) {
+  final ref = _sectionRef(content, type: 'hero', sectionIndex: sectionIndex);
+  if (ref != null) {
+    hero.forEach((k, v) => ref[k] = v);
+    return;
+  }
   final sections = content['sections'];
   if (sections is List) {
-    for (final s in sections) {
-      if (s is Map) {
-        final key = settingsPick(
-                Map<String, dynamic>.from(s), ['type', 'key', 'id', 'name'])
-            .toLowerCase();
-        if (key == 'hero') {
-          s.addAll(hero);
-          return;
-        }
-      }
-    }
     sections.add({'type': 'hero', ...hero});
     return;
   }
   content['hero'] = {...readHero(content), ...hero};
+}
+
+/// Returns the banners section object from a content map, if present.
+Map<String, dynamic> readBanners(
+  Map<String, dynamic> content, {
+  int? sectionIndex,
+}) {
+  final ref = _sectionRef(content, type: 'banners', sectionIndex: sectionIndex);
+  if (ref != null) return Map<String, dynamic>.from(ref);
+  return <String, dynamic>{};
+}
+
+/// Writes banners fields back into the content map.
+void writeBanners(
+  Map<String, dynamic> content,
+  Map<String, dynamic> banners, {
+  int? sectionIndex,
+}) {
+  final ref = _sectionRef(content, type: 'banners', sectionIndex: sectionIndex);
+  if (ref != null) {
+    banners.forEach((k, v) => ref[k] = v);
+    return;
+  }
+  final sections = content['sections'];
+  if (sections is List) {
+    sections.add({'type': 'banners', ...banners});
+    return;
+  }
+  content['banners'] = {...readBanners(content), ...banners};
+}
+
+/// Returns the split_layout section object from a content map, if present.
+Map<String, dynamic> readSplitLayout(
+  Map<String, dynamic> content, {
+  int? sectionIndex,
+}) {
+  final ref =
+      _sectionRef(content, type: 'split_layout', sectionIndex: sectionIndex);
+  if (ref != null) return Map<String, dynamic>.from(ref);
+  return <String, dynamic>{};
+}
+
+/// Writes split_layout fields back into the content map.
+void writeSplitLayout(
+  Map<String, dynamic> content,
+  Map<String, dynamic> splitLayout, {
+  int? sectionIndex,
+}) {
+  final ref =
+      _sectionRef(content, type: 'split_layout', sectionIndex: sectionIndex);
+  if (ref != null) {
+    splitLayout.forEach((k, v) => ref[k] = v);
+    return;
+  }
+  final sections = content['sections'];
+  if (sections is List) {
+    sections.add({'type': 'split_layout', ...splitLayout});
+    return;
+  }
+  content['split_layout'] = {...readSplitLayout(content), ...splitLayout};
 }
 
 String _humanize(String key) {

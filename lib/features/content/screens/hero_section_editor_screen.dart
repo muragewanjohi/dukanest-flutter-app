@@ -21,7 +21,9 @@ import '../providers/content_hub_provider.dart';
 /// Edit Hero Section. Loads the storefront `home` page, hydrates the hero block
 /// from its `content`, and persists changes back via the Pages API.
 class HeroSectionEditorScreen extends ConsumerStatefulWidget {
-  const HeroSectionEditorScreen({super.key});
+  const HeroSectionEditorScreen({super.key, this.pageSlug = 'home'});
+
+  final String pageSlug;
 
   @override
   ConsumerState<HeroSectionEditorScreen> createState() =>
@@ -45,8 +47,11 @@ class _HeroSectionEditorScreenState
   bool _saving = false;
 
   String? _heroImageUrl;
-  String? _pendingLocalImagePath;
-  bool _imageCleared = false;
+  String? _bannerImageUrl;
+  String? _pendingForegroundPath;
+  String? _pendingBannerPath;
+  bool _foregroundCleared = false;
+  bool _bannerCleared = false;
 
   @override
   void initState() {
@@ -72,12 +77,12 @@ class _HeroSectionEditorScreenState
     });
     try {
       final api = ref.read(apiClientProvider);
-      final pc = await loadPageBySlug(api, 'home');
+      final pc = await loadPageBySlug(api, widget.pageSlug);
       if (!mounted) return;
       if (pc == null) {
         setState(() {
           _loading = false;
-          _error = 'Home page was not found.';
+          _error = 'Page "${widget.pageSlug}" was not found.';
         });
         return;
       }
@@ -95,16 +100,21 @@ class _HeroSectionEditorScreenState
       if (bg.isNotEmpty) _bgHex.text = bg;
       final img = settingsPick(hero, [
         'image',
-        'banner_image',
-        'bannerImage',
         'imageUrl',
         'image_url',
         'foreground_image',
       ]);
       _heroImageUrl = img.isEmpty ? null : normalizeStoreMediaUrl(img);
+      final banner = settingsPick(hero, ['banner_image', 'bannerImage']);
+      _bannerImageUrl =
+          banner.isEmpty ? null : normalizeStoreMediaUrl(banner);
       setState(() {
         _pc = pc;
         _loading = false;
+        _pendingForegroundPath = null;
+        _pendingBannerPath = null;
+        _foregroundCleared = false;
+        _bannerCleared = false;
       });
     } catch (e) {
       if (!mounted) return;
@@ -120,7 +130,7 @@ class _HeroSectionEditorScreenState
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImage({required bool banner}) async {
     try {
       final file = await _picker.pickImage(
         source: ImageSource.gallery,
@@ -129,8 +139,13 @@ class _HeroSectionEditorScreenState
       );
       if (file == null) return;
       setState(() {
-        _pendingLocalImagePath = file.path;
-        _imageCleared = false;
+        if (banner) {
+          _pendingBannerPath = file.path;
+          _bannerCleared = false;
+        } else {
+          _pendingForegroundPath = file.path;
+          _foregroundCleared = false;
+        }
       });
     } catch (e) {
       _toast(apiErrorMessage(e));
@@ -186,8 +201,8 @@ class _HeroSectionEditorScreenState
     setState(() => _saving = true);
     try {
       var image = _heroImageUrl ?? '';
-      if (_pendingLocalImagePath != null && !_imageCleared) {
-        final uploaded = await _uploadImage(_pendingLocalImagePath!);
+      if (_pendingForegroundPath != null && !_foregroundCleared) {
+        final uploaded = await _uploadImage(_pendingForegroundPath!);
         if (!mounted) return;
         if (uploaded == null) {
           setState(() => _saving = false);
@@ -196,7 +211,20 @@ class _HeroSectionEditorScreenState
         image = uploaded;
         _heroImageUrl = uploaded;
       }
-      if (_imageCleared) image = '';
+      if (_foregroundCleared) image = '';
+
+      var bannerImage = _bannerImageUrl ?? '';
+      if (_pendingBannerPath != null && !_bannerCleared) {
+        final uploaded = await _uploadImage(_pendingBannerPath!);
+        if (!mounted) return;
+        if (uploaded == null) {
+          setState(() => _saving = false);
+          return;
+        }
+        bannerImage = uploaded;
+        _bannerImageUrl = uploaded;
+      }
+      if (_bannerCleared) bannerImage = '';
 
       final hero = <String, dynamic>{
         'title': _title.text.trim(),
@@ -210,7 +238,7 @@ class _HeroSectionEditorScreenState
         'background_color': _bgHex.text.trim(),
         'backgroundColor': _bgHex.text.trim(),
         'image': image,
-        'banner_image': image,
+        'banner_image': bannerImage,
         'imageUrl': image,
       };
       final content = Map<String, dynamic>.from(pc.content);
@@ -221,7 +249,7 @@ class _HeroSectionEditorScreenState
         api,
         id: pc.id,
         content: content,
-        publish: true,
+        publish: false,
       );
       if (!mounted) return;
       if (err != null) {
@@ -229,10 +257,12 @@ class _HeroSectionEditorScreenState
         return;
       }
       pc.content = content;
-      _pendingLocalImagePath = null;
-      _imageCleared = false;
+      _pendingForegroundPath = null;
+      _pendingBannerPath = null;
+      _foregroundCleared = false;
+      _bannerCleared = false;
       ref.invalidate(contentHubProvider);
-      _toast('Hero section saved');
+      _toast('Saved as draft');
       if (context.canPop()) context.pop();
     } catch (e) {
       _toast(apiErrorMessage(e));
@@ -513,44 +543,47 @@ class _HeroSectionEditorScreenState
                 ),
               ),
               const SizedBox(height: 22),
+              _fieldLabel('Banner Image'),
+              const SizedBox(height: 10),
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: _imageEditorCard(
+                  theme: theme,
+                  preview: _imagePreview(
+                    theme: theme,
+                    url: _bannerImageUrl,
+                    pendingPath: _pendingBannerPath,
+                    cleared: _bannerCleared,
+                    emptyLabel: 'Tap edit to add a banner image',
+                  ),
+                  onPick: () => _pickImage(banner: true),
+                  onClear: () => setState(() {
+                    _bannerCleared = true;
+                    _pendingBannerPath = null;
+                    _bannerImageUrl = null;
+                  }),
+                ),
+              ),
+              const SizedBox(height: 22),
               _fieldLabel('Foreground Image'),
               const SizedBox(height: 10),
               AspectRatio(
                 aspectRatio: 1,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _heroImagePreview(theme),
-                      Positioned(
-                        top: 12,
-                        right: 12,
-                        child: Column(
-                          children: [
-                            _roundImageAction(
-                              icon: Icons.edit_outlined,
-                              color: theme.colorScheme.primary,
-                              bg: Colors.white.withValues(alpha: 0.92),
-                              onTap: _pickImage,
-                            ),
-                            const SizedBox(height: 8),
-                            _roundImageAction(
-                              icon: Icons.delete_outline_rounded,
-                              color: theme.colorScheme.error,
-                              bg: theme.colorScheme.errorContainer
-                                  .withValues(alpha: 0.95),
-                              onTap: () => setState(() {
-                                _imageCleared = true;
-                                _pendingLocalImagePath = null;
-                                _heroImageUrl = null;
-                              }),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                child: _imageEditorCard(
+                  theme: theme,
+                  preview: _imagePreview(
+                    theme: theme,
+                    url: _heroImageUrl,
+                    pendingPath: _pendingForegroundPath,
+                    cleared: _foregroundCleared,
+                    emptyLabel: 'Tap edit to add a foreground image',
                   ),
+                  onPick: () => _pickImage(banner: false),
+                  onClear: () => setState(() {
+                    _foregroundCleared = true;
+                    _pendingForegroundPath = null;
+                    _heroImageUrl = null;
+                  }),
                 ),
               ),
             ],
@@ -608,12 +641,55 @@ class _HeroSectionEditorScreenState
     );
   }
 
-  Widget _heroImagePreview(ThemeData theme) {
-    if (_pendingLocalImagePath != null && !_imageCleared) {
-      return Image.file(File(_pendingLocalImagePath!), fit: BoxFit.cover);
+  Widget _imageEditorCard({
+    required ThemeData theme,
+    required Widget preview,
+    required VoidCallback onPick,
+    required VoidCallback onClear,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          preview,
+          Positioned(
+            top: 12,
+            right: 12,
+            child: Column(
+              children: [
+                _roundImageAction(
+                  icon: Icons.edit_outlined,
+                  color: theme.colorScheme.primary,
+                  bg: Colors.white.withValues(alpha: 0.92),
+                  onTap: onPick,
+                ),
+                const SizedBox(height: 8),
+                _roundImageAction(
+                  icon: Icons.delete_outline_rounded,
+                  color: theme.colorScheme.error,
+                  bg: theme.colorScheme.errorContainer.withValues(alpha: 0.95),
+                  onTap: onClear,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _imagePreview({
+    required ThemeData theme,
+    required String? url,
+    required String? pendingPath,
+    required bool cleared,
+    required String emptyLabel,
+  }) {
+    if (pendingPath != null && !cleared) {
+      return Image.file(File(pendingPath), fit: BoxFit.cover);
     }
-    final url = _heroImageUrl;
-    if (url != null && url.isNotEmpty && !_imageCleared) {
+    if (url != null && url.isNotEmpty && !cleared) {
       return CachedNetworkImage(
         imageUrl: url,
         fit: BoxFit.cover,
@@ -635,7 +711,7 @@ class _HeroSectionEditorScreenState
                 color: theme.colorScheme.outline, size: 36),
             const SizedBox(height: 6),
             Text(
-              'Tap edit to add an image',
+              emptyLabel,
               style: GoogleFonts.inter(
                   fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
             ),

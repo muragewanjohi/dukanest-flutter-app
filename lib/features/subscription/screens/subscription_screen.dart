@@ -86,13 +86,9 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
               children: [
                 _TrialBanner(data: data, theme: theme),
-                SubscriptionAccessBanner(
+                SubscriptionRenewalBanner(
                   data: data,
                   onRenew: () => _renewPayment(plans, currentId),
-                ),
-                SubscriptionRenewalCta(
-                  data: data,
-                  onPayNow: () => _renewPayment(plans, currentId),
                 ),
                 ScheduledDowngradeChip(data: data),
                 const SizedBox(height: 12),
@@ -485,6 +481,11 @@ String? _trialMessage(Map<String, dynamic> data) {
   final current = data['currentSubscription'];
   if (sub is Map) merged.addAll(Map<String, dynamic>.from(sub));
   if (current is Map) merged.addAll(Map<String, dynamic>.from(current));
+
+  if (merged['isExpired'] == true) return null;
+
+  final daysUntilExpire = _pickNum(merged, ['daysUntilExpire', 'days_until_expire']);
+  if (daysUntilExpire != null && daysUntilExpire <= 0) return null;
 
   final inTrial = merged['inTrial'] == true ||
       merged['in_trial'] == true ||

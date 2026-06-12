@@ -16,7 +16,7 @@ Widget _host({required Map<String, dynamic>? data}) {
         ),
       ),
       GoRoute(
-        path: '/hero-section/edit',
+        path: '/page-editor/home/sections/hero',
         builder: (context, state) =>
             const Scaffold(body: Center(child: Text('Hero editor'))),
       ),

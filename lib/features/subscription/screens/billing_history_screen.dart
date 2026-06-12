@@ -73,12 +73,7 @@ class BillingHistoryScreen extends ConsumerWidget {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: [
-                SubscriptionRenewalCta(
-                  data: data,
-                  onPayNow: () => context.push('/subscription'),
-                ),
-                if (needsRenewalPayment(data)) const SizedBox(height: 8),
-                SubscriptionAccessBanner(
+                SubscriptionRenewalBanner(
                   data: data,
                   onRenew: () => context.push('/subscription'),
                 ),

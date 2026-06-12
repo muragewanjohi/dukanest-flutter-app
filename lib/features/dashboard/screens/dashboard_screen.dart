@@ -306,10 +306,14 @@ _TrialSnapshot? _trialSnapshotFromOverview(Map<String, dynamic>? data) {
   if (raw is! Map) return null;
   final sub = Map<String, dynamic>.from(raw);
 
+  final daysUntilExpire = _toIntOrNull(sub['daysUntilExpire']) ??
+      _toIntOrNull(sub['days_until_expire']);
+  if (daysUntilExpire != null && daysUntilExpire <= 0) return null;
+
   var days = _toIntOrNull(sub['trialDaysRemaining']);
   if (days == null || days <= 0) {
     if (sub['inTrial'] != true) return null;
-    days = _toIntOrNull(sub['daysUntilExpire']);
+    days = daysUntilExpire;
   }
   if (days == null || days <= 0) return null;
 

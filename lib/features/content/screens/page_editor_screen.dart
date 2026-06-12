@@ -315,9 +315,15 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
     );
   }
 
+  Future<void> _openSectionEditor(PageSection s) async {
+    if (!s.isEditable) return;
+    await context.push(sectionEditorRoute(widget.pageSlug, s.key));
+    if (mounted) _load();
+  }
+
   Widget _sectionTile(BuildContext context, ThemeData theme, int i) {
     final s = _sections[i];
-    final isHero = s.key.toLowerCase() == 'hero';
+    final editable = s.isEditable;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
@@ -326,7 +332,7 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
         shadowColor: Colors.black12,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
-          onTap: isHero ? () => context.push('/hero-section/edit') : null,
+          onTap: editable ? () => _openSectionEditor(s) : null,
           borderRadius: BorderRadius.circular(12),
           child: Container(
             decoration: BoxDecoration(
@@ -389,11 +395,11 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
                         .withValues(alpha: 0.45),
                   ),
                 ),
-                if (isHero)
+                if (editable)
                   IconButton(
                     icon: Icon(Icons.edit_outlined,
                         color: theme.colorScheme.onSurfaceVariant, size: 22),
-                    onPressed: () => context.push('/hero-section/edit'),
+                    onPressed: () => _openSectionEditor(s),
                     padding: EdgeInsets.zero,
                     constraints:
                         const BoxConstraints(minWidth: 40, minHeight: 40),
