@@ -83,7 +83,6 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
       'https://dukanest.app/p/${Uri.encodeComponent(sku)}';
 
   bool _isLoading = true;
-  bool _isLiveData = false;
   String? _errorMessage;
   List<ProductListItem> _products = const [];
   List<ProductListItem> _allProducts = const [];
@@ -229,7 +228,6 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
           _pageSize = cached.pageSize;
           _totalPages = cached.totalPages;
           _totalItems = cached.totalItems;
-          _isLiveData = true;
           _isLoading = false;
           _errorMessage = null;
           _lastSyncedAt = cached.savedAt;
@@ -326,7 +324,6 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
         _pageSize = response.pagination?.limit ?? _pageSize;
         _totalPages = response.pagination?.totalPages ?? 1;
         _totalItems = response.pagination?.total ?? mapped.length;
-        _isLiveData = true;
         _isLoading = false;
         _lastSyncedAt = DateTime.now();
       });
@@ -337,7 +334,6 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
         _currentPage = 1;
         _totalPages = 1;
         _totalItems = _products.length;
-        _isLiveData = false;
         _errorMessage = apiErrorMessage(e);
         _isLoading = false;
       });
@@ -1040,8 +1036,6 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                     ),
                   ),
                 const SizedBox(height: 18),
-                _ProductsDataSourceBadge(isLiveData: _isLiveData),
-                const SizedBox(height: 6),
                 Text(
                   '${_lastUpdatedLabel()} • Pull down to refresh',
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -1100,7 +1094,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      'Using fallback product data. ${_errorMessage!}',
+                      _errorMessage!,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onErrorContainer,
                       ),
@@ -2524,50 +2518,6 @@ class _DemoImageBadge extends StatelessWidget {
             color: Colors.white,
             letterSpacing: 0.6,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProductsDataSourceBadge extends StatelessWidget {
-  const _ProductsDataSourceBadge({required this.isLiveData});
-
-  final bool isLiveData;
-
-  @override
-  Widget build(BuildContext context) {
-    final bg = isLiveData ? const Color(0xFFD1FAE5) : const Color(0xFFFFF4E5);
-    final fg = isLiveData ? const Color(0xFF065F46) : const Color(0xFF9A3412);
-    final label = isLiveData ? 'LIVE PRODUCTS DATA' : 'FALLBACK PRODUCTS DATA';
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: fg.withValues(alpha: 0.25)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isLiveData ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
-              size: 14,
-              color: fg,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.7,
-                color: fg,
-              ),
-            ),
-          ],
         ),
       ),
     );

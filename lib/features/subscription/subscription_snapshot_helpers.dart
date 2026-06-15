@@ -64,6 +64,13 @@ bool isExpiringSoon(Map<String, dynamic> data) {
   ]);
 }
 
+bool shouldShowSubscriptionRenewalBanner(Map<String, dynamic> data) {
+  final level = accessRestrictionLevel(data);
+  if (level != null && level != 'full') return true;
+  if (needsRenewalPayment(data)) return true;
+  return isExpiringSoon(data);
+}
+
 Map<String, dynamic>? scheduledDowngrade(Map<String, dynamic> data) {
   return pickSubscriptionMap(data, [
     'scheduledDowngrade',

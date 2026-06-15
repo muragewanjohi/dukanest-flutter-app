@@ -1,14 +1,17 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/dio_envelope.dart';
+import '../../../core/util/store_media_url.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
 
@@ -27,9 +30,6 @@ class BlogPostEditorScreen extends ConsumerStatefulWidget {
 
 class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
     with FormErrorHighlightMixin {
-  static const _featuredImageUrl =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCIrd3l2JengENcu3661cT8M8paT4CLmmCZQyFx6nOD9vOzT2r00FEXBuyqTgI5J2Ncn1xEr2spbOAFRIMnQ-qXbWCU_55LQXmEhwwaXDbanaU6rbljzRd1rMXv2lKJoQevKPFyEtuH2MG_qFqGsx1bX3dR3S978mArlTc0LGPcr6SJUzhENEnpqpR6i5dwR5DE-v3F9BifYth4gkGPZdXghRmOTlZYALj_v910AhZBhMYXu_aZZyt8bX4dcYkDU9Y7wAiyiGajJQmz';
-
   late final TextEditingController _title;
   late final TextEditingController _body;
   late final TextEditingController _excerpt;
@@ -38,6 +38,8 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
   List<Map<String, dynamic>> _categories = [];
   String? _selectedCategoryId;
   bool _bootLoading = true;
+  bool _uploadingImage = false;
+  final _picker = ImagePicker();
 
   bool get _isEditing => widget.postId != null;
 
@@ -48,7 +50,6 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
     _body = TextEditingController();
     _excerpt = TextEditingController();
     _published = false;
-    _imageUrl = _featuredImageUrl;
     unawaited(_bootstrap());
   }
 
@@ -218,10 +219,44 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
     }
   }
 
-  void _changeImage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Image picker (demo)')),
-    );
+  Future<void> _changeImage() async {
+    if (_uploadingImage) return;
+    try {
+      final file = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 2000,
+        imageQuality: 85,
+      );
+      if (file == null || !mounted) return;
+      setState(() => _uploadingImage = true);
+      final api = ref.read(apiClientProvider);
+      final form = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          file.path,
+          filename: file.path.replaceAll(r'\', '/').split('/').last,
+        ),
+      });
+      final r = await api.uploadMedia(form);
+      if (!r.success || r.data == null) {
+        throw StateError(r.error?.message ?? 'Image upload failed');
+      }
+      final url = extractMediaUploadUrl(r.data);
+      if (url.isEmpty) {
+        throw StateError('Upload succeeded but no image URL was returned.');
+      }
+      if (!mounted) return;
+      setState(() => _imageUrl = url);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Featured image updated')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _uploadingImage = false);
+    }
   }
 
   Widget _sectionLabel(String text) {
@@ -320,7 +355,11 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
         children: [
-          _FeaturedImageCard(imageUrl: _imageUrl, onChangeImage: _changeImage),
+          _FeaturedImageCard(
+            imageUrl: _imageUrl,
+            uploading: _uploadingImage,
+            onChangeImage: _changeImage,
+          ),
           const SizedBox(height: 24),
           _sectionLabel('Post Title'),
           KeyedSubtree(
@@ -594,10 +633,14 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
 }
 
 class _FeaturedImageCard extends StatelessWidget {
-  const _FeaturedImageCard(
-      {required this.imageUrl, required this.onChangeImage});
+  const _FeaturedImageCard({
+    required this.imageUrl,
+    required this.uploading,
+    required this.onChangeImage,
+  });
 
   final String? imageUrl;
+  final bool uploading;
   final VoidCallback onChangeImage;
 
   @override
@@ -609,7 +652,7 @@ class _FeaturedImageCard extends StatelessWidget {
         child: Material(
           color: Theme.of(context).colorScheme.surfaceContainerHigh,
           child: InkWell(
-            onTap: onChangeImage,
+            onTap: uploading ? null : onChangeImage,
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -626,6 +669,11 @@ class _FeaturedImageCard extends StatelessWidget {
                   Center(
                     child: Icon(Icons.add_photo_alternate_outlined,
                         size: 48, color: Theme.of(context).colorScheme.outline),
+                  ),
+                if (uploading)
+                  Container(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    child: const Center(child: CircularProgressIndicator()),
                   ),
                 Positioned.fill(
                   child: DecoratedBox(

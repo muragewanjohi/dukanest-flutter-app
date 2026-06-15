@@ -225,9 +225,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       final api = ref.read(apiClientProvider);
       final res = await api.initiatePesapalCheckout({
         'planId': id,
-        'plan_id': id,
-        'billingCycle': _billingCycle,
-        'billing_cycle': _billingCycle,
+        'billingInterval': _billingCycle,
       });
 
       if (!res.success) {

@@ -352,7 +352,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       if (logoSaved) {
         return 'Your logo is already saved on your storefront.';
       }
-      return 'Store settings are already saved.';
+      return 'Store profile is already saved.';
     }
     if (logoCleared) return 'Changes saved. Store logo removed.';
     if (logoSaved) {
@@ -415,7 +415,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
   Future<void> _afterSuccessfulSave({String? message}) async {
     _captureSaveBaseline();
     _logoClearedByUser = false;
-    final normalizedSubdomain = _domain.text.trim();
+    final normalizedSubdomain = _domain.text.trim().toLowerCase();
     final rootHost =
         (Uri.tryParse(AppConfig.publicApiBaseUrl)?.host ?? 'dukanest.com')
             .replaceFirst(RegExp(r'^www\.'), '');
@@ -430,13 +430,24 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     ref.invalidate(storeIdentityProvider);
     ref.invalidate(dashboardGettingStartedProvider);
     if (!mounted) return;
-    _showSavedSnack(message: message);
     final fromTutorial =
         GoRouterState.of(context).uri.queryParameters['tutorial'] == '1';
+    _showSavedSnack(
+      message: message ??
+          (fromTutorial
+              ? 'Changes saved. Returning to tutorial…'
+              : 'Store profile saved'),
+    );
     if (fromTutorial) {
       await Future<void>.delayed(const Duration(milliseconds: 900));
       if (!mounted) return;
       context.go('/first-run-tutorial');
+      return;
+    }
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/settings');
     }
   }
 
@@ -605,6 +616,15 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       );
       return;
     }
+    final normalizedSubdomain = _domain.text.trim().toLowerCase();
+    if (!RegExp(r'^[a-z0-9-]{3,63}$').hasMatch(normalizedSubdomain)) {
+      reportFieldError(
+        fieldId: 'domain',
+        message:
+            'Use lowercase letters, numbers, and hyphens only (3–63 characters).',
+      );
+      return;
+    }
     final supportEmail = _supportEmail.text.trim();
     if (supportEmail.isNotEmpty &&
         !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(supportEmail)) {
@@ -617,7 +637,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     clearAllFieldErrors();
     if (!_hasUnsavedChanges()) {
       _showSavedSnack(
-        message: 'Store settings are already saved.',
+        message: 'Store profile is already saved.',
       );
       return;
     }
@@ -641,6 +661,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       final postal = _postal.text.trim();
       final storePatch = <String, dynamic>{
         'name': name,
+        'subdomain': normalizedSubdomain,
         'line1': line1,
         'address_line_1': line1,
         'city': city,
@@ -730,13 +751,13 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
           await _afterSuccessfulSave(
             message: logo.isNotEmpty && !_logoClearedByUser
                 ? 'Your logo is already saved on your storefront.'
-                : 'Store settings are already saved.',
+                : 'Store profile is already saved.',
           );
           return;
         }
         if (_isBenignNoUpdateDio(e)) {
           await _afterSuccessfulSave(
-            message: 'Store settings are already saved.',
+            message: 'Store profile is already saved.',
           );
           return;
         }
@@ -779,6 +800,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       }
       _logoClearedByUser = false;
       if (!mounted) return;
+      _serverSubdomain = normalizedSubdomain;
+      _domain.text = normalizedSubdomain;
       final message = _saveSuccessMessage(
         response: r,
         logoSaved: logo.isNotEmpty && !_logoClearedByUser,
@@ -1017,15 +1040,15 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     return settingsAsync.when(
       loading: () => const Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: DashboardAppBar(title: 'Store Settings'),
+        appBar: DashboardAppBar(title: 'Store profile'),
         body: Center(child: CircularProgressIndicator()),
       ),
       error: (err, _) => Scaffold(
         backgroundColor: AppTheme.surface,
-        appBar: const DashboardAppBar(title: 'Store Settings'),
+        appBar: const DashboardAppBar(title: 'Store profile'),
         body: ApiErrorView(
           error: err,
-          title: 'Could not load store settings',
+          title: 'Could not load store profile',
           onRetry: () => ref.invalidate(dashboardSettingsProvider),
         ),
       ),
@@ -1042,10 +1065,12 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: const DashboardAppBar(
-        title: 'Store Settings',
+        title: 'Store profile',
         showDivider: true,
       ),
-      body: ListView(
+      body: Stack(
+        children: [
+          ListView(
         controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         children: [
@@ -1432,6 +1457,9 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
           const SizedBox(height: 8),
           _DeleteAccountSection(onDeletePressed: _confirmDeleteAccount),
         ],
+          ),
+          if (_saving) _buildSavingOverlay(theme),
+        ],
       ),
       bottomNavigationBar: Material(
         elevation: 8,
@@ -1450,9 +1478,11 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                           strokeWidth: 2, color: Colors.white),
                     )
                   : const Icon(Icons.check_circle_outline_rounded, size: 22),
-              label: Text('Save Changes',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontWeight: FontWeight.w700, fontSize: 16)),
+              label: Text(
+                _saving ? 'Saving…' : 'Save Changes',
+                style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700, fontSize: 16),
+              ),
               style: FilledButton.styleFrom(
                 backgroundColor: theme.colorScheme.primary,
                 foregroundColor: Colors.white,
@@ -1461,6 +1491,49 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                     borderRadius: BorderRadius.circular(14)),
                 elevation: 4,
                 shadowColor: theme.colorScheme.primary.withValues(alpha: 0.35),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSavingOverlay(ThemeData theme) {
+    return Positioned.fill(
+      child: AbsorbPointer(
+        child: ColoredBox(
+          color: Colors.black.withValues(alpha: 0.28),
+          child: Center(
+            child: Material(
+              color: theme.colorScheme.surface,
+              elevation: 8,
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Saving store profile…',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.primaryDark,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

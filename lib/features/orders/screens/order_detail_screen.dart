@@ -17,7 +17,7 @@ import '../../../core/widgets/dashboard_app_bar.dart';
 import '../providers/pending_orders_count_provider.dart';
 
 /// Order detail — Stitch: "Order Details (Optimized Actions)"
-/// & local export `02-order-details/screen.html` (Quick Actions + Customer + Shipping + Notes + bottom bar).
+/// & local export `02-order-details/screen.html` (Quick Actions + Customer + Shipping + bottom bar).
 ///
 /// Note: Stitch project may show a newer screen id; layout follows the DukaNest Tenant App Plan export.
 final orderDetailProvider =
@@ -1340,7 +1340,6 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           context,
           theme,
           data,
-          true,
           pendingOrdersCount,
           badgeLabel,
         );
@@ -1352,7 +1351,6 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     BuildContext context,
     ThemeData theme,
     _OrderDetailData data,
-    bool isLiveData,
     int pendingOrdersCount,
     String badgeLabel,
   ) {
@@ -1388,8 +1386,6 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               children: [
                 _OrderCodeHeader(code: data.code),
                 const SizedBox(height: 12),
-                _DataSourceBadge(isLiveData: isLiveData),
-                const SizedBox(height: 12),
                 if (showTumiziPaymentActions) ...[
                   _tumiziPaymentActions(
                     theme,
@@ -1407,8 +1403,6 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 _customerCard(context, data),
                 const SizedBox(height: 16),
                 _shippingCard(context, data),
-                const SizedBox(height: 16),
-                _OrderNotesCard(orderCode: data.code),
               ],
             ),
           ),
@@ -1775,34 +1769,6 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 ? null
                 : () => _openAdvancedStatusSheet(context, data),
             child: const Text('Advanced status'),
-          ),
-          const SizedBox(height: 4),
-          Material(
-            color: OrderDetailScreen._surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () => _toast(context, 'Print packing slip (demo)'),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.print_outlined,
-                        color: theme.colorScheme.onSurface, size: 22),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Print Packing Slip',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: theme.colorScheme.onSurface,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ),
           if (showCancel) ...[
             const SizedBox(height: 10),
@@ -2222,150 +2188,6 @@ class _OrderCodeHeader extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _DataSourceBadge extends StatelessWidget {
-  const _DataSourceBadge({required this.isLiveData});
-
-  final bool isLiveData;
-
-  @override
-  Widget build(BuildContext context) {
-    final bg = isLiveData ? const Color(0xFFD1FAE5) : const Color(0xFFFFF4E5);
-    final fg = isLiveData ? const Color(0xFF065F46) : const Color(0xFF9A3412);
-    final label = isLiveData ? 'LIVE ORDER DATA' : 'FALLBACK ORDER DATA';
-
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: fg.withValues(alpha: 0.25)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isLiveData ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
-              size: 14,
-              color: fg,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                color: fg,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.7,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _OrderNotesCard extends StatefulWidget {
-  const _OrderNotesCard({required this.orderCode});
-
-  final String orderCode;
-
-  @override
-  State<_OrderNotesCard> createState() => _OrderNotesCardState();
-}
-
-class _OrderNotesCardState extends State<_OrderNotesCard> {
-  late final TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Internal Notes',
-            style: GoogleFonts.plusJakartaSans(
-              color: AppTheme.primaryDark,
-              fontWeight: FontWeight.w600,
-              fontSize: 17,
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _controller,
-            maxLines: 4,
-            decoration: InputDecoration(
-              hintText: 'Add a private note about this order...',
-              hintStyle: GoogleFonts.inter(
-                fontSize: 13,
-                color: AppTheme.neutral,
-              ),
-              filled: true,
-              fillColor: AppTheme.surfaceContainerLow,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.all(14),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: () {
-              final t = _controller.text.trim();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    t.isEmpty
-                        ? 'Nothing to save'
-                        : 'Note saved for ${widget.orderCode} (demo)',
-                  ),
-                ),
-              );
-            },
-            child: Text(
-              'SAVE NOTE',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-                color: AppTheme.primary,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

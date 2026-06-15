@@ -87,15 +87,6 @@ class _FirstRunTutorialScreenState
       route: '/categories/new',
     ),
     _TutorialStep(
-      key: 'attributes',
-      title: 'Add product attributes',
-      description: 'Create options like Size, Weight, and Colour for products.',
-      actionLabel: 'Add attribute',
-      completed: false,
-      icon: Icons.tune_outlined,
-      route: '/attributes/new',
-    ),
-    _TutorialStep(
       key: 'product',
       title: 'Add your first product',
       description:
@@ -481,12 +472,13 @@ class _FirstRunTutorialScreenState
       final key = (m['id'] ?? m['key'] ?? m['stepKey'] ?? '').toString().trim();
       final title = (m['label'] ?? m['title'] ?? '').toString().trim();
       if (title.isEmpty) continue;
+      final normalizedKey =
+          key.isEmpty ? title.toLowerCase() : key.toLowerCase();
+      if (_isAttributesKeyOrTitle(normalizedKey, title)) continue;
       final desc = (m['description'] ?? m['subtitle'] ?? '').toString().trim();
       final cta =
           (m['cta'] ?? m['actionLabel'] ?? 'Continue').toString().trim();
       final completed = m['completed'] == true || m['done'] == true;
-      final normalizedKey =
-          key.isEmpty ? title.toLowerCase() : key.toLowerCase();
       final route = _routeForKey(normalizedKey) ?? _inferRouteFromTitle(title);
       out.add(
         _TutorialStep(
@@ -505,40 +497,19 @@ class _FirstRunTutorialScreenState
     if (out.isEmpty) {
       return _orderTutorialSteps(List<_TutorialStep>.of(_fallbackSteps));
     }
-    return _orderTutorialSteps(_ensureAttributesStep(out));
+    return _orderTutorialSteps(out);
   }
 
-  _TutorialStep _defaultAttributesStep({bool completed = false}) {
-    return _TutorialStep(
-      key: 'attributes',
-      title: 'Add product attributes',
-      description: 'Create options like Size, Weight, and Colour for products.',
-      actionLabel: 'Add attribute',
-      completed: completed,
-      icon: Icons.tune_outlined,
-      route: '/attributes/new',
-    );
+  bool _isAttributesKeyOrTitle(String key, String title) {
+    final k = key.toLowerCase();
+    final t = title.toLowerCase();
+    return k.contains('attribute') || t.contains('attribute');
   }
 
-  List<_TutorialStep> _ensureAttributesStep(List<_TutorialStep> steps) {
-    if (steps.any(_isAttributesStep)) return steps;
-    final next = List<_TutorialStep>.of(steps);
-    final categoryIndex = next.indexWhere(_isCategoryStep);
-    final productIndex = next.indexWhere(_isProductStep);
-    final insertAt = categoryIndex >= 0
-        ? categoryIndex + 1
-        : productIndex >= 0
-            ? productIndex + 1
-            : next.length;
-    next.insert(insertAt, _defaultAttributesStep());
-    return next;
-  }
-
-  /// Category, then attributes, then product; preview/share stay last.
+  /// Category, then product; preview/share stay last.
   List<_TutorialStep> _orderTutorialSteps(List<_TutorialStep> steps) {
     final products = <_TutorialStep>[];
     final categories = <_TutorialStep>[];
-    final attributes = <_TutorialStep>[];
     final middle = <_TutorialStep>[];
     final previews = <_TutorialStep>[];
     final shares = <_TutorialStep>[];
@@ -552,14 +523,13 @@ class _FirstRunTutorialScreenState
       } else if (_isCategoryStep(s)) {
         categories.add(s);
       } else if (_isAttributesStep(s)) {
-        attributes.add(s);
+        continue;
       } else {
         middle.add(s);
       }
     }
     return [
       ...categories,
-      ...attributes,
       ...products,
       ...middle,
       ...previews,

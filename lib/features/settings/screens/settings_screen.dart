@@ -116,7 +116,7 @@ class SettingsScreen extends ConsumerWidget {
               _SettingsRow(
                 theme: theme,
                 icon: Icons.storefront_outlined,
-                title: 'Store settings',
+                title: 'Store profile',
                 subtitle: 'Name, logo, subdomain, address',
                 onTap: () => context.push('/store-identity'),
               ),

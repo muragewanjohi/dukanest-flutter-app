@@ -31,8 +31,6 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   List<_OrderListItem> _allOrders = const [];
-  bool _isLiveData = false;
-
   /// Top-row metrics (from API `metrics` / `summary` when present, else derived).
   int _metricActiveToday = 0;
   int _metricPendingShipment = 0;
@@ -393,13 +391,11 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
         _metricPendingShipment = metrics.pendingShipment;
         _goalProcessed = metrics.goalProcessed;
         _goalTotal = metrics.goalTotal;
-        _isLiveData = true;
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
         _errorMessage = apiErrorMessage(e);
-        _isLiveData = false;
         _isLoading = false;
         _metricActiveToday = 0;
         _metricPendingShipment = 0;
@@ -476,29 +472,6 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: _isLiveData
-                        ? const Color(0xFF22C55E)
-                        : const Color(0xFFEAB308),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  _isLiveData ? 'LIVE ORDERS DATA' : 'FALLBACK / NO LIVE DATA',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(

@@ -7,7 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
-import '../../../core/widgets/dashboard_page_header.dart';
+import '../../../core/widgets/dashboard_app_bar.dart';
 import '../models/expense_category.dart';
 
 class ExpensesScreen extends ConsumerStatefulWidget {
@@ -426,6 +426,35 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
+      appBar: DashboardAppBar(
+        title: 'Expenses',
+        showDivider: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () {
+            if (context.canPop()) context.pop();
+          },
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Manage categories',
+            onPressed: _categoriesLoading
+                ? null
+                : () => context.push('/analytics/expense-categories'),
+            icon: const Icon(Icons.category_outlined),
+          ),
+          IconButton(
+            tooltip: 'New category',
+            onPressed: _categoriesLoading ? null : _openCreateCategoryDialog,
+            icon: const Icon(Icons.new_label_outlined),
+          ),
+          IconButton(
+            tooltip: 'Refresh expenses',
+            onPressed: _loading ? null : () => _load(page: _page),
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _saving ? null : () => _openExpenseSheet(),
         backgroundColor: AppTheme.primaryDark,
@@ -446,37 +475,14 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
         onRefresh: () => _load(page: _page),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.fromLTRB(
-            16,
-            8 + MediaQuery.of(context).padding.top,
-            16,
-            120,
-          ),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
           children: [
-            DashboardPageHeader(
-              title: 'Expenses',
-              subtitle:
-                  'Track costs that reduce net profit, from ads to packaging.',
-              actions: [
-                IconButton(
-                  tooltip: 'Manage categories',
-                  onPressed: _categoriesLoading
-                      ? null
-                      : () => context.push('/analytics/expense-categories'),
-                  icon: const Icon(Icons.category_outlined),
-                ),
-                IconButton(
-                  tooltip: 'New category',
-                  onPressed:
-                      _categoriesLoading ? null : _openCreateCategoryDialog,
-                  icon: const Icon(Icons.new_label_outlined),
-                ),
-                IconButton(
-                  tooltip: 'Refresh expenses',
-                  onPressed: _loading ? null : () => _load(page: _page),
-                  icon: const Icon(Icons.refresh_rounded),
-                ),
-              ],
+            Text(
+              'Track costs that reduce net profit, from ads to packaging.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 16),
             _ExpensesSummaryCard(

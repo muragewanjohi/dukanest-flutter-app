@@ -117,12 +117,10 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   final ScrollController _scrollController = ScrollController();
   final List<_VariantLine> _variantLines = [];
   final Set<String> _loadedVariantIds = <String>{};
-  bool _isLiveData = false;
   bool _isLoadingRemote = false;
   bool _isSaving = false;
   bool _initialVisible = true;
   _ProductEditorTab _activeEditorTab = _ProductEditorTab.details;
-  String? _dataSourceError;
   DateTime? _lastSyncedAt;
   bool _hasSeenRefreshHint = false;
   bool _refreshHintPrefLoaded = false;
@@ -498,9 +496,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
           DateTime.now().difference(cached.savedAt) < _productCacheTtl) {
         setState(() {
           _applyProductData(cached.product);
-          _isLiveData = true;
           _isLoadingRemote = false;
-          _dataSourceError = null;
           _lastSyncedAt = cached.savedAt;
         });
         return;
@@ -509,7 +505,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
 
     setState(() {
       _isLoadingRemote = true;
-      _dataSourceError = null;
     });
     try {
       final api = ref.read(apiClientProvider);
@@ -530,7 +525,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         setState(() {
           _applyProductData(p);
           _localImagePaths.clear();
-          _isLiveData = true;
           _isLoadingRemote = false;
           _lastSyncedAt = DateTime.now();
         });
@@ -538,9 +532,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _isLiveData = false;
           _isLoadingRemote = false;
-          _dataSourceError = apiErrorMessage(e);
         });
       }
     }
@@ -2592,12 +2584,6 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                     ),
                     const SizedBox(height: 8),
                     if (!isNew) ...[
-                      _EditorDataSourceBadge(
-                        isLoading: _isLoadingRemote,
-                        isLiveData: _isLiveData,
-                        errorMessage: _dataSourceError,
-                      ),
-                      const SizedBox(height: 6),
                       Text(
                         '${lastUpdatedLabel()} • Swipe down to refresh',
                         style: theme.textTheme.bodySmall?.copyWith(
@@ -4449,76 +4435,6 @@ class _AddPhotoButton extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _EditorDataSourceBadge extends StatelessWidget {
-  const _EditorDataSourceBadge({
-    required this.isLoading,
-    required this.isLiveData,
-    required this.errorMessage,
-  });
-
-  final bool isLoading;
-  final bool isLiveData;
-  final String? errorMessage;
-
-  @override
-  Widget build(BuildContext context) {
-    final isFallback = !isLiveData;
-    final bg = isLiveData ? const Color(0xFFD1FAE5) : const Color(0xFFE6F2FF);
-    final fg = isLiveData ? const Color(0xFF065F46) : const Color(0xFF1E40AF);
-    final label = isLoading
-        ? 'Syncing product details...'
-        : isLiveData
-            ? 'Product details are up to date'
-            : 'Showing saved details';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: fg.withValues(alpha: 0.25)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isLoading
-                    ? Icons.sync
-                    : isLiveData
-                        ? Icons.cloud_done_outlined
-                        : Icons.cloud_off_outlined,
-                size: 14,
-                color: fg,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: fg,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (isFallback && errorMessage != null && errorMessage!.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          Text(
-            errorMessage!,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
-        ],
-      ],
     );
   }
 }

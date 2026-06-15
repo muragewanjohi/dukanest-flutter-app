@@ -20,6 +20,9 @@ import '../providers/dashboard_overview_provider.dart';
 import '../providers/dashboard_reward_checklist_provider.dart';
 import '../../products/demo_product_cleanup.dart';
 import '../widgets/reward_checklist_card.dart';
+import '../../subscription/providers/subscription_provider.dart';
+import '../../subscription/subscription_snapshot_helpers.dart';
+import '../../subscription/widgets/subscription_status_banners.dart';
 
 /// Home dashboard aligned with Stitch screen
 /// `projects/13184140852829986275/screens/a93fc25cee2c4ac98d30472dc7535058`
@@ -887,15 +890,20 @@ class DashboardScreen extends ConsumerWidget {
     final allOnboardingComplete =
         onboardingSteps.isNotEmpty && onboardingSteps.every((s) => s.completed);
     final trial = _trialSnapshotFromOverview(data);
+    final subscriptionData = ref.watch(subscriptionProvider).valueOrNull;
+    final showSubscriptionBanner = subscriptionData != null &&
+        shouldShowSubscriptionRenewalBanner(subscriptionData);
 
     Future<void> refreshDashboard() async {
       ref.invalidate(dashboardOverviewProvider);
       ref.invalidate(dashboardGettingStartedProvider);
       ref.invalidate(dashboardRewardChecklistProvider);
+      ref.invalidate(subscriptionProvider);
       await Future.wait([
         ref.read(dashboardOverviewProvider.future),
         ref.read(dashboardGettingStartedProvider.future),
         ref.read(dashboardRewardChecklistProvider.future),
+        ref.read(subscriptionProvider.future).catchError((_) => null),
       ]);
       ref.read(dashboardLastSyncedAtProvider.notifier).state = DateTime.now();
     }
@@ -951,6 +959,13 @@ class DashboardScreen extends ConsumerWidget {
               _TrialPeriodBanner(
                 trial: trial,
                 onUpgrade: () => context.push('/subscription'),
+              ),
+            ],
+            if (showSubscriptionBanner) ...[
+              const SizedBox(height: 12),
+              SubscriptionRenewalBanner(
+                data: subscriptionData!,
+                onRenew: () => context.push('/subscription'),
               ),
             ],
             if (storeUrl != null && storeUrl.trim().isNotEmpty) ...[

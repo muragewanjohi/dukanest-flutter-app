@@ -18,9 +18,10 @@ class SubscriptionRenewalBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final level = accessRestrictionLevel(data);
-    final restricted = level != null && level != 'full';
     final needsPay = needsRenewalPayment(data);
-    if (!restricted && !needsPay) return const SizedBox.shrink();
+    if (!shouldShowSubscriptionRenewalBanner(data)) {
+      return const SizedBox.shrink();
+    }
 
     final theme = Theme.of(context);
     final message = _renewalBannerMessage(

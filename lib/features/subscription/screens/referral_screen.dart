@@ -70,7 +70,7 @@ class ReferralScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Set your store subdomain in Store Settings to get a referral '
+                    'Set your store subdomain in Store profile to get a referral '
                     'link, or try refreshing if you recently updated your store.',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,

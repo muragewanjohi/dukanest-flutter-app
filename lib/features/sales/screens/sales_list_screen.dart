@@ -160,6 +160,22 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
   }
 
   static int _countProducts(Map<String, dynamic> sale) {
+    final countRaw = sale['productCount'] ??
+        sale['product_count'] ??
+        sale['productsCount'] ??
+        sale['products_count'];
+    if (countRaw is num) return countRaw.toInt();
+    if (countRaw is String) {
+      final parsed = int.tryParse(countRaw.trim());
+      if (parsed != null) return parsed;
+    }
+
+    final countNested = sale['_count'];
+    if (countNested is Map) {
+      final nested = countNested['product_sales'] ?? countNested['productSales'];
+      if (nested is num) return nested.toInt();
+    }
+
     final list = sale['product_sales'] ??
         sale['productSales'] ??
         sale['products'] ??
