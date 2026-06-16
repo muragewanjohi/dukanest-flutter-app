@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../config/app_config.dart';
 import '../api/api_client.dart';
 import '../api/api_response.dart';
 
@@ -158,8 +159,10 @@ class AuthService {
     String email,
   ) async {
     try {
+      final resetBase = AppConfig.publicApiBaseUrl.replaceFirst(RegExp(r'/$'), '');
       final response = await _dio.post('/auth/forgot-password', data: {
         'email': email,
+        'redirectTo': '$resetBase/reset-password',
       });
       final map = _asObjectMap(response.data);
       if (map == null) return _invalidEnvelope();

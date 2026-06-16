@@ -100,6 +100,30 @@ const _moneyHints = [
   'value'
 ];
 const _percentHints = ['percent', 'rate', 'margin', 'share', 'ratio', 'pct'];
+const _countHints = [
+  'count',
+  'customer',
+  'customers',
+  'order',
+  'orders',
+  'product',
+  'products',
+  'country',
+  'countries',
+  'state',
+  'states',
+  'city',
+  'cities',
+  'visit',
+  'visits',
+  'session',
+  'sessions',
+  'user',
+  'users',
+  'qty',
+  'quantity',
+  'units',
+];
 
 String _humanize(String key) {
   final spaced = key
@@ -115,10 +139,25 @@ bool _keyHints(String key, List<String> hints) {
   return hints.any(k.contains);
 }
 
+bool _isCountMetricKey(String key) {
+  final k = key.toLowerCase();
+  if (_keyHints(k, _percentHints)) return false;
+  if (_keyHints(k, ['revenue', 'amount', 'profit', 'cogs', 'spend'])) {
+    return false;
+  }
+  if (_keyHints(k, _countHints)) return true;
+  // Keep sales totals as counts for KPI cards (e.g. totalSales).
+  if (k == 'totalsales' || k == 'total_sales') return true;
+  return false;
+}
+
 String _formatMetric(String key, num n, String currency) {
   if (_keyHints(key, _percentHints)) {
     final pct = (n > 0 && n <= 1) ? n * 100 : n;
     return '${pct.toStringAsFixed(pct.abs() >= 10 ? 0 : 1)}%';
+  }
+  if (_isCountMetricKey(key)) {
+    return NumberFormat('#,##0').format(n);
   }
   if (_keyHints(key, _moneyHints)) {
     return '$currency ${NumberFormat('#,##0').format(n)}';

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../config/app_config.dart';
 import '../../../config/app_mode.dart';
+import '../../../core/api/api_client.dart';
 import '../../../core/auth/auth_service.dart';
 import '../../../core/auth/auth_state.dart';
 import '../../../core/auth/token_storage.dart';
@@ -12,6 +13,7 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(
     ref.watch(authServiceProvider),
     ref.watch(tokenStorageProvider),
+    ref.read(apiClientProvider),
     ref.read(pushNotificationServiceProvider),
   );
 });
@@ -62,12 +64,14 @@ Map<String, dynamic>? _pickMap(Map<String, dynamic> m, List<String> keys) {
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthService _authService;
   final TokenStorage _tokenStorage;
+  final ApiClient _apiClient;
   final PushNotificationService _pushNotificationService;
   late final StreamSubscription<void> _sessionClearedSub;
 
   AuthNotifier(
     this._authService,
     this._tokenStorage,
+    this._apiClient,
     this._pushNotificationService,
   ) : super(AuthState()) {
     _sessionClearedSub = _tokenStorage.sessionCleared.listen((_) {
@@ -146,6 +150,53 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (!exists) {
       // On first successful login path, show tutorial exactly once.
       await _tokenStorage.saveFirstRunTutorialSeen(false);
+    }
+  }
+
+  bool _isAttributesStep(Map<String, dynamic> step) {
+    final rawKey = (step['id'] ?? step['key'] ?? step['stepKey'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    final rawTitle = (step['label'] ?? step['title'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    return rawKey.contains('attribute') || rawTitle.contains('attribute');
+  }
+
+  Future<void> _syncTutorialSeenIfGettingStartedComplete() async {
+    try {
+      final response = await _apiClient.getGettingStarted();
+      if (!response.success || response.data == null) return;
+      if (response.data is! Map) return;
+      final root = Map<String, dynamic>.from(response.data as Map);
+      final inner = root['data'];
+      final payload = inner is Map ? Map<String, dynamic>.from(inner) : root;
+      final rawItems = payload['items'] ?? payload['steps'];
+      if (rawItems is! List) return;
+
+      var hasRelevantSteps = false;
+      var allRelevantStepsCompleted = true;
+      for (final raw in rawItems.whereType<Map>()) {
+        final step = Map<String, dynamic>.from(raw);
+        if (_isAttributesStep(step)) continue;
+        hasRelevantSteps = true;
+        final done = step['completed'] == true || step['done'] == true;
+        if (!done) {
+          allRelevantStepsCompleted = false;
+          break;
+        }
+      }
+
+      if (!hasRelevantSteps || !allRelevantStepsCompleted) {
+        await _ensureFirstRunTutorialFlagInitialized();
+        return;
+      }
+
+      await _tokenStorage.saveFirstRunTutorialSeen(true);
+    } catch (_) {
+      // Non-blocking optimization: routing can still proceed with existing flag.
     }
   }
 
@@ -234,6 +285,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     // we're restoring optimistically. Either way, the user stays signed
     // in and goes straight to the dashboard. If the token is actually
     // bad, the interceptor will handle it on the next API call.
+    await _syncTutorialSeenIfGettingStartedComplete();
     state = state.copyWith(
       status: AuthStatus.authenticated,
       user: restoredUser,

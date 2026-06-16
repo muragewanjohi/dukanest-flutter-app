@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../onboarding/providers/auth_provider.dart';
 import '../../../config/theme.dart';
 import '../../../core/auth/token_storage.dart';
+import '../../../core/providers/app_version_provider.dart';
 import '../../../core/providers/store_identity_provider.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 
@@ -205,6 +206,8 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 20),
+          _AppVersionFooter(theme: theme, versionAsync: ref.watch(appVersionProvider)),
+          const SizedBox(height: 16),
           FilledButton.tonalIcon(
             onPressed: () {
               ref.read(authProvider.notifier).logout();
@@ -293,6 +296,33 @@ class _StoreHeroCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AppVersionFooter extends StatelessWidget {
+  const _AppVersionFooter({
+    required this.theme,
+    required this.versionAsync,
+  });
+
+  final ThemeData theme;
+  final AsyncValue<String> versionAsync;
+
+  @override
+  Widget build(BuildContext context) {
+    return versionAsync.when(
+      data: (version) => Center(
+        child: Text(
+          'DukaNest $version',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 }

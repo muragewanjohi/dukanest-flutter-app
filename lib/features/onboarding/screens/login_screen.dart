@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'dart:async';
 import '../../../config/app_config.dart';
+import '../../../core/api/api_client.dart';
+import '../../../core/auth/token_storage.dart';
 import '../../../core/auth/auth_state.dart';
 import '../../../core/auth/google_sign_in_config.dart';
 import '../data/onboarding_trial.dart';
@@ -56,6 +58,50 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _signInStageIndex = 0;
   }
 
+  bool _isAttributesStep(Map<String, dynamic> step) {
+    final rawKey = (step['id'] ?? step['key'] ?? step['stepKey'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    final rawTitle = (step['label'] ?? step['title'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    return rawKey.contains('attribute') || rawTitle.contains('attribute');
+  }
+
+  Future<void> _syncTutorialSeenIfGettingStartedComplete() async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final response = await api.getGettingStarted();
+      if (!response.success || response.data == null) return;
+      if (response.data is! Map) return;
+      final root = Map<String, dynamic>.from(response.data as Map);
+      final inner = root['data'];
+      final payload = inner is Map ? Map<String, dynamic>.from(inner) : root;
+      final rawItems = payload['items'] ?? payload['steps'];
+      if (rawItems is! List) return;
+
+      var hasRelevantSteps = false;
+      var allRelevantStepsCompleted = true;
+      for (final raw in rawItems.whereType<Map>()) {
+        final step = Map<String, dynamic>.from(raw);
+        if (_isAttributesStep(step)) continue;
+        hasRelevantSteps = true;
+        final done = step['completed'] == true || step['done'] == true;
+        if (!done) {
+          allRelevantStepsCompleted = false;
+          break;
+        }
+      }
+
+      if (!hasRelevantSteps || !allRelevantStepsCompleted) return;
+      await ref.read(tokenStorageProvider).saveFirstRunTutorialSeen(true);
+    } catch (_) {
+      // Non-blocking optimization: routing can still proceed with existing flag.
+    }
+  }
+
   @override
   void dispose() {
     _signInStageTimer?.cancel();
@@ -76,6 +122,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             _emailController.text.trim(),
             _passwordController.text,
           );
+      await _syncTutorialSeenIfGettingStartedComplete();
       ref.invalidate(firstRunTutorialSeenProvider);
       await ref.read(firstRunTutorialSeenProvider.future);
       final status = ref.read(authProvider).status;
@@ -124,6 +171,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               idToken,
               accessToken: accessToken,
             );
+        await _syncTutorialSeenIfGettingStartedComplete();
         final authState = ref.read(authProvider);
         ref.invalidate(firstRunTutorialSeenProvider);
         await ref.read(firstRunTutorialSeenProvider.future);

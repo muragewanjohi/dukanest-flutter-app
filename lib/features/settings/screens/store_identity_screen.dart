@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -65,6 +66,19 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
   bool _saving = false;
   String? _serverSubdomain;
   String? _logoImageUrl;
+  final Dio _publicDio = Dio(
+    BaseOptions(
+      baseUrl: AppConfig.publicApiBaseUrl,
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 10),
+    ),
+  );
+  Timer? _subdomainDebounce;
+  int _subdomainRequestId = 0;
+  bool _isCheckingSubdomain = false;
+  bool? _isSubdomainAvailable;
+  String? _subdomainMessage;
+  bool _subdomainCheckFailed = false;
 
   /// Local file chosen by the user; uploaded only when they tap Save changes.
   String? _pendingLogoLocalPath;
@@ -106,6 +120,8 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
 
   @override
   void dispose() {
+    _subdomainDebounce?.cancel();
+    _publicDio.close(force: true);
     _storeName.dispose();
     _domain.dispose();
     _phoneLocal.dispose();
@@ -133,6 +149,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     final sub = settingsPick(store, ['subdomain']);
     _serverSubdomain = sub.isEmpty ? null : sub;
     _domain.text = sub;
+    _syncSubdomainStateForHydratedValue(sub);
     var phone = settingsPick(store, ['phone', 'storePhone', 'store_phone']);
     phone = phone.replaceAll(RegExp(r'\s'), '');
     if (phone.startsWith('+254')) {
@@ -219,6 +236,111 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
     final digits =
         local.replaceAll(RegExp(r'\D'), '').replaceFirst(RegExp(r'^0+'), '');
     return digits.isEmpty ? '' : '+254$digits';
+  }
+
+  void _syncSubdomainStateForHydratedValue(String subdomain) {
+    final normalized = subdomain.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      _isSubdomainAvailable = null;
+      _subdomainMessage = null;
+      _subdomainCheckFailed = false;
+      _isCheckingSubdomain = false;
+      return;
+    }
+    _isSubdomainAvailable = true;
+    _subdomainCheckFailed = false;
+    _isCheckingSubdomain = false;
+    _subdomainMessage = 'Current store domain';
+  }
+
+  bool _isSubdomainUnchanged(String normalizedSubdomain) {
+    final server = (_serverSubdomain ?? '').trim().toLowerCase();
+    return server.isNotEmpty && normalizedSubdomain == server;
+  }
+
+  void _scheduleSubdomainCheck(String subdomain) {
+    _subdomainDebounce?.cancel();
+    final normalized = subdomain.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      setState(() {
+        _isCheckingSubdomain = false;
+        _isSubdomainAvailable = null;
+        _subdomainMessage = null;
+        _subdomainCheckFailed = false;
+      });
+      return;
+    }
+    if (_isSubdomainUnchanged(normalized)) {
+      setState(() => _syncSubdomainStateForHydratedValue(normalized));
+      return;
+    }
+    _subdomainDebounce = Timer(const Duration(milliseconds: 400), () {
+      _checkSubdomainAvailability(normalized);
+    });
+  }
+
+  Future<bool?> _checkSubdomainAvailability(
+    String subdomain, {
+    bool force = false,
+  }) async {
+    final normalized = subdomain.trim().toLowerCase();
+    if (normalized.isEmpty) return null;
+    if (_isSubdomainUnchanged(normalized)) {
+      if (mounted) {
+        setState(() => _syncSubdomainStateForHydratedValue(normalized));
+      }
+      return true;
+    }
+
+    final requestId = ++_subdomainRequestId;
+    if (mounted) {
+      setState(() {
+        _isCheckingSubdomain = true;
+        _subdomainCheckFailed = false;
+        _subdomainMessage = 'Checking availability...';
+      });
+    }
+
+    try {
+      final response = await _publicDio.get(
+        '/api/tenants/check-subdomain',
+        queryParameters: {'subdomain': normalized},
+      );
+      if (!mounted || requestId != _subdomainRequestId) return null;
+      final data = response.data;
+      final available =
+          data is Map ? data['available'] == true : false;
+      setState(() {
+        _isCheckingSubdomain = false;
+        _isSubdomainAvailable = available;
+        _subdomainCheckFailed = false;
+        _subdomainMessage =
+            available ? 'Subdomain is available' : 'Subdomain is already taken';
+      });
+      return available;
+    } on DioException {
+      if (!mounted || requestId != _subdomainRequestId) return null;
+      setState(() {
+        _isCheckingSubdomain = false;
+        _isSubdomainAvailable = null;
+        _subdomainCheckFailed = true;
+        _subdomainMessage = force
+            ? 'We couldn\'t check this store URL. Please try again.'
+            : 'Couldn\'t verify availability yet.';
+      });
+      return null;
+    } catch (_) {
+      if (!mounted || requestId != _subdomainRequestId) return null;
+      setState(() {
+        _isCheckingSubdomain = false;
+        _isSubdomainAvailable = null;
+        _subdomainCheckFailed = true;
+        _subdomainMessage = force
+            ? 'We couldn\'t check this store URL. Please try again.'
+            : 'Couldn\'t verify availability yet.';
+      });
+      return null;
+    }
   }
 
   void _applyLogoFromSettings(Map<String, dynamic> data,
@@ -625,6 +747,30 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       );
       return;
     }
+    if (_isCheckingSubdomain) {
+      reportFieldError(
+        fieldId: 'domain',
+        message: 'Please wait for subdomain check to finish.',
+      );
+      return;
+    }
+    if (!_isSubdomainUnchanged(normalizedSubdomain)) {
+      if (_isSubdomainAvailable != true) {
+        final availability = await _checkSubdomainAvailability(
+          normalizedSubdomain,
+          force: true,
+        );
+        if (availability != true) {
+          reportFieldError(
+            fieldId: 'domain',
+            message: _subdomainCheckFailed
+                ? 'Could not verify subdomain availability. Try again.'
+                : 'Subdomain is unavailable.',
+          );
+          return;
+        }
+      }
+    }
     final supportEmail = _supportEmail.text.trim();
     if (supportEmail.isNotEmpty &&
         !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(supportEmail)) {
@@ -802,6 +948,7 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
       if (!mounted) return;
       _serverSubdomain = normalizedSubdomain;
       _domain.text = normalizedSubdomain;
+      _syncSubdomainStateForHydratedValue(normalizedSubdomain);
       final message = _saveSuccessMessage(
         response: r,
         logoSaved: logo.isNotEmpty && !_logoClearedByUser,
@@ -1105,7 +1252,19 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                   key: keyFor('domain'),
                   child: TextField(
                     controller: _domain,
-                    onChanged: (_) => clearFieldError('domain'),
+                    onChanged: (value) {
+                      final normalized = value.trim().toLowerCase();
+                      if (value != normalized) {
+                        _domain.value = _domain.value.copyWith(
+                          text: normalized,
+                          selection:
+                              TextSelection.collapsed(offset: normalized.length),
+                          composing: TextRange.empty,
+                        );
+                      }
+                      clearFieldError('domain');
+                      _scheduleSubdomainCheck(normalized);
+                    },
                     decoration: _fieldDeco(
                       theme,
                       isInvalid: isFieldInvalid('domain'),
@@ -1119,6 +1278,25 @@ class _StoreIdentityScreenState extends ConsumerState<StoreIdentityScreen>
                     ),
                   ),
                 ),
+                if (_subdomainMessage != null &&
+                    _domain.text.trim().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _subdomainMessage!,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: _isCheckingSubdomain
+                          ? theme.colorScheme.primary
+                          : _subdomainCheckFailed
+                              ? Colors.orange.shade700
+                              : _isSubdomainAvailable == false
+                                  ? theme.colorScheme.error
+                                  : Colors.green.shade700,
+                      fontWeight:
+                          _isCheckingSubdomain ? FontWeight.w600 : null,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 _label(theme, 'Phone Number'),
                 Row(
