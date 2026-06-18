@@ -11,7 +11,7 @@ import '../../../core/widgets/dashboard_app_bar.dart';
 import '../subscription_plan.dart';
 import '../subscription_snapshot_helpers.dart';
 import '../providers/subscription_provider.dart';
-import '../widgets/mpesa_checkout_sheet.dart';
+import '../widgets/tumizi_checkout_sheet.dart';
 import '../widgets/pesapal_checkout_webview.dart';
 import '../widgets/subscription_status_banners.dart';
 
@@ -125,7 +125,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                             setState(() => _billingCycle = v),
                         isCurrent: currentId != null && _planId(p) == currentId,
                         changeType: planChangeType(p),
-                        onMpesa: () => _onMpesa(p),
+                        onTumizi: () => _onTumizi(p),
                         onPesapal: () => _onPesapal(data, p),
                         onActivateFree: () => _onActivateFree(p),
                         onDowngrade: () =>
@@ -174,7 +174,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Choose a plan below to renew with M-Pesa or PesaPal.'),
+          content: Text('Choose a plan below to renew with M-Pesa via Tumizi or PesaPal.'),
         ),
       );
       return;
@@ -185,10 +185,10 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       return;
     }
 
-    await _onMpesa(target);
+    await _onTumizi(target);
   }
 
-  Future<void> _onMpesa(Map<String, dynamic> plan) async {
+  Future<void> _onTumizi(Map<String, dynamic> plan) async {
     final id = _planId(plan);
     if (id == null || id.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -197,7 +197,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       return;
     }
     final title = _planTitle(plan);
-    final ok = await MpesaCheckoutSheet.show(
+    final ok = await TumiziCheckoutSheet.show(
       context,
       planId: id,
       planTitle: title,
@@ -554,7 +554,7 @@ class _CurrentPlanCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Upgrade with M-Pesa STK or PesaPal. Downgrade schedules a lower plan when available.',
+              'Upgrade with M-Pesa via Tumizi or PesaPal. Downgrade schedules a lower plan when available.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: AppTheme.onSurfaceVariant,
                 height: 1.35,
@@ -621,7 +621,7 @@ class _PlanCard extends StatelessWidget {
     required this.onBillingCycleChanged,
     required this.isCurrent,
     required this.changeType,
-    required this.onMpesa,
+    required this.onTumizi,
     required this.onPesapal,
     required this.onActivateFree,
     required this.onDowngrade,
@@ -633,7 +633,7 @@ class _PlanCard extends StatelessWidget {
   final void Function(String) onBillingCycleChanged;
   final bool isCurrent;
   final String? changeType;
-  final VoidCallback onMpesa;
+  final VoidCallback onTumizi;
   final VoidCallback onPesapal;
   final VoidCallback onActivateFree;
   final VoidCallback onDowngrade;
@@ -793,8 +793,8 @@ class _PlanCard extends StatelessWidget {
                   Expanded(
                     child: FilledButton(
                       style: _btn(theme),
-                      onPressed: onMpesa,
-                      child: const Text('M-Pesa'),
+                      onPressed: onTumizi,
+                      child: const Text('M-Pesa via Tumizi'),
                     ),
                   ),
                   const SizedBox(width: 10),

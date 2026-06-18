@@ -693,6 +693,22 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
+  Future<ApiResponse<dynamic>> initiateSubscriptionTumizi(
+      Map<String, dynamic> body) async {
+    final response =
+        await _dio.post('/dashboard/subscription/tumizi/initiate', data: body);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getSubscriptionTumiziStatus(
+      String externalReference) async {
+    final response = await _dio.get(
+      '/dashboard/subscription/tumizi/status',
+      queryParameters: {'externalReference': externalReference},
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
   Future<ApiResponse<dynamic>> initiateSubscriptionMpesa(
       Map<String, dynamic> body) async {
     final response =

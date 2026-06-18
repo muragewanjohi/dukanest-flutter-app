@@ -150,7 +150,7 @@ class SettingsScreen extends ConsumerWidget {
                 theme: theme,
                 icon: Icons.card_membership_outlined,
                 title: 'Subscription & billing',
-                subtitle: 'Plan, trials, M-Pesa, PesaPal',
+                subtitle: 'Plan, trials, Tumizi, PesaPal',
                 onTap: () => context.push('/subscription'),
               ),
               _rowDivider(theme),
