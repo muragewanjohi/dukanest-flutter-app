@@ -8,6 +8,42 @@ Map<String, dynamic>? asObjectMap(dynamic data) {
   return null;
 }
 
+/// Runs a POST and always returns an [ApiResponse], even on 4xx/5xx.
+Future<ApiResponse<dynamic>> dioPostEnvelope(
+  Dio dio,
+  String path, {
+  Object? data,
+  Map<String, dynamic>? queryParameters,
+}) async {
+  try {
+    final response = await dio.post(
+      path,
+      data: data,
+      queryParameters: queryParameters,
+    );
+    final map = asObjectMap(response.data);
+    if (map == null) {
+      return const ApiResponse(
+        success: false,
+        error: ApiError(code: 'INVALID', message: 'Invalid server response'),
+      );
+    }
+    return ApiResponse.fromJson(map, (json) => json);
+  } on DioException catch (e) {
+    final errMap = asObjectMap(e.response?.data);
+    if (errMap != null) {
+      return ApiResponse.fromJson(errMap, (json) => json);
+    }
+    return ApiResponse(
+      success: false,
+      error: ApiError(
+        code: dioErrorCode(e),
+        message: dioUserMessage(e),
+      ),
+    );
+  }
+}
+
 /// Runs a GET and always returns an [ApiResponse], even when Dio would throw
 /// on 4xx/5xx (so callers never see a raw [DioException]).
 Future<ApiResponse<dynamic>> dioGetEnvelope(

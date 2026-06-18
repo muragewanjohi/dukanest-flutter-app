@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/dio_envelope.dart';
 
 /// Bottom sheet: collect phone, initiate Tumizi partner subscription STK, poll status.
 class TumiziCheckoutSheet extends ConsumerStatefulWidget {
@@ -83,7 +84,7 @@ class _TumiziCheckoutSheetState extends ConsumerState<TumiziCheckoutSheet> {
       if (!initiate.success || body == null) {
         setState(() {
           _busy = false;
-          _error = initiate.error?.message ?? 'Could not start Tumizi checkout';
+          _error = initiate.error?.message ?? 'Could not start M-Pesa checkout';
           _hint = null;
         });
         return;
@@ -111,7 +112,7 @@ class _TumiziCheckoutSheetState extends ConsumerState<TumiziCheckoutSheet> {
       debugPrint('$e\n$st');
       setState(() {
         _busy = false;
-        _error = 'Something went wrong. Try again.';
+        _error = apiErrorMessage(e);
         _hint = null;
       });
     }
@@ -208,7 +209,7 @@ class _TumiziCheckoutSheetState extends ConsumerState<TumiziCheckoutSheet> {
           ),
           const SizedBox(height: 18),
           Text(
-            'M-Pesa via Tumizi',
+            'M-Pesa',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 20,
               fontWeight: FontWeight.w700,

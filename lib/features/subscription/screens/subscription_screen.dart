@@ -174,7 +174,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Choose a plan below to renew with M-Pesa via Tumizi or PesaPal.'),
+          content: Text('Choose a plan below to renew with M-Pesa or PesaPal.'),
         ),
       );
       return;
@@ -554,7 +554,7 @@ class _CurrentPlanCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Upgrade with M-Pesa via Tumizi or PesaPal. Downgrade schedules a lower plan when available.',
+              'Upgrade with M-Pesa or PesaPal. Downgrade schedules a lower plan when available.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: AppTheme.onSurfaceVariant,
                 height: 1.35,
@@ -794,7 +794,7 @@ class _PlanCard extends StatelessWidget {
                     child: FilledButton(
                       style: _btn(theme),
                       onPressed: onTumizi,
-                      child: const Text('M-Pesa via Tumizi'),
+                      child: const Text('M-Pesa'),
                     ),
                   ),
                   const SizedBox(width: 10),
