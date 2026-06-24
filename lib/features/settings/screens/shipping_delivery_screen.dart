@@ -27,6 +27,11 @@ class ShippingDeliveryScreen extends ConsumerStatefulWidget {
 
 enum _ShippingRateMode { zones, flatRate }
 
+/// Matches web [StoreHoursEditor] — day keys with open/close/closed per day.
+const _pickupHoursJsonExample =
+    '{"monday":{"open":"09:00","close":"17:00","closed":false},'
+    '"tuesday":{"open":"09:00","close":"17:00","closed":false}}';
+
 class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     with FormErrorHighlightMixin {
   bool _allowDelivery = false;
@@ -38,6 +43,9 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
   final _pickupLocation = TextEditingController();
   final _pickupInstructions = TextEditingController();
   final _pickupHours = TextEditingController();
+  final _pickupAddressLine1 = TextEditingController();
+  final _pickupAddressCity = TextEditingController();
+  final _pickupAddressCountry = TextEditingController(text: 'Kenya');
   int _handlingDays = 1;
   String _lastHydratedShippingSignature = '';
   bool _saving = false;
@@ -52,7 +60,25 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     _pickupLocation.dispose();
     _pickupInstructions.dispose();
     _pickupHours.dispose();
+    _pickupAddressLine1.dispose();
+    _pickupAddressCity.dispose();
+    _pickupAddressCountry.dispose();
     super.dispose();
+  }
+
+  bool _hasPhysicalPickupAddress() {
+    final line1 = _pickupAddressLine1.text.trim();
+    final city = _pickupAddressCity.text.trim();
+    final country = _pickupAddressCountry.text.trim();
+    if (line1.isNotEmpty) return true;
+    return city.isNotEmpty && country.isNotEmpty;
+  }
+
+  bool _pickupAddressMeetsSaveRequirements() {
+    final line1 = _pickupAddressLine1.text.trim();
+    final city = _pickupAddressCity.text.trim();
+    final country = _pickupAddressCountry.text.trim();
+    return line1.isNotEmpty && city.isNotEmpty && country.isNotEmpty;
   }
 
   String _pickFromSources(
@@ -149,6 +175,26 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     _pickupHours.text = _pickFromSources(
       pickupSources,
       ['hours', 'pickup_hours', 'pickupHours'],
+    );
+
+    final store = settingsSection(root, 'store') ?? {};
+    final addressRaw = store['address'];
+    final address = addressRaw is Map
+        ? Map<String, dynamic>.from(addressRaw)
+        : <String, dynamic>{};
+    final addressSources = [address, store, staticOpts];
+    _pickupAddressLine1.text = _pickFromSources(
+      addressSources,
+      ['line1', 'address_line_1', 'store_address', 'address'],
+    );
+    _pickupAddressCity.text = _pickFromSources(
+      addressSources,
+      ['city', 'store_city'],
+    );
+    _pickupAddressCountry.text = _pickFromSources(
+      addressSources,
+      ['country', 'store_country'],
+      fallback: 'Kenya',
     );
 
     final methodType = _pickFromSources(
@@ -253,6 +299,9 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
     required String pickupLocation,
     required String pickupInstructions,
     required String pickupHours,
+    required String pickupAddressLine1,
+    required String pickupAddressCity,
+    required String pickupAddressCountry,
   }) {
     final shipping = <String, dynamic>{
       'enabled': localDelivery,
@@ -274,7 +323,7 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
 
     shipping['defaultEstimatedDeliveryDays'] = handlingDays;
 
-    return {
+    final body = <String, dynamic>{
       'shipping': shipping,
       'pickup': {
         'enabled': storePickup,
@@ -286,6 +335,23 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
         'hours': pickupHours.trim().isEmpty ? null : pickupHours.trim(),
       },
     };
+
+    if (storePickup) {
+      final line1 = pickupAddressLine1.trim();
+      final city = pickupAddressCity.trim();
+      final country = pickupAddressCountry.trim();
+      if (line1.isNotEmpty || city.isNotEmpty || country.isNotEmpty) {
+        body['store'] = {
+          'address': {
+            'line1': line1.isEmpty ? null : line1,
+            'city': city.isEmpty ? null : city,
+            'country': country.isEmpty ? null : country,
+          },
+        };
+      }
+    }
+
+    return body;
   }
 
   Future<void> _save() async {
@@ -334,6 +400,42 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
       }
     }
 
+    if (_storePickup && !_pickupAddressMeetsSaveRequirements()) {
+      if (_pickupAddressLine1.text.trim().isEmpty) {
+        reportFieldError(
+          fieldId: 'pickupAddressLine1',
+          message: 'Enter your store street address for pickup.',
+        );
+      } else if (_pickupAddressCity.text.trim().isEmpty) {
+        reportFieldError(
+          fieldId: 'pickupAddressCity',
+          message: 'Enter your store city for pickup.',
+        );
+      } else {
+        reportFieldError(
+          fieldId: 'pickupAddressCountry',
+          message: 'Enter your store country for pickup.',
+        );
+      }
+      return;
+    }
+
+    if (_storePickup && _pickupHours.text.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(_pickupHours.text.trim());
+        if (decoded is! Map) {
+          throw const FormatException('Expected a JSON object');
+        }
+      } catch (_) {
+        reportFieldError(
+          fieldId: 'pickupHours',
+          message:
+              'Store hours must be valid JSON. See the example format below the field.',
+        );
+        return;
+      }
+    }
+
     clearAllFieldErrors();
     setState(() => _saving = true);
     try {
@@ -353,6 +455,9 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
         pickupLocation: _pickupLocation.text,
         pickupInstructions: _pickupInstructions.text,
         pickupHours: _pickupHours.text,
+        pickupAddressLine1: _pickupAddressLine1.text,
+        pickupAddressCity: _pickupAddressCity.text,
+        pickupAddressCountry: _pickupAddressCountry.text,
       );
       final api = ref.read(apiClientProvider);
       final r = await api.patchDashboardSettings(body);
@@ -559,6 +664,65 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                       ),
                       if (_storePickup) ...[
                         const SizedBox(height: 16),
+                        Text(
+                          'Pickup address',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _hasPhysicalPickupAddress()
+                              ? 'Customers will see this address when choosing store pickup.'
+                              : 'Store pickup needs a physical address. Add it here or in Store profile.',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: theme.colorScheme.onSurfaceVariant,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        KeyedSubtree(
+                          key: keyFor('pickupAddressLine1'),
+                          child: TextField(
+                            controller: _pickupAddressLine1,
+                            onChanged: (_) => clearFieldError('pickupAddressLine1'),
+                            decoration: _fieldDeco(
+                              theme,
+                              hint: 'Street address',
+                              isInvalid: isFieldInvalid('pickupAddressLine1'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        KeyedSubtree(
+                          key: keyFor('pickupAddressCity'),
+                          child: TextField(
+                            controller: _pickupAddressCity,
+                            onChanged: (_) => clearFieldError('pickupAddressCity'),
+                            decoration: _fieldDeco(
+                              theme,
+                              hint: 'City',
+                              isInvalid: isFieldInvalid('pickupAddressCity'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        KeyedSubtree(
+                          key: keyFor('pickupAddressCountry'),
+                          child: TextField(
+                            controller: _pickupAddressCountry,
+                            onChanged: (_) => clearFieldError('pickupAddressCountry'),
+                            decoration: _fieldDeco(
+                              theme,
+                              hint: 'Country',
+                              isInvalid: isFieldInvalid('pickupAddressCountry'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         TextField(
                           controller: _pickupLocation,
                           decoration:
@@ -572,12 +736,41 @@ class _ShippingDeliveryScreenState extends ConsumerState<ShippingDeliveryScreen>
                               _fieldDeco(theme, hint: 'Pickup instructions'),
                         ),
                         const SizedBox(height: 12),
-                        TextField(
-                          controller: _pickupHours,
-                          maxLines: 3,
-                          decoration: _fieldDeco(
-                            theme,
-                            hint: 'Hours (JSON string, same as web)',
+                        Text(
+                          'Store hours (JSON)',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        KeyedSubtree(
+                          key: keyFor('pickupHours'),
+                          child: TextField(
+                            controller: _pickupHours,
+                            maxLines: 5,
+                            onChanged: (_) => clearFieldError('pickupHours'),
+                            decoration: _fieldDeco(
+                              theme,
+                              hint: _pickupHoursJsonExample,
+                              isInvalid: isFieldInvalid('pickupHours'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'One entry per day (monday–sunday). Each day needs '
+                          '"open" and "close" in 24-hour format (e.g. 09:00, 17:00) '
+                          'and "closed" (true/false). Example:\n'
+                          '{\n'
+                          '  "monday": {"open": "09:00", "close": "17:00", "closed": false},\n'
+                          '  "sunday": {"open": "09:00", "close": "17:00", "closed": true}\n'
+                          '}',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: theme.colorScheme.onSurfaceVariant,
+                            height: 1.35,
                           ),
                         ),
                       ],

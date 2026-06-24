@@ -10,30 +10,61 @@ class ReferralActionsRow extends StatelessWidget {
   const ReferralActionsRow({
     super.key,
     required this.summary,
+    this.storeDisplayName,
     this.compact = false,
   });
 
   final ReferralSummary summary;
+
+  /// Store display name from profile; used for sharing during in-app registration.
+  final String? storeDisplayName;
   final bool compact;
+
+  String? get _subdomain => summary.shareSubdomain?.trim();
+
+  /// Value shared during in-app registration (`Referral shop domain` field).
+  String? get _storeNameToCopy {
+    final sub = _subdomain;
+    if (sub != null && sub.isNotEmpty) return sub;
+    final name = storeDisplayName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final subdomain = summary.shareSubdomain?.trim();
+    final subdomain = _subdomain;
+    final storeNameToCopy = _storeNameToCopy;
     final inviteLink =
         summary.registrationReferralLink() ?? summary.effectiveShareLink;
 
-    if (inviteLink == null && (subdomain == null || subdomain.isEmpty)) {
+    if (inviteLink == null &&
+        (subdomain == null || subdomain.isEmpty) &&
+        storeNameToCopy == null) {
       return const SizedBox.shrink();
     }
 
-    final shareText = inviteLink ??
-        (subdomain != null
-            ? 'Join DukaNest — use referral code: $subdomain'
-            : 'Join DukaNest');
+    final shareText = _buildShareText(
+      inviteLink: inviteLink,
+      subdomain: subdomain,
+      storeName: storeNameToCopy,
+    );
 
     if (compact) {
-      return Row(
+      return Wrap(
+        spacing: 4,
+        runSpacing: 4,
         children: [
+          if (storeNameToCopy != null)
+            TextButton.icon(
+              onPressed: () => _copy(
+                context,
+                storeNameToCopy,
+                message: 'Store name copied',
+              ),
+              icon: const Icon(Icons.storefront_outlined, size: 18),
+              label: const Text('Copy store name'),
+            ),
           if (inviteLink != null)
             TextButton.icon(
               onPressed: () => _copy(context, inviteLink),
@@ -53,6 +84,16 @@ class ReferralActionsRow extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
+        if (storeNameToCopy != null)
+          FilledButton.tonalIcon(
+            onPressed: () => _copy(
+              context,
+              storeNameToCopy,
+              message: 'Store name copied',
+            ),
+            icon: const Icon(Icons.storefront_outlined, size: 18),
+            label: const Text('Copy store name'),
+          ),
         if (inviteLink != null) ...[
           FilledButton.tonalIcon(
             onPressed: () => _copy(context, inviteLink),
@@ -76,6 +117,30 @@ class ReferralActionsRow extends StatelessWidget {
     );
   }
 
+  static String _buildShareText({
+    required String? inviteLink,
+    required String? subdomain,
+    required String? storeName,
+  }) {
+    if (inviteLink != null) {
+      if (storeName != null && subdomain != null && storeName != subdomain) {
+        return 'Join DukaNest — referred by $storeName. '
+            'When registering in the app, enter "$subdomain" as the referral shop domain.\n'
+            '$inviteLink';
+      }
+      if (storeName != null) {
+        return 'Join DukaNest — referred by $storeName.\n$inviteLink';
+      }
+      return inviteLink;
+    }
+    if (subdomain != null) {
+      return 'Join DukaNest — use referral shop domain: $subdomain';
+    }
+    return storeName != null
+        ? 'Join DukaNest — referred by $storeName'
+        : 'Join DukaNest';
+  }
+
   static bool _isLaunchable(String url) {
     final uri = Uri.tryParse(url);
     return uri != null && (uri.isScheme('http') || uri.isScheme('https'));
@@ -87,11 +152,15 @@ class ReferralActionsRow extends StatelessWidget {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  static Future<void> _copy(BuildContext context, String text) async {
+  static Future<void> _copy(
+    BuildContext context,
+    String text, {
+    String message = 'Referral link copied',
+  }) async {
     await Clipboard.setData(ClipboardData(text: text));
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Referral link copied')),
+      SnackBar(content: Text(message)),
     );
   }
 }

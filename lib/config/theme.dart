@@ -18,6 +18,9 @@ class AppTheme {
   static const Color onSurfaceVariant = Color(0xFF444655);
   static const Color outlineVariant = Color(0xFFC5C5D8);
 
+  /// Safaricom M-Pesa brand green for payment CTAs.
+  static const Color mpesaGreen = Color(0xFF00A651);
+
   // Ghost Border
   static const Color ghostBorder = Color(0x26C5C5D8); // 15% opacity
 

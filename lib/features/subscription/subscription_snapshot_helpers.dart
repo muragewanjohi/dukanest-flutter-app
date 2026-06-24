@@ -147,6 +147,90 @@ List<Map<String, dynamic>> parseAvailablePlans(Map<String, dynamic> data) {
   return const [];
 }
 
+/// Resolves the tenant's active plan from a subscription snapshot.
+///
+/// The mobile API returns a full [currentPlan] object; older shapes may only
+/// expose plan id fields at the root or inside [summary].
+Map<String, dynamic>? resolveCurrentPlan({
+  required Map<String, dynamic> data,
+  required List<Map<String, dynamic>> plans,
+}) {
+  String? planIdFrom(Map<String, dynamic>? m) => pickSubscriptionString(
+        m,
+        ['id', 'planId', 'plan_id', 'pricePlanId', 'price_plan_id'],
+      );
+
+  Map<String, dynamic>? findInCatalog(String? id) {
+    if (id == null || id.isEmpty) return null;
+    for (final plan in plans) {
+      if (planIdFrom(plan) == id) return plan;
+    }
+    return null;
+  }
+
+  final currentPlanObj =
+      pickSubscriptionMap(data, ['currentPlan', 'current_plan']);
+  if (currentPlanObj != null && currentPlanObj.isNotEmpty) {
+    final id = planIdFrom(currentPlanObj);
+    return findInCatalog(id) ?? currentPlanObj;
+  }
+
+  for (final plan in plans) {
+    if (isPlanChangeSame(plan)) return plan;
+  }
+
+  final currentId = pickSubscriptionString(data, [
+        'planId',
+        'plan_id',
+        'pricePlanId',
+        'price_plan_id',
+      ]) ??
+      pickSubscriptionString(
+        pickSubscriptionMap(data, ['subscription', 'currentSubscription']),
+        ['planId', 'plan_id', 'id'],
+      ) ??
+      pickSubscriptionString(
+        pickSubscriptionMap(data, ['summary']),
+        ['planId', 'plan_id'],
+      );
+
+  final fromCatalog = findInCatalog(currentId);
+  if (fromCatalog != null) return fromCatalog;
+
+  if (currentId == null || currentId.isEmpty) return null;
+
+  final label = pickSubscriptionString(data, [
+        'planName',
+        'plan_title',
+        'currentPlanName',
+      ]) ??
+      pickSubscriptionString(
+        pickSubscriptionMap(data, ['summary']),
+        ['planName', 'plan_name', 'name'],
+      ) ??
+      pickSubscriptionString(
+        pickSubscriptionMap(data, ['currentPlan', 'current_plan', 'subscription']),
+        ['name', 'title', 'label', 'planName'],
+      );
+
+  return {
+    'id': currentId,
+    'name': label ?? 'Plan $currentId',
+  };
+}
+
+String? resolveCurrentPlanId(
+  Map<String, dynamic> data,
+  List<Map<String, dynamic>> plans,
+) {
+  final plan = resolveCurrentPlan(data: data, plans: plans);
+  if (plan == null) return null;
+  return pickSubscriptionString(
+    plan,
+    ['id', 'planId', 'plan_id', 'pricePlanId', 'price_plan_id'],
+  );
+}
+
 List<Map<String, dynamic>> extractBillingHistoryRows(Map<String, dynamic> data) {
   for (final key in [
     'billingHistory',

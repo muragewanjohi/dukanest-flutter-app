@@ -263,8 +263,9 @@ class _TumiziCheckoutSheetState extends ConsumerState<TumiziCheckoutSheet> {
           FilledButton(
             onPressed: _busy ? null : _startCheckout,
             style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.primaryDark,
+              backgroundColor: AppTheme.mpesaGreen,
               foregroundColor: Colors.white,
+              disabledBackgroundColor: AppTheme.mpesaGreen.withValues(alpha: 0.45),
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -279,7 +280,7 @@ class _TumiziCheckoutSheetState extends ConsumerState<TumiziCheckoutSheet> {
                       color: Colors.white,
                     ),
                   )
-                : const Text('Send STK prompt'),
+                : const Text('Pay now'),
           ),
           TextButton(
             onPressed:

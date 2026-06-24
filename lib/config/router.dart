@@ -51,6 +51,7 @@ import '../features/customers/screens/customers_list_screen.dart';
 import '../features/customers/screens/customer_detail_screen.dart';
 import '../features/customers/screens/customer_edit_screen.dart';
 import '../features/inventory/screens/inventory_screen.dart';
+import '../features/subscription/screens/change_plan_screen.dart';
 import '../features/subscription/screens/subscription_screen.dart';
 import '../features/subscription/screens/billing_history_screen.dart';
 import '../features/subscription/screens/referral_screen.dart';
@@ -89,6 +90,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             location == '/store-identity' ||
             location == '/payment-settings' ||
             location == '/subscription' ||
+            location == '/change-plan' ||
             location == '/billing-history' ||
             location == '/tumizi-dashboard' ||
             location == '/shipping-delivery' ||
@@ -295,6 +297,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/subscription',
         builder: (context, state) => const SubscriptionScreen(),
+      ),
+      GoRoute(
+        path: '/change-plan',
+        builder: (context, state) => const ChangePlanScreen(),
       ),
       GoRoute(
         path: '/referrals',

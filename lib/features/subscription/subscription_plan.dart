@@ -136,13 +136,33 @@ String formatPlanPriceAmount(double amount, {String? currencySymbol}) {
   return '$symbol ${amount.toStringAsFixed(rounded ? 0 : 2)}';
 }
 
+/// Yearly price from API fields, or derived from monthly with optional discount.
+double? resolvedYearlyPriceAmount(
+  Map<String, dynamic> p, {
+  num? yearlyDiscountPercent,
+}) {
+  final yearly = planYearlyPriceAmount(p);
+  if (yearly != null) return yearly;
+
+  final monthly = planMonthlyPriceAmount(p);
+  if (monthly == null) return null;
+
+  final discount = yearlyDiscountPercent ?? 0;
+  if (discount > 0) {
+    return monthly * 12 * (1 - discount / 100);
+  }
+  return monthly * 12;
+}
+
 /// Human-readable monthly/yearly price lines for plan cards.
 ({String? monthly, String? yearly}) formatPlanPriceLines(
-  Map<String, dynamic> p,
-) {
+  Map<String, dynamic> p, {
+  num? yearlyDiscountPercent,
+}) {
   final symbol = _planCurrencySymbol(p);
   final monthlyAmount = planMonthlyPriceAmount(p);
-  final yearlyAmount = planYearlyPriceAmount(p);
+  final yearlyAmount =
+      resolvedYearlyPriceAmount(p, yearlyDiscountPercent: yearlyDiscountPercent);
   return (
     monthly: monthlyAmount == null
         ? null

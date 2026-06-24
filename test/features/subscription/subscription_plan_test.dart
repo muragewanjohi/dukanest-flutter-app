@@ -63,5 +63,31 @@ void main() {
 
       expect(lines.monthly, 'KSh 1999');
     });
+
+    test('derives yearly price from monthly with discount', () {
+      final lines = formatPlanPriceLines(
+        {'price': 10},
+        yearlyDiscountPercent: 17,
+      );
+
+      expect(lines.monthly, 'KSh 10');
+      expect(lines.yearly, 'KSh 99.60');
+    });
+  });
+
+  group('resolvedYearlyPriceAmount', () {
+    test('uses explicit yearly price when present', () {
+      expect(
+        resolvedYearlyPriceAmount({'yearlyPrice': 999}),
+        999,
+      );
+    });
+
+    test('computes yearly from monthly with discount', () {
+      expect(
+        resolvedYearlyPriceAmount({'price': 30}, yearlyDiscountPercent: 17),
+        closeTo(298.8, 0.01),
+      );
+    });
   });
 }

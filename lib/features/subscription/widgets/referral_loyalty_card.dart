@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/dio_envelope.dart';
+import '../../../core/providers/store_identity_provider.dart';
 import '../models/referral_summary.dart';
 import '../providers/referrals_provider.dart';
 import 'referral_actions.dart';
@@ -25,12 +26,14 @@ class ReferralLoyaltyCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final storeDisplayName = ref.watch(storeIdentityProvider).asData?.value.name;
 
     if (summaryOverride != null) {
       if (!summaryOverride!.hasShareContent) return const SizedBox.shrink();
       return _CardBody(
         theme: theme,
         summary: summaryOverride!,
+        storeDisplayName: storeDisplayName,
         showViewAll: showViewAll,
         compactActions: compactActions,
       );
@@ -53,6 +56,7 @@ class ReferralLoyaltyCard extends ConsumerWidget {
         return _CardBody(
           theme: theme,
           summary: summary,
+          storeDisplayName: storeDisplayName,
           showViewAll: showViewAll,
           compactActions: compactActions,
         );
@@ -110,12 +114,14 @@ class _CardBody extends StatelessWidget {
   const _CardBody({
     required this.theme,
     required this.summary,
+    required this.storeDisplayName,
     required this.showViewAll,
     required this.compactActions,
   });
 
   final ThemeData theme;
   final ReferralSummary summary;
+  final String? storeDisplayName;
   final bool showViewAll;
   final bool compactActions;
 
@@ -123,6 +129,7 @@ class _CardBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final subdomain = summary.shareSubdomain?.trim();
     final link = summary.effectiveShareLink;
+    final displayName = storeDisplayName?.trim();
 
     return Card(
       elevation: 0,
@@ -165,10 +172,20 @@ class _CardBody extends StatelessWidget {
                 height: 1.35,
               ),
             ),
+            if (displayName != null && displayName.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Your store: $displayName',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.primaryDark,
+                ),
+              ),
+            ],
             if (subdomain != null && subdomain.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
-                'Your referral code: $subdomain',
+                'Store name for registration: $subdomain',
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppTheme.primaryDark,
@@ -189,6 +206,7 @@ class _CardBody extends StatelessWidget {
             const SizedBox(height: 12),
             ReferralActionsRow(
               summary: summary,
+              storeDisplayName: displayName,
               compact: compactActions,
             ),
           ],
