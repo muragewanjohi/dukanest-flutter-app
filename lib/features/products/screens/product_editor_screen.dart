@@ -126,6 +126,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   bool _refreshHintPrefLoaded = false;
   bool _skuExpanded = false;
 
+  // AI Phase 5 — Product Photo QA. Purely advisory; reset whenever the
+  // gallery's first (primary) image changes so stale feedback never lingers.
+  Map<String, dynamic>? _photoQaResult;
+  bool _photoQaLoading = false;
+  String? _photoQaError;
+
   /// Tracks the single field currently flagged as invalid so we can highlight
   /// it in red and scroll it into view. Cleared when the user edits the field
   /// or another save attempt succeeds.
@@ -1813,6 +1819,39 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     return null;
   }
 
+  // AI Phase 5 — advisory only. Never writes to any field itself; the
+  // merchant explicitly chooses to use a suggestion via its own button.
+  Future<void> _checkPhotoQuality() async {
+    if (_remoteImageUrls.isEmpty) return;
+    setState(() {
+      _photoQaLoading = true;
+      _photoQaError = null;
+      _photoQaResult = null;
+    });
+    try {
+      final api = ref.read(apiClientProvider);
+      final response = await api.checkProductPhotoQuality(
+        imageUrl: _remoteImageUrls.first,
+        productName: _name.text.trim().isNotEmpty ? _name.text.trim() : null,
+      );
+      if (!mounted) return;
+      if (!response.success) {
+        setState(() => _photoQaError = response.error?.message ?? 'Photo QA is temporarily unavailable.');
+        return;
+      }
+      var data = response.data;
+      if (data is Map<String, dynamic> && data['data'] is Map<String, dynamic> && data['qualityScore'] == null) {
+        data = data['data'];
+      }
+      setState(() => _photoQaResult = data is Map<String, dynamic> ? data : null);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _photoQaError = apiErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => _photoQaLoading = false);
+    }
+  }
+
   Future<String?> _uploadLocalImagePath(ApiClient api, String path) async {
     final name = path.replaceAll(r'\', '/').split('/').last;
     final form = FormData.fromMap({
@@ -2320,6 +2359,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       setState(() {
         if (_totalPhotoSlotsUsed < 5) {
           _remoteImageUrls.add(normalizeStoreMediaUrl(url));
+          _photoQaResult = null;
+          _photoQaError = null;
         }
       });
       return;
@@ -2638,8 +2679,11 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                   child: _MediaThumb(
                                     imageUrl: e.value,
                                     localImagePath: null,
-                                    onRemove: () => setState(
-                                        () => _remoteImageUrls.removeAt(e.key)),
+                                    onRemove: () => setState(() {
+                                      _remoteImageUrls.removeAt(e.key);
+                                      _photoQaResult = null;
+                                      _photoQaError = null;
+                                    }),
                                   ),
                                 ),
                               ),
@@ -2658,6 +2702,18 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                         ],
                       ),
                     ),
+                    if (_remoteImageUrls.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _PhotoQaSection(
+                        loading: _photoQaLoading,
+                        error: _photoQaError,
+                        result: _photoQaResult,
+                        onCheck: _checkPhotoQuality,
+                        onUseDescription: _description.text.trim().isEmpty
+                            ? (text) => setState(() => _description.text = text)
+                            : null,
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     KeyedSubtree(
                       key: _keyFor('section_details'),
@@ -3996,6 +4052,173 @@ class _FmtIcon extends StatelessWidget {
         minimumSize: const Size(36, 36),
         padding: EdgeInsets.zero,
       ),
+    );
+  }
+}
+
+/// AI Phase 5 — Product Photo QA. Purely advisory: displays real
+/// quality feedback for the gallery's primary (first remote) image and
+/// lets the merchant optionally copy the suggested description into the
+/// form — never applies anything automatically.
+class _PhotoQaSection extends StatelessWidget {
+  const _PhotoQaSection({
+    required this.loading,
+    required this.error,
+    required this.result,
+    required this.onCheck,
+    required this.onUseDescription,
+  });
+
+  final bool loading;
+  final String? error;
+  final Map<String, dynamic>? result;
+  final VoidCallback onCheck;
+  final void Function(String text)? onUseDescription;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final qualityScore = result?['qualityScore'] as String?;
+    final issues = (result?['issues'] as List?)?.whereType<String>().toList() ?? const <String>[];
+    final reshootSuggestions =
+        (result?['reshootSuggestions'] as List?)?.whereType<String>().toList() ?? const <String>[];
+    final suggestedAltText = result?['suggestedAltText'] as String?;
+    final suggestedSeoDescription = result?['suggestedSeoDescription'] as String?;
+
+    Color badgeColor;
+    String badgeLabel;
+    switch (qualityScore) {
+      case 'good':
+        badgeColor = Colors.green;
+        badgeLabel = 'Good quality';
+        break;
+      case 'needs_improvement':
+        badgeColor = Colors.orange;
+        badgeLabel = 'Could be improved';
+        break;
+      case 'poor':
+        badgeColor = Colors.red;
+        badgeLabel = 'Needs a retake';
+        break;
+      default:
+        badgeColor = theme.colorScheme.outline;
+        badgeLabel = '';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton.icon(
+          onPressed: loading ? null : onCheck,
+          icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+          label: Text(loading ? 'Checking photo…' : 'Check photo quality'),
+        ),
+        if (error != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            error!,
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ],
+        if (result != null) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (badgeLabel.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: badgeColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      badgeLabel,
+                      style: theme.textTheme.labelSmall
+                          ?.copyWith(color: badgeColor, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                if (issues.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ...issues.map(
+                    (issue) => Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text(
+                        '•  $issue',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    ),
+                  ),
+                ],
+                if (reshootSuggestions.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Tips for a better photo:',
+                    style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  ...reshootSuggestions.map(
+                    (tip) => Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text(
+                        '•  $tip',
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    ),
+                  ),
+                ],
+                if (suggestedAltText != null && suggestedAltText.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Suggested alt text',
+                    style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    suggestedAltText,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+                if (suggestedSeoDescription != null && suggestedSeoDescription.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Suggested SEO description',
+                    style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    suggestedSeoDescription,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                  if (onUseDescription != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        onPressed: () => onUseDescription!(suggestedSeoDescription),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          minimumSize: const Size(0, 32),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text('Use as description', style: TextStyle(fontSize: 12)),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

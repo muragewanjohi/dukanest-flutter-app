@@ -34,6 +34,20 @@ class MoreMenuScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 26),
           _MoreItem(
+            // The AI Assistant itself moved to the prominent center bottom-nav
+            // tab (dashboard_shell.dart) — Analytics moved here to make room
+            // for it. Path unchanged from when it was a tab, so nothing else
+            // that links to /analytics needed to change.
+            icon: Icons.bar_chart_outlined,
+            iconColor: const Color(0xFF7C2D92),
+            iconBackground: const Color(0xFFF3E8FF),
+            title: 'Analytics',
+            subtitle: 'Revenue, orders, and performance reports for your store.',
+            onTap: () => context.push('/analytics'),
+            bordered: true,
+          ),
+          const SizedBox(height: 12),
+          _MoreItem(
             icon: Icons.settings_outlined,
             iconColor: theme.colorScheme.outline,
             iconBackground: const Color(0xFFF1F5F9),

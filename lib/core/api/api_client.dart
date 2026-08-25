@@ -118,6 +118,37 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
+  /// Dashboard AI Assistant — data_query, help_question, next_steps,
+  /// business_advice, and configuration_guidance (which can hand off into
+  /// product_intake mode, see postProductAiIntake below). `messages` is the
+  /// full conversation so far, oldest first — the Messages API is
+  /// stateless, so the client resends it every turn, same as the web
+  /// assistant.
+  ///
+  /// Uses dioPostEnvelope (not a raw _dio.post) deliberately — this route
+  /// legitimately returns non-2xx with a real, user-facing message (e.g. a
+  /// 403 quota/rate-limit response, "assistant_query limit reached
+  /// (20/20) for this month"), and Dio throws on non-2xx by default; a raw
+  /// call would surface that as a swallowed DioException instead of the
+  /// actual reason, which is exactly what happened in real device testing.
+  Future<ApiResponse<dynamic>> postAssistantChat(
+      List<Map<String, String>> messages) {
+    return dioPostEnvelope(_dio, '/assistant/chat', data: {'messages': messages});
+  }
+
+  /// Conversational product intake — bearer-token mirror of web's
+  /// POST /api/products/ai-intake (src/app/api/v1/mobile/products/ai-intake/route.ts).
+  /// Entered when configuration_guidance resolves to target 'product_intake'
+  /// (assistant_chat_provider.dart). Same stateless-per-request shape as
+  /// postAssistantChat — does not create the product itself, only collects
+  /// {name, price, stockQuantity, category, sku}; the caller creates the
+  /// product via createProduct() once `done: true`. Same dioPostEnvelope
+  /// reasoning as postAssistantChat above (shares the same quota bucket).
+  Future<ApiResponse<dynamic>> postProductAiIntake(
+      List<Map<String, String>> messages) {
+    return dioPostEnvelope(_dio, '/products/ai-intake', data: {'messages': messages});
+  }
+
   Future<ApiResponse<dynamic>> postGettingStartedAction(String action) async {
     final response =
         await _dio.post('/dashboard/getting-started', data: {'action': action});
@@ -226,6 +257,15 @@ class ApiClient {
   }
 
   Future<ApiResponse<dynamic>> createProduct(Map<String, dynamic> input) async {
+    // NOTE: deliberately still a raw call, not dioPostEnvelope — kept as-is
+    // because product_editor_screen.dart's own error handling (on
+    // DioException catch, _formatSaveError/_formatApiErrorDetails) already
+    // depends on the raw DioException carrying validation `details`;
+    // switching this call site to always return success:false would lose
+    // that per-field formatting for an existing, working screen.
+    // assistant_chat_provider.dart (the other caller) covers itself with
+    // its own try/catch + apiErrorMessage() instead of relying on this
+    // method to never throw.
     final response = await _dio.post('/dashboard/products', data: input);
     return ApiResponse.fromJson(response.data, (json) => json);
   }
@@ -250,6 +290,30 @@ class ApiClient {
   Future<ApiResponse<dynamic>> getProductVariants(String productId) async {
     final response = await _dio.get('/dashboard/products/$productId/variants');
     return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  /// Product Photo QA (AI Phase 5) — bearer-token mirror of web's
+  /// POST /api/products/photo-qa. Vision analysis of a REAL, already-
+  /// uploaded photo (imageUrl must be a real remote URL, not a local file
+  /// path) — quality feedback, suggested alt text, a suggested SEO
+  /// description, and reshoot tips if it needs one. Never generates or
+  /// edits the image; purely advisory. dioPostEnvelope (not a raw call) —
+  /// this is a fresh method with one caller (product_editor_screen.dart),
+  /// which expects response.success/response.error to carry the real
+  /// reason rather than a thrown DioException, same reasoning as
+  /// postAssistantChat (DA.13).
+  Future<ApiResponse<dynamic>> checkProductPhotoQuality({
+    required String imageUrl,
+    String? productName,
+  }) {
+    return dioPostEnvelope(
+      _dio,
+      '/products/photo-qa',
+      data: {
+        'imageUrl': imageUrl,
+        if (productName != null && productName.trim().isNotEmpty) 'productName': productName.trim(),
+      },
+    );
   }
 
   Future<ApiResponse<dynamic>> createProductVariant(

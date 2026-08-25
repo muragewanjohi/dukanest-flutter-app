@@ -168,6 +168,37 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     return null;
   }
 
+  // Non-order notification links the backend actually sends (see
+  // src/app/api/v1/mobile/notifications/list/route.ts) reuse the web
+  // dashboard's `/dashboard/...` path shape, e.g. `/dashboard/inventory`
+  // for low_stock. The Flutter app's real router.dart route is `/inventory`
+  // (no `/dashboard` prefix) — a plain top-level GoRoute, not nested in the
+  // StatefulShellRoute. `ai_quota_warning`/`ai_quota_reached` links already
+  // arrive as the real path (`/subscription`, confirmed by a comment at
+  // that call site) rather than the `/dashboard/...` shape.
+  //
+  // `new_support_ticket` sends `/dashboard/support/tickets/:id`, but no
+  // such screen/route exists anywhere in router.dart, so it is
+  // intentionally left out of this map rather than guessed at.
+  static const Set<String> _knownNonShellRoutes = {
+    '/inventory',
+    '/subscription',
+  };
+
+  /// Maps a raw notification `link` to a real, verified router.dart path,
+  /// or null if it doesn't resolve to one of [_knownNonShellRoutes].
+  String? _resolveKnownRoute(String? rawLink) {
+    final v = (rawLink ?? '').trim();
+    if (v.isEmpty) return null;
+    final uri = Uri.tryParse(v);
+    var path = uri?.path ?? v;
+    if (!path.startsWith('/')) path = '/$path';
+    if (path.startsWith('/dashboard/')) {
+      path = path.substring('/dashboard'.length);
+    }
+    return _knownNonShellRoutes.contains(path) ? path : null;
+  }
+
   void _openNotification(_NotificationItem item) {
     final orderKey = _extractOrderKeyFromNotification(item);
     if (orderKey != null && orderKey.isNotEmpty) {
@@ -179,8 +210,22 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       context.go('/orders/detail/${Uri.encodeComponent(orderKey)}');
       return;
     }
+
+    final knownRoute = _resolveKnownRoute(item.link);
+    if (knownRoute != null) {
+      // `/inventory` and `/subscription` are plain top-level routes outside
+      // the shell (see router.dart), so `push` behaves like every other
+      // call site that navigates to them (more_menu_screen.dart,
+      // dashboard_screen.dart, settings_screen.dart) — no duplicate-shell
+      // risk like the order case above.
+      context.push(knownRoute);
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('This notification has no linked order.')),
+      const SnackBar(
+        content: Text("This notification doesn't have a linked screen yet."),
+      ),
     );
   }
 

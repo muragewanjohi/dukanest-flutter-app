@@ -150,6 +150,13 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
                   title: 'Analytics Center',
                   subtitle:
                       'Deep-dive insights into your store performance and customer behavior across all channels.',
+                  // Analytics moved from a bottom-nav tab to a pushed screen
+                  // (reached from More) when the AI Assistant took the
+                  // center tab slot — needs an explicit way back now.
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded),
+                    onPressed: () => context.pop(),
+                  ),
                   actions: [
                     IconButton(
                       tooltip: 'Scheduled reports',
