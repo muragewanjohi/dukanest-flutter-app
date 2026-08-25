@@ -362,21 +362,30 @@ class ThemeCustomizationScreen extends ConsumerStatefulWidget {
 }
 
 class _ThemeCustomizationScreenState
-    extends ConsumerState<ThemeCustomizationScreen> {
+    extends ConsumerState<ThemeCustomizationScreen>
+    with SingleTickerProviderStateMixin {
   final _jsonCtrl = TextEditingController();
   bool _loading = true;
   bool _saving = false;
   String? _error;
+  late final TabController _tabController;
 
   @override
   void dispose() {
     _jsonCtrl.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
   @override
   void initState() {
     super.initState();
+    // 2 tabs: real AI-generated homepage images (DA.25, the common case a
+    // merchant actually wants) first, the raw JSON editor (existing,
+    // untouched) second — matches web's Theme Customize adding a new
+    // "Homepage Images" tab alongside its existing ones.
+    _tabController = TabController(length: 2, vsync: this)
+      ..addListener(() => setState(() {}));
     _load();
   }
 
@@ -440,49 +449,302 @@ class _ThemeCustomizationScreenState
 
   @override
   Widget build(BuildContext context) {
+    final onAdvancedTab = _tabController.index == 1;
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: DashboardAppBar(
         title: 'Customize theme',
         showDivider: true,
         actions: [
-          TextButton(
-            onPressed: _saving ? null : _save,
-            child: const Text('Save'),
-          ),
+          // Save only applies to the raw JSON editor (Advanced tab) —
+          // hidden on the Homepage Images tab so it doesn't read as "save
+          // my image changes" (those save themselves per-regenerate).
+          if (onAdvancedTab)
+            TextButton(
+              onPressed: _saving ? null : _save,
+              child: const Text('Save'),
+            ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Homepage Images'),
+            Tab(text: 'Advanced'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          const _HomepageImagesSection(),
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    if (_error != null)
+                      Text(
+                        _error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    Text(
+                      'Edit the active theme payload as JSON. Invalid shapes are rejected by the server.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _jsonCtrl,
+                      maxLines: 24,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        alignLabelWithHint: true,
+                      ),
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (_error != null)
-                  Text(
-                    _error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+    );
+  }
+}
+
+/// DA.25 — the store's 5 real AI-generated homepage images (hero, 3
+/// banners, split-layout), each individually regenerable, gated by the same
+/// real monthly quota (marketing_image_prompt) the Dashboard AI Assistant's
+/// homepage_image chat target uses — identical behavior and identical
+/// remaining-quota accounting whether triggered here or from chat.
+class _HomepageImagesSection extends ConsumerStatefulWidget {
+  const _HomepageImagesSection();
+
+  @override
+  ConsumerState<_HomepageImagesSection> createState() =>
+      _HomepageImagesSectionState();
+}
+
+class _HomepageImagesSectionState
+    extends ConsumerState<_HomepageImagesSection> {
+  static const _slots = ['hero', 'banner1', 'banner2', 'banner3', 'split_layout'];
+  static const _slotLabels = {
+    'hero': 'Hero image',
+    'banner1': 'New Arrivals banner',
+    'banner2': 'Best Sellers banner',
+    'banner3': 'Special Offers banner',
+    'split_layout': 'Split-layout image',
+  };
+
+  bool _loading = true;
+  String? _error;
+  Map<String, dynamic>? _images;
+  Map<String, dynamic>? _quota;
+  String? _regeneratingSlot;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.getHomepageImages();
+      if (!r.success) throw StateError(r.error?.message ?? 'Failed to load');
+      final data = r.data is Map<String, dynamic>
+          ? r.data as Map<String, dynamic>
+          : <String, dynamic>{};
+      if (!mounted) return;
+      setState(() {
+        _images = data['images'] is Map ? Map<String, dynamic>.from(data['images']) : {};
+        _quota = data['quota'] is Map ? Map<String, dynamic>.from(data['quota']) : {};
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = apiErrorMessage(e);
+        _loading = false;
+      });
+    }
+  }
+
+  String? _imageForSlot(String slot) {
+    final images = _images;
+    if (images == null) return null;
+    final key = slot == 'split_layout' ? 'splitLayout' : slot;
+    final value = images[key];
+    return value is String && value.isNotEmpty ? value : null;
+  }
+
+  Future<void> _regenerate(String slot) async {
+    setState(() => _regeneratingSlot = slot);
+    try {
+      final api = ref.read(apiClientProvider);
+      final r = await api.regenerateHomepageImage(slot);
+      if (!r.success) throw StateError(r.error?.message ?? 'Regeneration failed');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New image generated and applied to your homepage.')),
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _regeneratingSlot = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return ApiErrorView(error: _error!, onRetry: _load);
+    }
+
+    final quota = _quota ?? {};
+    final allowed = quota['allowed'] == true;
+    final current = quota['current'] is int ? quota['current'] as int : 0;
+    final limit = quota['limit'] is int ? quota['limit'] as int : null;
+    final remaining = limit != null ? (limit - current).clamp(0, limit) : null;
+    final homepageFound = _images?['homepageFound'] == true;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text(
+          'These 5 AI-generated images were created automatically for your store. Regenerate any one of them individually if you\'d like a different look.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        if (allowed)
+          Text(
+            remaining != null
+                ? '$remaining of $limit regeneration${limit == 1 ? '' : 's'} remaining this month.'
+                : 'Unlimited regenerations on your plan.',
+            style: Theme.of(context).textTheme.bodySmall,
+          )
+        else
+          Text(
+            (quota['reason'] as String?) ?? "You've used all your regenerations for this month.",
+            style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12),
+          ),
+        if (!homepageFound) ...[
+          const SizedBox(height: 4),
+          Text(
+            'No homepage sections were found to preview yet — regenerating will still create a real image.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+        const SizedBox(height: 16),
+        for (final slot in _slots) ...[
+          _HomepageImageCard(
+            label: _slotLabels[slot]!,
+            imageUrl: _imageForSlot(slot),
+            regenerating: _regeneratingSlot == slot,
+            disabled: _regeneratingSlot != null || !allowed,
+            onRegenerate: () => _regenerate(slot),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+}
+
+class _HomepageImageCard extends StatelessWidget {
+  const _HomepageImageCard({
+    required this.label,
+    required this.imageUrl,
+    required this.regenerating,
+    required this.disabled,
+    required this.onRegenerate,
+  });
+
+  final String label;
+  final String? imageUrl;
+  final bool regenerating;
+  final bool disabled;
+  final VoidCallback onRegenerate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      color: AppTheme.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppTheme.ghostBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                width: 96,
+                height: 64,
+                child: imageUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: imageUrl!,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(
+                          color: AppTheme.surfaceContainerLow,
+                          child: const Icon(Icons.image_not_supported_outlined, size: 20),
+                        ),
+                      )
+                    : Container(
+                        color: AppTheme.surfaceContainerLow,
+                        child: const Icon(Icons.image_not_supported_outlined, size: 20),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 32,
+                    child: OutlinedButton.icon(
+                      onPressed: disabled ? null : onRegenerate,
+                      icon: regenerating
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.auto_awesome, size: 16),
+                      label: Text(
+                        regenerating ? 'Regenerating... (~15s)' : 'Regenerate',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                      ),
                     ),
                   ),
-                Text(
-                  'Edit the active theme payload as JSON. Invalid shapes are rejected by the server.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _jsonCtrl,
-                  maxLines: 24,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    alignLabelWithHint: true,
-                  ),
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 11,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
+          ],
+        ),
+      ),
     );
   }
 }

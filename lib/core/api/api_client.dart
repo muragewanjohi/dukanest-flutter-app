@@ -1118,6 +1118,30 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
+  /// DA.25 — the store's 5 real AI-generated homepage images (hero, 3
+  /// banners, split-layout — the ones every registration gets automatically)
+  /// + real remaining monthly regenerate quota. Bearer-token mirror of web's
+  /// GET /api/dashboard/homepage-images. dioGetEnvelope (not a raw call) so
+  /// a real error reason surfaces via response.error instead of throwing.
+  Future<ApiResponse<dynamic>> getHomepageImages() {
+    return dioGetEnvelope(_dio, '/dashboard/homepage-images');
+  }
+
+  /// DA.25 — regenerate exactly ONE of the 5 homepage images for real (real
+  /// Gemini cost + quota, ~10-20s). `slot` must be one of: 'hero',
+  /// 'banner1', 'banner2', 'banner3', 'split_layout'. Runs the exact same
+  /// shared core as web and the Dashboard AI Assistant's homepage_image
+  /// chat target — identical behavior regardless of which surface triggers
+  /// it. dioPostEnvelope so a real quota/generation-failure reason surfaces
+  /// via response.error instead of throwing.
+  Future<ApiResponse<dynamic>> regenerateHomepageImage(String slot) {
+    return dioPostEnvelope(
+      _dio,
+      '/dashboard/homepage-images',
+      data: {'slot': slot},
+    );
+  }
+
   Future<ApiResponse<dynamic>> getTheme(String id) async {
     final response = await _dio.get('/dashboard/themes/$id');
     return ApiResponse.fromJson(response.data, (json) => json);
