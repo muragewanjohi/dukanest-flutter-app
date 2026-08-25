@@ -48,12 +48,32 @@ class _CollectedProduct {
   }
 }
 
+/// A collected-so-far delivery zone from the delivery_zone_intake
+/// conversation — mirrors web's CollectedZone (assistant-panel.tsx).
+class _CollectedZone {
+  const _CollectedZone({this.name, this.price, this.locations = const []});
+
+  final String? name;
+  final num? price;
+  final List<String> locations;
+
+  static _CollectedZone fromJson(Map<String, dynamic> json) {
+    return _CollectedZone(
+      name: json['name'] as String?,
+      price: json['price'] as num?,
+      locations: (json['locations'] as List?)?.whereType<String>().toList() ?? const [],
+    );
+  }
+}
+
 /// 'assistant' = normal Q&A mode. 'product_intake' = the assistant handed
 /// off to conversational product creation (configuration_guidance ->
 /// target: 'product_intake') and is now driving POST
 /// /api/v1/mobile/products/ai-intake turn by turn — mirrors web's Mode type
-/// (assistant-panel.tsx).
-enum AssistantMode { assistant, productIntake }
+/// (assistant-panel.tsx). 'deliveryZoneIntake' (AI Phase 7.1) is the same
+/// pattern for target: 'delivery_zone', driving
+/// /api/v1/mobile/delivery-zones/ai-intake.
+enum AssistantMode { assistant, productIntake, deliveryZoneIntake }
 
 class AssistantChatState {
   const AssistantChatState({
@@ -62,6 +82,7 @@ class AssistantChatState {
     this.loading = false,
     this.mode = AssistantMode.assistant,
     this.intakeHistory = const [],
+    this.zoneIntakeHistory = const [],
   });
 
   /// What's rendered on screen.
@@ -81,12 +102,17 @@ class AssistantChatState {
   /// lose either thread, same as web's separate assistantHistory/intakeHistory.
   final List<Map<String, String>> intakeHistory;
 
+  /// Same separation as `intakeHistory`, for the delivery_zone_intake
+  /// sub-conversation (AI Phase 7.1).
+  final List<Map<String, String>> zoneIntakeHistory;
+
   AssistantChatState copyWith({
     List<AssistantMessage>? messages,
     List<Map<String, String>>? history,
     bool? loading,
     AssistantMode? mode,
     List<Map<String, String>>? intakeHistory,
+    List<Map<String, String>>? zoneIntakeHistory,
   }) {
     return AssistantChatState(
       messages: messages ?? this.messages,
@@ -94,6 +120,7 @@ class AssistantChatState {
       loading: loading ?? this.loading,
       mode: mode ?? this.mode,
       intakeHistory: intakeHistory ?? this.intakeHistory,
+      zoneIntakeHistory: zoneIntakeHistory ?? this.zoneIntakeHistory,
     );
   }
 }
@@ -112,6 +139,7 @@ const _suggestedPrompts = <String>[
 List<String> get assistantSuggestedPrompts => _suggestedPrompts;
 
 const _intakeStart = {'role': 'user', 'content': '(Start the product intake conversation.)'};
+const _zoneIntakeStart = {'role': 'user', 'content': '(Start the delivery zone setup conversation.)'};
 
 class AssistantChatNotifier extends StateNotifier<AssistantChatState> {
   AssistantChatNotifier(this._api, this._ref)
@@ -154,6 +182,10 @@ class AssistantChatNotifier extends StateNotifier<AssistantChatState> {
         final next = [...state.intakeHistory, {'role': 'user', 'content': trimmed}];
         state = state.copyWith(intakeHistory: next);
         await _sendIntakeTurn(next);
+      } else if (state.mode == AssistantMode.deliveryZoneIntake) {
+        final next = [...state.zoneIntakeHistory, {'role': 'user', 'content': trimmed}];
+        state = state.copyWith(zoneIntakeHistory: next);
+        await _sendZoneIntakeTurn(next);
       } else {
         final next = [...state.history, {'role': 'user', 'content': trimmed}];
         state = state.copyWith(history: next);
@@ -217,6 +249,9 @@ class AssistantChatNotifier extends StateNotifier<AssistantChatState> {
       if (intent == 'configuration_guidance' && target == 'product_intake' && endpoint != null) {
         state = state.copyWith(mode: AssistantMode.productIntake, intakeHistory: const [_intakeStart]);
         await _sendIntakeTurn(const [_intakeStart]);
+      } else if (intent == 'configuration_guidance' && target == 'delivery_zone' && endpoint != null) {
+        state = state.copyWith(mode: AssistantMode.deliveryZoneIntake, zoneIntakeHistory: const [_zoneIntakeStart]);
+        await _sendZoneIntakeTurn(const [_zoneIntakeStart]);
       }
     } catch (e) {
       // ApiClient.postAssistantChat() calls Dio directly rather than
@@ -276,6 +311,91 @@ class AssistantChatNotifier extends StateNotifier<AssistantChatState> {
     } catch (e) {
       _pushError(apiErrorMessage(e));
       state = state.copyWith(mode: AssistantMode.assistant);
+    }
+  }
+
+  Future<void> _sendZoneIntakeTurn(List<Map<String, String>> history) async {
+    try {
+      final response = await _api.postDeliveryZoneAiIntake(history);
+
+      if (!response.success) {
+        _pushError(response.error?.message ??
+            'Something went wrong — you can add the delivery zone from the Delivery Zones screen instead.');
+        state = state.copyWith(mode: AssistantMode.assistant);
+        return;
+      }
+
+      var data = response.data;
+      if (data is Map<String, dynamic> && data['data'] is Map<String, dynamic> && data['reply'] == null) {
+        data = data['data'];
+      }
+      if (data is! Map<String, dynamic>) {
+        _pushError('The assistant returned an unexpected response.');
+        state = state.copyWith(mode: AssistantMode.assistant);
+        return;
+      }
+
+      final reply = (data['reply'] as String?)?.trim() ?? '';
+      final done = data['done'] == true;
+
+      if (reply.isNotEmpty) {
+        _pushMessage(AssistantMessage(role: 'assistant', text: reply));
+      }
+      state = state.copyWith(zoneIntakeHistory: [
+        ...history,
+        {'role': 'assistant', 'content': jsonEncode(data)},
+      ]);
+
+      if (done) {
+        state = state.copyWith(mode: AssistantMode.assistant);
+        final collectedJson = data['collected'];
+        if (collectedJson is Map<String, dynamic>) {
+          await _createZoneFromCollected(_CollectedZone.fromJson(collectedJson));
+        }
+      }
+    } catch (e) {
+      _pushError(apiErrorMessage(e));
+      state = state.copyWith(mode: AssistantMode.assistant);
+    }
+  }
+
+  Future<void> _createZoneFromCollected(_CollectedZone collected) async {
+    if (collected.name == null || collected.name!.trim().isEmpty || collected.price == null || collected.locations.isEmpty) {
+      _pushMessage(const AssistantMessage(
+        role: 'assistant',
+        text: "I didn't end up with enough details to create the delivery zone — you can finish it from the Delivery Zones screen.",
+        isError: true,
+      ));
+      return;
+    }
+
+    try {
+      final response = await _api.createDeliveryZone({
+        'name': collected.name,
+        'price': collected.price,
+        'locations': collected.locations,
+      });
+
+      if (!response.success) {
+        _pushMessage(AssistantMessage(
+          role: 'assistant',
+          text: 'I collected the details, but creating the zone failed: '
+              '${response.error?.message ?? 'please try again from the Delivery Zones screen.'}',
+          isError: true,
+        ));
+        return;
+      }
+
+      _pushMessage(AssistantMessage(
+        role: 'assistant',
+        text: 'Done — the "${collected.name}" delivery zone has been created.',
+      ));
+    } catch (e) {
+      _pushMessage(AssistantMessage(
+        role: 'assistant',
+        text: 'I collected the details, but creating the zone failed: ${apiErrorMessage(e)}',
+        isError: true,
+      ));
     }
   }
 

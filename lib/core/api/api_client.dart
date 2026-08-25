@@ -471,6 +471,20 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
+  /// Conversational delivery-zone intake (AI Phase 7.1) — bearer-token
+  /// mirror of web's POST /api/delivery-zones/ai-intake
+  /// (src/app/api/v1/mobile/delivery-zones/ai-intake/route.ts). Entered when
+  /// configuration_guidance resolves to target 'delivery_zone'
+  /// (assistant_chat_provider.dart). Same stateless-per-request shape as
+  /// postProductAiIntake — does not create the zone itself, only collects
+  /// {name, price, locations}; the caller creates the zone via
+  /// createDeliveryZone() once `done: true`. dioPostEnvelope, same
+  /// reasoning as postProductAiIntake.
+  Future<ApiResponse<dynamic>> postDeliveryZoneAiIntake(
+      List<Map<String, String>> messages) {
+    return dioPostEnvelope(_dio, '/delivery-zones/ai-intake', data: {'messages': messages});
+  }
+
   /// StoreFlow mobile: `GET /notifications/list` (see Postman).
   Future<ApiResponse<dynamic>> getNotifications() async {
     try {
