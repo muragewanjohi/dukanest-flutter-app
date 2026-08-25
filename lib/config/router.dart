@@ -28,6 +28,7 @@ import '../features/analytics/screens/scheduled_reports_screen.dart';
 import '../features/themes/screens/themes_screen.dart';
 import '../features/media/screens/media_library_screen.dart';
 import '../features/notifications/screens/notifications_screen.dart';
+import '../features/assistant/screens/assistant_chat_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
 import '../features/settings/screens/store_identity_screen.dart';
 import '../features/settings/screens/tax_settings_screen.dart';
@@ -245,6 +246,32 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        // Phase 3 of the Flutter assistant plan (IMPLEMENTATION_TRACKER.md)
+        // — demoted from a StatefulShellBranch (bottom-nav tab) to a plain
+        // pushed route, reachable from the More menu instead, so the AI
+        // Assistant could take the center tab slot. Path and children kept
+        // exactly as before so every existing context.go('/analytics') /
+        // context.push('/analytics/...') call site (analytics_screen.dart,
+        // expenses_screen.dart, dashboard_screen.dart, more_menu_screen.dart)
+        // keeps working unchanged.
+        path: '/analytics',
+        builder: (context, state) => const AnalyticsScreen(),
+        routes: [
+          GoRoute(
+            path: 'expenses',
+            builder: (context, state) => const ExpensesScreen(),
+          ),
+          GoRoute(
+            path: 'expense-categories',
+            builder: (context, state) => const ExpenseCategoriesScreen(),
+          ),
+          GoRoute(
+            path: 'scheduled-reports',
+            builder: (context, state) => const ScheduledReportsScreen(),
+          ),
+        ],
       ),
       GoRoute(
         path: '/store-identity',
@@ -513,6 +540,19 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           StatefulShellBranch(
+            // Center slot — AI Assistant, deliberately prominent (see
+            // dashboard_shell.dart's NavigationDestination styling for this
+            // branch). Took Analytics's old center-adjacent position;
+            // Analytics moved to the More menu (see the plain /analytics
+            // GoRoute above) so it kept its exact path.
+            routes: [
+              GoRoute(
+                path: '/assistant',
+                builder: (context, state) => const AssistantChatScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
             routes: [
               GoRoute(
                 path: '/products',
@@ -531,29 +571,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                           Uri.decodeComponent(state.pathParameters['sku']!);
                       return ProductEditorScreen(initialSku: sku);
                     },
-                  ),
-                ],
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/analytics',
-                builder: (context, state) => const AnalyticsScreen(),
-                routes: [
-                  GoRoute(
-                    path: 'expenses',
-                    builder: (context, state) => const ExpensesScreen(),
-                  ),
-                  GoRoute(
-                    path: 'expense-categories',
-                    builder: (context, state) =>
-                        const ExpenseCategoriesScreen(),
-                  ),
-                  GoRoute(
-                    path: 'scheduled-reports',
-                    builder: (context, state) => const ScheduledReportsScreen(),
                   ),
                 ],
               ),
