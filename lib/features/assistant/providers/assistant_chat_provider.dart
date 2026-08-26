@@ -128,12 +128,14 @@ class AssistantChatState {
 const _welcomeText =
     "Hi! I can answer questions about your store's data, help you understand "
     "DukaNest's features, suggest categories or pricing for your business, "
+    "write a social/WhatsApp/SMS post to share with your customers, "
     "or tell you what to set up next. What can I help with?";
 
 const _suggestedPrompts = <String>[
   'What should I do next?',
   'How do I add a product?',
   'How many orders do I have?',
+  'Write a social post about my new arrivals',
 ];
 
 List<String> get assistantSuggestedPrompts => _suggestedPrompts;
