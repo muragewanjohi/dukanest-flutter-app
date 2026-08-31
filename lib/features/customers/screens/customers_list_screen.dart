@@ -298,6 +298,7 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
           children: [
             DashboardPageHeader(
               title: 'Customers',
+              showStoreRow: false,
               leading: IconButton(
                 style: IconButton.styleFrom(
                   backgroundColor: theme.colorScheme.surfaceContainerLow,

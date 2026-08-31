@@ -420,6 +420,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 title: 'Inventory',
                 subtitle:
                     'Stock counts, alerts, recent adjustments, thresholds.',
+                showStoreRow: false,
                 leading: IconButton(
                   style: IconButton.styleFrom(
                     backgroundColor: theme.colorScheme.surfaceContainerLow,

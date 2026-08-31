@@ -12,6 +12,10 @@ import '../providers/store_identity_provider.dart';
 ///
 /// All tab screens should use this so that titles across the dashboard share
 /// the same size, weight, and colour; only the title text differs per screen.
+///
+/// Pushed sub-screens (reached via a back button, not a bottom-nav tab) can
+/// pass [showStoreRow] `false` to drop the store-identity row so the back
+/// button sits directly beside the screen title.
 class DashboardPageHeader extends ConsumerWidget {
   const DashboardPageHeader({
     super.key,
@@ -22,6 +26,7 @@ class DashboardPageHeader extends ConsumerWidget {
     this.leading,
     this.storeNameOverride,
     this.contentPadding = EdgeInsets.zero,
+    this.showStoreRow = true,
   });
 
   /// Hero page title text (e.g. "Orders", "Analytics Center").
@@ -45,9 +50,74 @@ class DashboardPageHeader extends ConsumerWidget {
   /// Outer padding around the whole header block.
   final EdgeInsetsGeometry contentPadding;
 
+  /// When false, the store avatar + name row is dropped and [leading] is
+  /// placed directly beside the [title] (with [actions] trailing it).
+  final bool showStoreRow;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+
+    final titleWidget = Text(
+      title,
+      style: theme.textTheme.headlineMedium?.copyWith(
+        fontSize: 28,
+        height: 1.2,
+        letterSpacing: -0.25,
+        fontWeight: FontWeight.w800,
+        color: AppTheme.primaryDark,
+      ),
+    );
+
+    final subtitleWidget =
+        (subtitle != null && subtitle!.trim().isNotEmpty)
+            ? Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  subtitle!,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: subtitleColor ?? theme.colorScheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+              )
+            : null;
+
+    if (!showStoreRow) {
+      return Padding(
+        padding: contentPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                if (leading != null) ...[
+                  leading!,
+                  const SizedBox(width: 4),
+                ],
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontSize: 24,
+                      height: 1.2,
+                      letterSpacing: -0.25,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.primaryDark,
+                    ),
+                  ),
+                ),
+                ...actions,
+              ],
+            ),
+            if (subtitleWidget != null) subtitleWidget,
+          ],
+        ),
+      );
+    }
+
     final storeIdentity = ref.watch(storeIdentityProvider).asData?.value;
     final storeLogoUrl = storeIdentity?.logoUrl;
     final resolvedName =
@@ -78,26 +148,8 @@ class DashboardPageHeader extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Text(
-            title,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontSize: 28,
-              height: 1.2,
-              letterSpacing: -0.25,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.primaryDark,
-            ),
-          ),
-          if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              subtitle!,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: subtitleColor ?? theme.colorScheme.onSurfaceVariant,
-                height: 1.4,
-              ),
-            ),
-          ],
+          titleWidget,
+          if (subtitleWidget != null) subtitleWidget,
         ],
       ),
     );

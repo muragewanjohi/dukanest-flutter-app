@@ -150,6 +150,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
                   title: 'Analytics Center',
                   subtitle:
                       'Deep-dive insights into your store performance and customer behavior across all channels.',
+                  showStoreRow: false,
                   // Analytics moved from a bottom-nav tab to a pushed screen
                   // (reached from More) when the AI Assistant took the
                   // center tab slot — needs an explicit way back now.
