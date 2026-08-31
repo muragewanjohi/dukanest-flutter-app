@@ -81,45 +81,28 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
 
   String _id(Map<String, dynamic> m) => themeId(m);
 
-  Future<void> _install(Map<String, dynamic> row) async {
-    final id = _id(row);
-    if (id.isEmpty || _busyId != null) return;
-    setState(() => _busyId = id);
-    try {
-      final r = await ref.read(apiClientProvider).installTheme({'themeId': id});
-      if (!r.success) throw StateError(r.error?.message ?? 'Install failed');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Theme installed')),
-      );
-      await _load();
-    } catch (e) {
-      if (!mounted) return;
-      showApiErrorSnackBar(context, e);
-    } finally {
-      if (mounted) setState(() => _busyId = null);
-    }
-  }
-
   Future<void> _activate(Map<String, dynamic> row) async {
     final id = _id(row);
     if (id.isEmpty || _busyId != null) return;
     setState(() => _busyId = id);
     try {
-      final api = ref.read(apiClientProvider);
-      if (!_installedIds.contains(id)) {
-        final installResp = await api.installTheme({'themeId': id});
-        if (!installResp.success) {
-          throw StateError(installResp.error?.message ?? 'Install failed');
-        }
-      }
-      final r = await api.updateCurrentTheme({'themeId': id, 'id': id});
+      // installTheme is the activation operation: the server deactivates the
+      // current theme and flips is_active on this one, creating the
+      // tenant_themes row (+ homepage/demo content) only on a first install.
+      // PATCH /themes/current only edits the *active* theme's customizations —
+      // it does not switch themes, which is why activating an already-installed
+      // theme used to silently do nothing.
+      final r = await ref.read(apiClientProvider).installTheme({'themeId': id});
       if (!r.success) {
-        throw StateError(r.error?.message ?? 'Could not activate');
+        throw StateError(r.error?.message ?? 'Could not activate this theme');
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Theme activated')),
+        SnackBar(
+          content: Text(
+            _installedIds.contains(id) ? 'Theme activated' : 'Theme installed and activated',
+          ),
+        ),
       );
       await _load();
     } catch (e) {
@@ -182,7 +165,6 @@ class _ThemesScreenState extends ConsumerState<ThemesScreen> {
                         isInstalled: _installedIds.contains(id),
                         busy: _busyId == id,
                         onActivate: () => _activate(row),
-                        onInstall: () => _install(row),
                       );
                     },
                   ),
@@ -200,7 +182,6 @@ class _ThemeCard extends StatelessWidget {
     required this.isInstalled,
     required this.busy,
     required this.onActivate,
-    required this.onInstall,
   });
 
   final ThemeData theme;
@@ -210,7 +191,6 @@ class _ThemeCard extends StatelessWidget {
   final bool isInstalled;
   final bool busy;
   final VoidCallback onActivate;
-  final VoidCallback onInstall;
 
   @override
   Widget build(BuildContext context) {
