@@ -29,6 +29,7 @@ import '../features/themes/screens/themes_screen.dart';
 import '../features/media/screens/media_library_screen.dart';
 import '../features/notifications/screens/notifications_screen.dart';
 import '../features/assistant/screens/assistant_chat_screen.dart';
+import '../features/onboarding/screens/onboarding_chat_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
 import '../features/settings/screens/store_identity_screen.dart';
 import '../features/settings/screens/tax_settings_screen.dart';
@@ -246,6 +247,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        // OC.3 (docs/IMPLEMENTATION_TRACKER.md, "UI — Onboarding AI Chat")
+        // — a plain pushed route, not a bottom-nav tab, same treatment as
+        // /analytics and /assistant. Reached via OC.4's post-registration
+        // wiring (register_screen.dart) or manually later; never a gate —
+        // every state the screen can be in offers a way through to
+        // /dashboard (see onboarding_chat_screen.dart).
+        path: '/onboarding-chat',
+        builder: (context, state) => const OnboardingChatScreen(),
       ),
       GoRoute(
         // Phase 3 of the Flutter assistant plan (IMPLEMENTATION_TRACKER.md)

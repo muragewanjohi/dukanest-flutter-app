@@ -630,8 +630,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           unawaited(
               ref.read(authProvider.notifier).requestSmsMfaCodeSilently());
         }
-        // Router redirect handles /dashboard or /mfa.
-        context.go('/dashboard');
+        // OC.4 (docs/IMPLEMENTATION_TRACKER.md, "UI — Onboarding AI Chat") —
+        // a freshly-registered tenant never has niche set yet (registration
+        // only writes businessType/selling, not niche — see
+        // src/app/api/tenant/business-context/route.ts's docblock), so
+        // unconditionally routing here is safe; the chat screen itself is
+        // always skippable (OC.5) and never a gate.
+        context.go('/onboarding-chat');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -654,7 +659,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             adminEmail: adminEmail,
           );
           if (signedIn && mounted) {
-            context.go('/dashboard');
+            context.go('/onboarding-chat');
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text(

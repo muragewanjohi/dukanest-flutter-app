@@ -149,6 +149,50 @@ class ApiClient {
     return dioPostEnvelope(_dio, '/products/ai-intake', data: {'messages': messages});
   }
 
+  /// Onboarding AI Chat (OC.3) — bearer-token mirror of web's
+  /// POST /api/onboarding/chat (src/app/api/v1/mobile/onboarding/chat/route.ts).
+  /// Same stateless-per-request contract as postAssistantChat: `messages` is
+  /// the full conversation so far, oldest first. `storeName`/`knownBusinessType`
+  /// let the assistant skip questions it already has answers for (mirrors
+  /// web's onboarding-chat-client.tsx). Uses dioPostEnvelope for the same
+  /// reason as postAssistantChat — quota/rate-limit responses are real,
+  /// user-facing 4xx bodies, not something to let Dio swallow into a
+  /// generic DioException.
+  Future<ApiResponse<dynamic>> postOnboardingChat(
+    List<Map<String, String>> messages, {
+    String? storeName,
+    String? knownBusinessType,
+  }) {
+    return dioPostEnvelope(_dio, '/onboarding/chat', data: {
+      'messages': messages,
+      if (storeName != null && storeName.isNotEmpty) 'storeName': storeName,
+      if (knownBusinessType != null && knownBusinessType.isNotEmpty)
+        'knownBusinessType': knownBusinessType,
+    });
+  }
+
+  /// Bearer-token mirror of web's tenant.data read the onboarding chat page
+  /// server component does (src/app/dashboard/onboarding/chat/page.tsx) —
+  /// pre-seeds knownBusinessType/knownNiche so a merchant who already
+  /// finished onboarding sees the "already told us" summary instead of
+  /// being asked again.
+  Future<ApiResponse<dynamic>> getOnboardingBusinessContext() {
+    return dioGetEnvelope(_dio, '/onboarding/business-context');
+  }
+
+  /// Saves the businessType/niche collected by the onboarding chat once
+  /// done:true — bearer-token mirror of web's
+  /// PATCH /api/tenant/business-context.
+  Future<ApiResponse<dynamic>> patchOnboardingBusinessContext({
+    String? businessType,
+    String? niche,
+  }) {
+    return dioPatchEnvelope(_dio, '/onboarding/business-context', data: {
+      if (businessType != null && businessType.isNotEmpty) 'businessType': businessType,
+      if (niche != null && niche.isNotEmpty) 'niche': niche,
+    });
+  }
+
   Future<ApiResponse<dynamic>> postGettingStartedAction(String action) async {
     final response =
         await _dio.post('/dashboard/getting-started', data: {'action': action});
