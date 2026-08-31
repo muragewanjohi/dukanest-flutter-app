@@ -65,6 +65,11 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
 
   static String _paymentKeyFromRaw(String raw) {
     final lower = raw.trim().toLowerCase();
+    // Basic deposit support (docs/SERVICES_PLAN.md) — checked before the
+    // generic 'paid' substring match below, which 'deposit_paid' would
+    // otherwise also match, silently showing a merchant "Paid" for an
+    // order that's only had its deposit collected.
+    if (lower == 'deposit_paid') return 'deposit_paid';
     if (lower.contains('paid') || lower.contains('success')) return 'paid';
     if (lower.contains('fail')) return 'failed';
     if (lower.contains('refund')) return 'refunded';
@@ -79,6 +84,7 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
     if (!isTumizi) return null;
     final k = _paymentKeyFromRaw(paymentRaw.isEmpty ? 'pending' : paymentRaw);
     if (k == 'pending') return 'Awaiting M-Pesa (Tumizi)';
+    if (k == 'deposit_paid') return 'Deposit paid via Tumizi';
     if (k == 'paid') return 'Paid via Tumizi';
     if (k == 'failed') return 'Payment failed';
     return null;
@@ -101,6 +107,10 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
     if (isTumizi && (lower.isEmpty || lower.contains('pending'))) {
       return 'Awaiting M-Pesa';
     }
+    // Basic deposit support (docs/SERVICES_PLAN.md) — checked before the
+    // generic 'paid' substring match below for the same reason as
+    // _paymentKeyFromRaw above.
+    if (lower == 'deposit_paid') return 'Deposit paid';
     if (lower.contains('paid') || lower.contains('success')) return 'Paid';
     if (lower.contains('fail')) return 'Failed';
     if (lower.contains('refund')) return 'Refunded';

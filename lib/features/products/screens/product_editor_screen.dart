@@ -107,6 +107,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   late final TextEditingController _sku;
   late final TextEditingController _stock;
 
+  // Basic deposit support (docs/SERVICES_PLAN.md) — mirrors web's
+  // product-form-client.tsx: 'none' | 'fixed' | 'percentage', a KES
+  // amount or a 0-100 percentage respectively.
+  String _depositType = 'none';
+  late final TextEditingController _depositValue;
+
   late String _category;
   bool _visible = true;
 
@@ -427,6 +433,13 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     _salePrice.text = saleRaw == null ? '' : _moneyToKes(saleRaw);
     final costRaw = p['costPrice'] ?? p['cost_price'] ?? p['cost'];
     _costPrice.text = costRaw == null ? '' : _moneyToKes(costRaw);
+    // Basic deposit support (docs/SERVICES_PLAN.md)
+    final depositTypeRaw = (p['depositType'] ?? p['deposit_type'])?.toString();
+    _depositType = (depositTypeRaw == 'fixed' || depositTypeRaw == 'percentage')
+        ? depositTypeRaw!
+        : 'none';
+    final depositValueRaw = p['depositValue'] ?? p['deposit_value'];
+    _depositValue.text = depositValueRaw == null ? '' : _moneyToKes(depositValueRaw);
     _sku.text = _asString(p['sku'] ?? p['code'], fallback: _sku.text);
     if (_sku.text.trim().isNotEmpty) {
       _skuExpanded = true;
@@ -1560,6 +1573,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         fieldId == 'regularPrice' ||
         fieldId == 'salePrice' ||
         fieldId == 'costPrice' ||
+        fieldId == 'depositValue' ||
         fieldId == 'section_inventory' ||
         fieldId == 'section_pricing') {
       return _ProductEditorTab.pricing;
@@ -1710,6 +1724,23 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         fieldId: 'costPrice',
         message: 'Cost of goods must be greater than 0 when provided.',
       );
+    }
+
+    // Basic deposit support (docs/SERVICES_PLAN.md)
+    if (_depositType != 'none') {
+      final depositValue = _toDouble(_depositValue.text);
+      if (_depositValue.text.trim().isEmpty || depositValue <= 0) {
+        return (
+          fieldId: 'depositValue',
+          message: 'Enter a deposit amount greater than 0.',
+        );
+      }
+      if (_depositType == 'percentage' && depositValue > 100) {
+        return (
+          fieldId: 'depositValue',
+          message: 'A percentage deposit cannot exceed 100.',
+        );
+      }
     }
 
     for (var i = 0; i < _variantLines.length; i++) {
@@ -2157,6 +2188,17 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       payload['costPrice'] = null;
       payload['cost_price'] = null;
     }
+    // Basic deposit support (docs/SERVICES_PLAN.md)
+    payload['depositType'] = _depositType;
+    payload['deposit_type'] = _depositType;
+    if (_depositType != 'none' && _depositValue.text.trim().isNotEmpty) {
+      final depositVal = _toDouble(_depositValue.text);
+      payload['depositValue'] = depositVal;
+      payload['deposit_value'] = depositVal;
+    } else {
+      payload['depositValue'] = null;
+      payload['deposit_value'] = null;
+    }
     if (categoryId != null && categoryId.isNotEmpty) {
       payload['categoryId'] = categoryId;
       payload['category_id'] = categoryId;
@@ -2380,6 +2422,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     _regularPrice = TextEditingController();
     _salePrice = TextEditingController();
     _costPrice = TextEditingController();
+    _depositValue = TextEditingController();
     _sku = TextEditingController(text: widget.initialSku ?? '');
     _skuExpanded = (widget.initialSku ?? '').trim().isNotEmpty;
     _stock = TextEditingController();
@@ -2452,6 +2495,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     _regularPrice.dispose();
     _salePrice.dispose();
     _costPrice.dispose();
+    _depositValue.dispose();
     _sku.dispose();
     _stock.dispose();
     _scrollController.dispose();
@@ -3255,6 +3299,63 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                         height: 1.35,
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'DEPOSIT',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _depositType,
+                          isExpanded: true,
+                          icon: Icon(Icons.expand_more,
+                              color: theme.colorScheme.onSurfaceVariant),
+                          items: const [
+                            DropdownMenuItem(
+                                value: 'none', child: Text('No deposit — charge full price')),
+                            DropdownMenuItem(
+                                value: 'fixed', child: Text('Fixed amount')),
+                            DropdownMenuItem(
+                                value: 'percentage', child: Text('Percentage of price')),
+                          ],
+                          onChanged: (v) => setState(() => _depositType = v ?? 'none'),
+                        ),
+                      ),
+                    ),
+                    if (_depositType != 'none') ...[
+                      const SizedBox(height: 8),
+                      _PriceField(
+                        key: _keyFor('depositValue'),
+                        label: _depositType == 'percentage'
+                            ? 'DEPOSIT PERCENTAGE (0-100)'
+                            : 'DEPOSIT AMOUNT',
+                        controller: _depositValue,
+                        accent: theme.colorScheme.onSurfaceVariant,
+                        hintText: _depositType == 'percentage' ? '30' : '500',
+                        isInvalid: _isInvalid('depositValue'),
+                        onChanged: (_) {
+                          _clearErrorFor('depositValue');
+                          setState(() {});
+                        },
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Customers pay only this at checkout; the rest becomes a balance due later. Useful for services like a booking.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
                   ],
                   const SizedBox(height: 16),
                   if (_activeEditorTab == _ProductEditorTab.variants) ...[
