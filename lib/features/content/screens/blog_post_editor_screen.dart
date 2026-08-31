@@ -33,6 +33,12 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
   late final TextEditingController _title;
   late final TextEditingController _body;
   late final TextEditingController _excerpt;
+  // AI-assisted blog drafting — generate-then-save (Pattern A), mirrors
+  // storeflow's blog-form-client.tsx. Never auto-publishes; fills the
+  // fields above for review/edit before Save.
+  late final TextEditingController _aiTopic;
+  bool _isDraftingWithAi = false;
+  String? _aiDraftError;
   late bool _published;
   String? _imageUrl;
   List<Map<String, dynamic>> _categories = [];
@@ -49,6 +55,7 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
     _title = TextEditingController();
     _body = TextEditingController();
     _excerpt = TextEditingController();
+    _aiTopic = TextEditingController();
     _published = false;
     unawaited(_bootstrap());
   }
@@ -127,6 +134,7 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
     _title.dispose();
     _body.dispose();
     _excerpt.dispose();
+    _aiTopic.dispose();
     super.dispose();
   }
 
@@ -216,6 +224,44 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(apiErrorMessage(e))),
       );
+    }
+  }
+
+  Future<void> _generateBlogDraft() async {
+    final topic = _aiTopic.text.trim();
+    if (topic.isEmpty || _isDraftingWithAi) return;
+    setState(() {
+      _isDraftingWithAi = true;
+      _aiDraftError = null;
+    });
+    try {
+      final r = await ref.read(apiClientProvider).postBlogAiDraft(topic);
+      if (!r.success) {
+        setState(() => _aiDraftError = r.error?.message ?? 'Could not draft a post right now. Please try again.');
+        return;
+      }
+      var data = r.data;
+      if (data is Map<String, dynamic> && data['data'] is Map<String, dynamic> && data['title'] == null) {
+        data = data['data'];
+      }
+      if (data is! Map<String, dynamic>) {
+        setState(() => _aiDraftError = 'The AI returned an unexpected response.');
+        return;
+      }
+      final title = (data['title'] as String?)?.trim() ?? '';
+      final content = (data['content'] as String?)?.trim() ?? '';
+      final excerpt = (data['excerpt'] as String?)?.trim() ?? '';
+      if (!mounted) return;
+      setState(() {
+        if (title.isNotEmpty) _title.text = title;
+        if (content.isNotEmpty) _body.text = content;
+        if (excerpt.isNotEmpty) _excerpt.text = excerpt;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _aiDraftError = apiErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => _isDraftingWithAi = false);
     }
   }
 
@@ -359,6 +405,78 @@ class _BlogPostEditorScreenState extends ConsumerState<BlogPostEditorScreen>
             imageUrl: _imageUrl,
             uploading: _uploadingImage,
             onChangeImage: _changeImage,
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.25)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.auto_awesome, size: 16, color: theme.colorScheme.primary),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Draft with AI',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "Describe a topic and I'll write a full draft (title, body, excerpt) below for you to review and edit — nothing is published until you save it.",
+                  style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _aiTopic,
+                        enabled: !_isDraftingWithAi,
+                        onSubmitted: (_) => _generateBlogDraft(),
+                        decoration: InputDecoration(
+                          hintText: 'e.g. "how to choose the right handbag"',
+                          isDense: true,
+                          filled: true,
+                          fillColor: theme.colorScheme.surface,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: _isDraftingWithAi ? null : _generateBlogDraft,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: Text(_isDraftingWithAi ? 'Drafting…' : 'Draft'),
+                    ),
+                  ],
+                ),
+                if (_aiDraftError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _aiDraftError!,
+                    style: GoogleFonts.inter(fontSize: 12, color: theme.colorScheme.error),
+                  ),
+                ],
+              ],
+            ),
           ),
           const SizedBox(height: 24),
           _sectionLabel('Post Title'),

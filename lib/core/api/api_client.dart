@@ -672,6 +672,17 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
+  /// AI-assisted blog drafting — bearer-token mirror of web's
+  /// POST /api/blogs/ai-draft (src/app/api/v1/mobile/dashboard/blogs/ai-draft/route.ts).
+  /// Generate-then-save: returns {title, content, excerpt, metaTitle,
+  /// metaDescription} for the caller to drop into the editor's fields —
+  /// never creates the post itself. Uses dioPostEnvelope for the same
+  /// reason as every other AI call here — a rate-limit response is a real
+  /// user-facing message, not something to let Dio swallow.
+  Future<ApiResponse<dynamic>> postBlogAiDraft(String topic) {
+    return dioPostEnvelope(_dio, '/dashboard/blogs/ai-draft', data: {'topic': topic});
+  }
+
   Future<ApiResponse<dynamic>> updateBlog(
       String id, Map<String, dynamic> body) async {
     final response = await _dio.patch('/dashboard/blogs/$id', data: body);
