@@ -435,6 +435,22 @@ class AssistantChatNotifier extends StateNotifier<AssistantChatState> {
     }
 
     final categoryId = await _resolveCategoryId(collected.category);
+    // Category is required to save a product (user-requested change) - the
+    // AI intake prompt is instructed to always resolve one and never
+    // finish without it, but never trust that blindly: if resolution
+    // genuinely failed here, fail fast with a clear message instead of
+    // letting the save attempt below surface a generic server error.
+    if (categoryId == null) {
+      final category = collected.category;
+      _pushMessage(AssistantMessage(
+        role: 'assistant',
+        text: category != null && category.trim().isNotEmpty
+            ? 'I couldn\'t match "$category" to one of your existing categories — please finish adding this product from the Products tab and pick a category there.'
+            : "I need a category to save this product, but didn't get one — please finish adding it from the Products tab.",
+        isError: true,
+      ));
+      return;
+    }
 
     try {
       final response = await _api.createProduct({
@@ -442,7 +458,7 @@ class AssistantChatNotifier extends StateNotifier<AssistantChatState> {
         'price': collected.price,
         'stock_quantity': collected.stockQuantity ?? 0,
         if (collected.sku != null && collected.sku!.trim().isNotEmpty) 'sku': collected.sku,
-        if (categoryId != null) 'category_id': categoryId,
+        'category_id': categoryId,
       });
 
       if (!response.success) {
