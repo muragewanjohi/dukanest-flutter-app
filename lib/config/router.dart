@@ -53,6 +53,11 @@ import '../features/customers/screens/customers_list_screen.dart';
 import '../features/customers/screens/customer_detail_screen.dart';
 import '../features/customers/screens/customer_edit_screen.dart';
 import '../features/inventory/screens/inventory_screen.dart';
+import '../features/pos/providers/pos_providers.dart';
+import '../features/pos/screens/pos_register_screen.dart';
+import '../features/pos/screens/pos_cart_screen.dart';
+import '../features/pos/screens/pos_tender_screen.dart';
+import '../features/pos/screens/pos_receipt_screen.dart';
 import '../features/subscription/screens/change_plan_screen.dart';
 import '../features/subscription/screens/subscription_screen.dart';
 import '../features/subscription/screens/billing_history_screen.dart';
@@ -351,6 +356,31 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/inventory',
         builder: (context, state) => const InventoryScreen(),
+      ),
+      GoRoute(
+        path: '/pos',
+        builder: (context, state) => const PosRegisterScreen(),
+        routes: [
+          GoRoute(
+            path: 'cart',
+            builder: (context, state) => const PosCartScreen(),
+          ),
+          GoRoute(
+            path: 'tender',
+            builder: (context, state) => const PosTenderScreen(),
+          ),
+          GoRoute(
+            path: 'receipt',
+            builder: (context, state) {
+              final extra = state.extra;
+              if (extra is PosCompletedSale) {
+                return PosReceiptScreen(sale: extra);
+              }
+              // Direct hit / reload with no sale in hand — back to the register.
+              return const PosRegisterScreen();
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: '/customers',

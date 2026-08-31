@@ -1276,6 +1276,39 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
+  // --- POS (Point of Sale) ---
+
+  /// One call made when online to fill/refresh the offline POS cache:
+  /// sellable catalog + store/currency/tax/payment settings. Pass [since]
+  /// (ISO-8601) to get only products changed since the last sync.
+  /// Mirror of GET /api/v1/mobile/pos/bootstrap
+  /// (src/app/api/v1/mobile/pos/bootstrap/route.ts).
+  /// dioGetEnvelope (not a raw call) so a 404 on a server that doesn't have
+  /// the POS routes yet surfaces as a clean "not available yet" message
+  /// instead of a raw DioException dump on the register screen.
+  Future<ApiResponse<dynamic>> getPosBootstrap({String? since}) {
+    return dioGetEnvelope(
+      _dio,
+      '/pos/bootstrap',
+      queryParameters: {
+        if (since != null && since.isNotEmpty) 'since': since,
+      },
+    );
+  }
+
+  /// Idempotent POS sale create. MUST only be called by the offline
+  /// SyncManager, never directly from the UI — the UI writes the sale to the
+  /// local outbox and the SyncManager flushes it here. The server dedupes on
+  /// the body's `client_sale_id`: re-sending the same one returns the
+  /// existing order unchanged, which is what makes offline retries safe.
+  /// dioPostEnvelope so a real reason (`over_limit`, validation, a deleted
+  /// product) surfaces on `response` instead of throwing.
+  /// Mirror of POST /api/v1/mobile/pos/sales
+  /// (src/app/api/v1/mobile/pos/sales/route.ts).
+  Future<ApiResponse<dynamic>> postPosSale(Map<String, dynamic> body) {
+    return dioPostEnvelope(_dio, '/pos/sales', data: body);
+  }
+
   // --- M-Pesa (generic mobile flow) ---
 
   Future<ApiResponse<dynamic>> initiateMpesa(Map<String, dynamic> body) async {

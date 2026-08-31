@@ -88,6 +88,16 @@ class MoreMenuScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           _MoreItem(
+            icon: Icons.point_of_sale_outlined,
+            iconColor: const Color(0xFF0025CC),
+            iconBackground: const Color(0xFFDFE0FF),
+            title: 'Point of Sale',
+            subtitle:
+                'Ring up walk-in sales at the counter and print a receipt.',
+            onTap: () => context.push('/pos'),
+          ),
+          const SizedBox(height: 12),
+          _MoreItem(
             icon: Icons.inventory_2_outlined,
             iconColor: const Color(0xFF0A2ACF),
             iconBackground: const Color(0xFFDFE0FF),
