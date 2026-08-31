@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../config/theme.dart';
+import '../../../core/navigation/in_app_link.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../providers/assistant_chat_provider.dart';
 
@@ -54,14 +55,26 @@ class _AssistantChatScreenState extends ConsumerState<AssistantChatScreen> {
   }
 
   Future<void> _openLink(String href) async {
-    if (href.startsWith('http')) {
-      final uri = Uri.tryParse(href);
+    final trimmed = href.trim();
+    if (trimmed.isEmpty) return;
+
+    // Store-configuration links (theme, payments, delivery, …) open the native
+    // screen instead of the website — whether the backend hands us an app path,
+    // a /dashboard/* URL, or a help article about a config task.
+    final inAppRoute = resolveInAppRoute(trimmed);
+    if (inAppRoute != null) {
+      if (mounted) context.push(inAppRoute);
+      return;
+    }
+
+    if (trimmed.startsWith('http')) {
+      final uri = Uri.tryParse(trimmed);
       if (uri != null) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
       return;
     }
-    if (mounted) context.push(href);
+    if (mounted) context.push(trimmed);
   }
 
   @override
