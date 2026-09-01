@@ -29,13 +29,15 @@ class AssistantMessage {
 /// A collected-so-far product from the product_intake conversation — mirrors
 /// web's CollectedProduct (assistant-panel.tsx).
 class _CollectedProduct {
-  const _CollectedProduct({this.name, this.price, this.stockQuantity, this.category, this.sku});
+  const _CollectedProduct({this.name, this.price, this.stockQuantity, this.category, this.sku, this.requiresShipping});
 
   final String? name;
   final num? price;
   final int? stockQuantity;
   final String? category;
   final String? sku;
+  // Basic services support (docs/SERVICES_PLAN.md)
+  final bool? requiresShipping;
 
   static _CollectedProduct fromJson(Map<String, dynamic> json) {
     return _CollectedProduct(
@@ -44,6 +46,7 @@ class _CollectedProduct {
       stockQuantity: (json['stockQuantity'] as num?)?.toInt(),
       category: json['category'] as String?,
       sku: json['sku'] as String?,
+      requiresShipping: json['requiresShipping'] as bool?,
     );
   }
 }
@@ -454,12 +457,17 @@ class AssistantChatNotifier extends StateNotifier<AssistantChatState> {
     }
 
     try {
+      final requiresShipping = collected.requiresShipping != false;
       final response = await _api.createProduct({
         'name': collected.name,
         'price': collected.price,
-        'stock_quantity': collected.stockQuantity ?? 0,
+        // A non-shipped item (service) has no stock tracked at all — null,
+        // not 0 (0 would read as "out of stock" at checkout, see
+        // docs/SERVICES_PLAN.md).
+        'stock_quantity': requiresShipping ? (collected.stockQuantity ?? 0) : null,
         if (collected.sku != null && collected.sku!.trim().isNotEmpty) 'sku': collected.sku,
         'category_id': categoryId,
+        'requires_shipping': requiresShipping,
       });
 
       if (!response.success) {

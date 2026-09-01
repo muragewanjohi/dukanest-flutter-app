@@ -113,6 +113,11 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   String _depositType = 'none';
   late final TextEditingController _depositValue;
 
+  // Basic services support (docs/SERVICES_PLAN.md) — false means a
+  // service/digital item: no stock tracked, checkout skips delivery for a
+  // cart made only of these. Mirrors web's product-form-client.tsx.
+  bool _requiresShipping = true;
+
   late String _category;
   bool _visible = true;
 
@@ -440,6 +445,9 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         : 'none';
     final depositValueRaw = p['depositValue'] ?? p['deposit_value'];
     _depositValue.text = depositValueRaw == null ? '' : _moneyToKes(depositValueRaw);
+    // Basic services support (docs/SERVICES_PLAN.md)
+    final requiresShippingRaw = p['requiresShipping'] ?? p['requires_shipping'];
+    _requiresShipping = requiresShippingRaw != false;
     _sku.text = _asString(p['sku'] ?? p['code'], fallback: _sku.text);
     if (_sku.text.trim().isNotEmpty) {
       _skuExpanded = true;
@@ -1699,7 +1707,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     }
 
     final stockRaw = _stock.text.trim();
-    if (stockRaw.isNotEmpty && int.tryParse(stockRaw) == null) {
+    if (_requiresShipping && stockRaw.isNotEmpty && int.tryParse(stockRaw) == null) {
       return (fieldId: 'stock', message: 'Stock must be a whole number.');
     }
 
@@ -2171,7 +2179,14 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     };
     // Per API contract: product stock is managed at product level only when
     // there are no variants. When variants exist, backend derives totals.
-    if (!hasVariants) {
+    // A non-shipped item (service) has no stock tracked at all — null, not
+    // 0 (0 would read as "out of stock" at checkout, see docs/SERVICES_PLAN.md).
+    if (!_requiresShipping) {
+      payload['stock'] = null;
+      payload['stockQuantity'] = null;
+      payload['stock_quantity'] = null;
+      payload['quantity'] = null;
+    } else if (!hasVariants) {
       payload['stock'] = stockVal;
       payload['stockQuantity'] = stockVal;
       payload['stock_quantity'] = stockVal;
@@ -2199,6 +2214,9 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       payload['depositValue'] = null;
       payload['deposit_value'] = null;
     }
+    // Basic services support (docs/SERVICES_PLAN.md)
+    payload['requiresShipping'] = _requiresShipping;
+    payload['requires_shipping'] = _requiresShipping;
     if (categoryId != null && categoryId.isNotEmpty) {
       payload['categoryId'] = categoryId;
       payload['category_id'] = categoryId;
@@ -3153,29 +3171,69 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                               sizeCurve: Curves.easeOutCubic,
                             ),
                             const SizedBox(height: 12),
-                            KeyedSubtree(
-                              key: _keyFor('stock'),
-                              child: _LabeledField(
-                                label: 'Stock',
-                                child: TextField(
-                                  controller: _stock,
-                                  keyboardType: TextInputType.number,
-                                  enabled: !hasVariants,
-                                  onChanged: (_) => _clearErrorFor('stock'),
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                      fontWeight: FontWeight.w600),
-                                  decoration: _inventoryFieldDeco(
-                                    theme,
-                                    hint: hasVariants
-                                        ? 'Managed by variants'
-                                        : '0',
-                                    isInvalid: _isInvalid('stock'),
-                                    locked: hasVariants,
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'This is a physical product',
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(fontWeight: FontWeight.w600),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _requiresShipping
+                                              ? 'Ships to the customer — delivery/pickup collected at checkout.'
+                                              : "Doesn't ship — a service or digital item. No delivery address or fee at checkout.",
+                                          style: theme.textTheme.bodySmall?.copyWith(
+                                            color: theme.colorScheme.onSurfaceVariant,
+                                            height: 1.3,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Switch(
+                                    value: _requiresShipping,
+                                    onChanged: (v) => setState(() => _requiresShipping = v),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (_requiresShipping) ...[
+                              const SizedBox(height: 12),
+                              KeyedSubtree(
+                                key: _keyFor('stock'),
+                                child: _LabeledField(
+                                  label: 'Stock',
+                                  child: TextField(
+                                    controller: _stock,
+                                    keyboardType: TextInputType.number,
+                                    enabled: !hasVariants,
+                                    onChanged: (_) => _clearErrorFor('stock'),
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.w600),
+                                    decoration: _inventoryFieldDeco(
+                                      theme,
+                                      hint: hasVariants
+                                          ? 'Managed by variants'
+                                          : '0',
+                                      isInvalid: _isInvalid('stock'),
+                                      locked: hasVariants,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            if (hasVariants) ...[
+                            ],
+                            if (_requiresShipping && hasVariants) ...[
                               const SizedBox(height: 8),
                               Row(
                                 children: [
