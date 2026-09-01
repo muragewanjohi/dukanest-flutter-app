@@ -16,6 +16,8 @@ import '../../../core/auth/token_storage.dart';
 import '../../../core/util/store_media_url.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../media/screens/media_library_screen.dart';
+import '../../onboarding/data/business_type_categories.dart';
+import '../../settings/providers/dashboard_settings_provider.dart';
 import '../data/attribute_value_format.dart';
 import '../data/attributes_repository.dart';
 import '../data/categories_repository.dart';
@@ -117,6 +119,10 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   // service/digital item: no stock tracked, checkout skips delivery for a
   // cart made only of these. Mirrors web's product-form-client.tsx.
   bool _requiresShipping = true;
+  // True once the merchant has manually touched the toggle above — guards
+  // _applyShippingDefaultForNewProduct() from clobbering a deliberate
+  // choice if the tenant's business type loads slowly.
+  bool _requiresShippingTouchedByUser = false;
 
   late String _category;
   bool _visible = true;
@@ -2450,6 +2456,31 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     _initVariantLines();
     if (!isNew) {
       _loadLiveProductIfEditing();
+    } else {
+      _applyShippingDefaultForNewProduct();
+    }
+  }
+
+  /// User-requested connection: "when the store is registered do we track
+  /// what is a service based on what the user selects as a business type /
+  /// category?" — for a NEW product only, pre-set the "physical product"
+  /// toggle from the tenant's registered business type (false only for the
+  /// 10 explicit service-only business types; mirrors web's
+  /// product-form-client.tsx via
+  /// defaultRequiresShippingForBusinessType()). Best-effort: never blocks
+  /// product creation, and never overrides a choice the merchant already
+  /// made by hand while this was loading.
+  Future<void> _applyShippingDefaultForNewProduct() async {
+    try {
+      final settings = await ref.read(dashboardSettingsProvider.future);
+      if (!mounted || _requiresShippingTouchedByUser) return;
+      final store = settingsSection(settings, 'store');
+      final businessType = settingsPick(store, ['businessType', 'business_type']);
+      if (isServiceOnlyBusinessType(businessType)) {
+        setState(() => _requiresShipping = false);
+      }
+    } catch (_) {
+      // Best-effort only - the toggle just keeps its true default.
     }
   }
 
@@ -3203,7 +3234,10 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                   ),
                                   Switch(
                                     value: _requiresShipping,
-                                    onChanged: (v) => setState(() => _requiresShipping = v),
+                                    onChanged: (v) => setState(() {
+                                      _requiresShipping = v;
+                                      _requiresShippingTouchedByUser = true;
+                                    }),
                                   ),
                                 ],
                               ),

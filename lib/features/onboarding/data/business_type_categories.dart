@@ -263,3 +263,26 @@ List<String> categoriesForBusinessType(String? businessType) {
   if (businessType == null || businessType.isEmpty) return const [];
   return kBusinessTypeCategories[businessType] ?? const [];
 }
+
+/// The 10 business types that are 100% service businesses by definition —
+/// ported from storeflow's SERVICE_ONLY_BUSINESS_TYPES
+/// (business-type-taxonomy.ts). Used to pre-set (never silently decide) the
+/// "physical product" toggle when creating a new product — see
+/// product_editor_screen.dart's `_applyShippingDefaultForNewProduct`.
+const List<String> kServiceOnlyBusinessTypes = [
+  'Repair & Technical Services',
+  'Home & Trade Services',
+  'Cleaning Services',
+  'Beauty, Salon & Spa Services',
+  'Events, Photography & Entertainment Services',
+  'Transport, Moving & Logistics Services',
+  'Professional & Business Services',
+  'Health, Fitness & Wellness Services',
+  'Education & Training Services',
+  'Construction & Contracting Services',
+];
+
+bool isServiceOnlyBusinessType(String? businessType) {
+  if (businessType == null || businessType.isEmpty) return false;
+  return kServiceOnlyBusinessTypes.contains(businessType);
+}
