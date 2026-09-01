@@ -73,6 +73,46 @@ const List<BusinessTypeOption> kBusinessTypeOptions = [
     description: 'Pet food, accessories, ornamental fish, pet stores.',
   ),
   BusinessTypeOption(
+    value: 'Repair & Technical Services',
+    description: 'Phone, laptop, appliance, and vehicle repair.',
+  ),
+  BusinessTypeOption(
+    value: 'Home & Trade Services',
+    description: 'Plumbing, electrical, carpentry, painting, welding.',
+  ),
+  BusinessTypeOption(
+    value: 'Cleaning Services',
+    description: 'House, office, carpet cleaning, fumigation, laundry.',
+  ),
+  BusinessTypeOption(
+    value: 'Beauty, Salon & Spa Services',
+    description: 'Hairstyling, barbershop, nails, makeup, spa, massage.',
+  ),
+  BusinessTypeOption(
+    value: 'Events, Photography & Entertainment Services',
+    description: 'Photography, event planning, DJ/MC, catering, hire.',
+  ),
+  BusinessTypeOption(
+    value: 'Transport, Moving & Logistics Services',
+    description: 'Movers, courier, trailer/truck hire, car hire.',
+  ),
+  BusinessTypeOption(
+    value: 'Professional & Business Services',
+    description: 'Legal, accounting, consulting, design, development.',
+  ),
+  BusinessTypeOption(
+    value: 'Health, Fitness & Wellness Services',
+    description: 'Personal training, physiotherapy, nursing, therapy.',
+  ),
+  BusinessTypeOption(
+    value: 'Education & Training Services',
+    description: 'Tutoring, driving lessons, music, vocational training.',
+  ),
+  BusinessTypeOption(
+    value: 'Construction & Contracting Services',
+    description: 'Contracting, architecture, interior design, landscaping.',
+  ),
+  BusinessTypeOption(
     value: 'Other',
     description:
         'Choose this if your business does not fit the categories above.',

@@ -17,6 +17,7 @@ import '../../../core/auth/google_sign_in_config.dart';
 import '../../../core/auth/auth_state.dart';
 import '../../../core/auth/token_storage.dart';
 import '../../../core/providers/first_run_tutorial_seen_provider.dart';
+import '../data/business_type_categories.dart';
 import '../data/business_types.dart';
 import '../data/country_dial_codes.dart';
 import '../data/onboarding_trial.dart';
@@ -1059,6 +1060,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                 colorScheme.primary.withValues(alpha: 0.06),
                             onTap: () {
                               setState(() {
+                                // A category picked for the previous
+                                // business type almost never belongs to
+                                // the new one — clear it so a stale
+                                // selection can't slip through unnoticed
+                                // (mirrors register/page.tsx on web).
+                                if (_selectedBusinessType != opt.value) {
+                                  _industryController.clear();
+                                }
                                 _selectedBusinessType = opt.value;
                                 _didAttemptBusinessType = false;
                               });
@@ -1067,6 +1076,136 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           );
                         },
                       ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Same filterable bottom-sheet pattern as `_openBusinessTypePicker`,
+  /// scoped to `_selectedBusinessType`'s real curated category list — the
+  /// mobile counterpart of register/page.tsx's "Category (what are you
+  /// selling)" dropdown on web. Only called when that list is non-empty;
+  /// see `_registerStep2Business` for the free-text fallback ("Other" /
+  /// unrecognized business type).
+  Future<void> _openCategoryPicker() async {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final options = categoriesForBusinessType(_selectedBusinessType);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final sheetH = MediaQuery.sizeOf(ctx).height * 0.72;
+        String query = '';
+        return SafeArea(
+          child: SizedBox(
+            height: sheetH,
+            child: StatefulBuilder(
+              builder: (context, setSheetState) {
+                final normalizedQuery = query.trim().toLowerCase();
+                final filtered = normalizedQuery.isEmpty
+                    ? options
+                    : options
+                        .where((name) =>
+                            name.toLowerCase().contains(normalizedQuery))
+                        .toList();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 10),
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: colorScheme.outlineVariant,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                      child: Text(
+                        'Select your category',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                      child: TextField(
+                        onChanged: (value) =>
+                            setSheetState(() => query = value),
+                        decoration: InputDecoration(
+                          hintText: 'Search categories',
+                          prefixIcon: const Icon(Icons.search_rounded),
+                          filled: true,
+                          fillColor: colorScheme.surfaceContainerLow,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? Center(
+                              child: Text(
+                                'No matching category.',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              padding:
+                                  const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, __) => Divider(
+                                height: 1,
+                                color: colorScheme.outlineVariant
+                                    .withValues(alpha: 0.35),
+                              ),
+                              itemBuilder: (context, i) {
+                                final name = filtered[i];
+                                final sel =
+                                    _industryController.text == name;
+                                return ListTile(
+                                  title: Text(
+                                    name,
+                                    style:
+                                        theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: sel
+                                          ? FontWeight.w800
+                                          : FontWeight.w600,
+                                      color: colorScheme.secondary,
+                                    ),
+                                  ),
+                                  selected: sel,
+                                  selectedTileColor: colorScheme.primary
+                                      .withValues(alpha: 0.06),
+                                  onTap: () {
+                                    setState(() {
+                                      _industryController.text = name;
+                                    });
+                                    Navigator.of(ctx).pop();
+                                  },
+                                );
+                              },
+                            ),
                     ),
                   ],
                 );
@@ -1589,32 +1728,94 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
           ],
           const SizedBox(height: 24),
-          _stitchFieldCapsLabel('What are you selling?', colorScheme),
-          TextFormField(
-            controller: _industryController,
-            decoration: _stitchFilledInputDecoration(
-              colorScheme,
-              hintText: 'e.g. Leather handbags',
-            ),
-            validator: (value) {
-              final v = value?.trim() ?? '';
-              if (v.isEmpty) return null;
-              if (v.length < 2) return 'Please enter at least 2 characters';
-              if (!RegExp(r'^[A-Za-z0-9 &,-]+$').hasMatch(v)) {
-                return 'Contains unsupported characters';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Specific product names help our AI generate better SEO tags.',
-            style: theme.textTheme.labelSmall?.copyWith(
-              fontSize: 11,
-              height: 1.35,
-              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-            ),
-          ),
+          Builder(builder: (context) {
+            final categoryOptions =
+                categoriesForBusinessType(_selectedBusinessType);
+            if (categoryOptions.isEmpty) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _stitchFieldCapsLabel('What are you selling?', colorScheme),
+                  TextFormField(
+                    controller: _industryController,
+                    decoration: _stitchFilledInputDecoration(
+                      colorScheme,
+                      hintText: 'e.g. Leather handbags',
+                    ),
+                    validator: (value) {
+                      final v = value?.trim() ?? '';
+                      if (v.isEmpty) return null;
+                      if (v.length < 2) {
+                        return 'Please enter at least 2 characters';
+                      }
+                      if (!RegExp(r'^[A-Za-z0-9 &,-]+$').hasMatch(v)) {
+                        return 'Contains unsupported characters';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Specific product names help our AI generate better SEO tags.',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontSize: 11,
+                      height: 1.35,
+                      color:
+                          colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _stitchFieldCapsLabel(
+                    'Category (what are you selling)', colorScheme),
+                Material(
+                  color: colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: _isLoading ? null : _openCategoryPicker,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 18),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _industryController.text.isEmpty
+                                  ? 'Select your category'
+                                  : _industryController.text,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.w500,
+                                color: _industryController.text.isEmpty
+                                    ? colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.45)
+                                    : colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                          Icon(Icons.expand_more_rounded,
+                              color: colorScheme.outline, size: 26),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Not seeing an exact match? Pick the closest one — you can add more categories any time from your dashboard.',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontSize: 11,
+                    height: 1.35,
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            );
+          }),
           const SizedBox(height: 48),
           Container(
             padding: const EdgeInsets.all(24),
