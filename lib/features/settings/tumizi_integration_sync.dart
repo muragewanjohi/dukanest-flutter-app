@@ -40,10 +40,17 @@ bool tumiziProvisioningPending(Map<String, dynamic>? config) {
 }
 
 /// Whether POST `/dashboard/tumizi/settings` should ask the server to create a merchant.
+///
+/// Bug fix: this used to also return false while registration's async queue
+/// was still `provisioning_status: pending` — but pending means no merchant
+/// has actually been created yet (the queue only drains via a server cron;
+/// see storeflow vercel.json). Skipping creation in that state left the
+/// tenant stuck: `enabled` gets set true locally, but `merchantExternalId`
+/// never arrives, so every Tumizi action keeps failing with "Tumizi is not
+/// enabled for this store" no matter how many times the merchant re-enables
+/// it. Only an *already-linked* merchant should ever skip re-creation.
 bool shouldRequestTumiziMerchantCreation(Map<String, dynamic>? existingConfig) {
-  if (tumiziHasLinkedMerchant(existingConfig)) return false;
-  if (tumiziProvisioningPending(existingConfig)) return false;
-  return true;
+  return !tumiziHasLinkedMerchant(existingConfig);
 }
 
 /// Syncs Tumizi integration (enable/disable + optional merchant create) before payment PATCH.

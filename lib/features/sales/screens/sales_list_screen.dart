@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/dio_envelope.dart';
+import '../../../core/providers/store_identity_provider.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 
 /// Invalidates after list mutations (save/delete from editor).
@@ -182,6 +184,22 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
         sale['items'];
     if (list is List) return list.length;
     return 0;
+  }
+
+  void _shareSale(Map<String, dynamic> sale) {
+    final title = _pickString(sale, ['name', 'title'], fallback: 'Sale');
+    final slug = _pickString(sale, ['slug']);
+    final storeUrl =
+        ref.read(storeIdentityProvider).valueOrNull?.storeUrl?.trim();
+    if (slug.isEmpty || storeUrl == null || storeUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This sale has no public link yet')),
+      );
+      return;
+    }
+    final url = '${storeUrl.replaceFirst(RegExp(r'/+$'), '')}/sales/'
+        '${Uri.encodeComponent(slug)}';
+    SharePlus.instance.share(ShareParams(text: '$title\n$url'));
   }
 
   @override
@@ -372,6 +390,12 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                                               ),
                                             ],
                                           ),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Share',
+                                          onPressed: () => _shareSale(sale),
+                                          icon: const Icon(
+                                              Icons.share_outlined),
                                         ),
                                         IconButton(
                                           tooltip: 'Edit',

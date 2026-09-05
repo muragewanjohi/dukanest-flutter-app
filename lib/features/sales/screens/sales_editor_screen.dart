@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/dio_envelope.dart';
+import '../../../core/providers/store_identity_provider.dart';
 import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
@@ -53,7 +55,11 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
 
   DateTime _start = DateTime.now();
   DateTime _end = DateTime.now().add(const Duration(days: 7));
-  String _status = 'draft';
+  // Bug fix: a new sale used to default to Draft — easy to miss the status
+  // field entirely and wonder later why the sale never went live. Editing an
+  // existing sale overwrites this with its real saved status in _load().
+  String _status = 'active';
+  String _slug = '';
   bool _loading = true;
   bool _saving = false;
   String? _error;
@@ -207,6 +213,7 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
       _saleName.text = _pickString(sale, ['name', 'title'], fallback: 'Sale');
       _note.text = _pickString(sale, ['description', 'note', 'notes']);
       _status = _pickString(sale, ['status'], fallback: 'draft').toLowerCase();
+      _slug = _pickString(sale, ['slug']);
       _start =
           DateTime.tryParse(_pickString(sale, ['start_date', 'startDate'])) ??
               DateTime.now();
@@ -499,6 +506,21 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
     }
   }
 
+  void _share() {
+    final storeUrl =
+        ref.read(storeIdentityProvider).valueOrNull?.storeUrl?.trim();
+    if (_slug.isEmpty || storeUrl == null || storeUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This sale has no public link yet')),
+      );
+      return;
+    }
+    final url = '${storeUrl.replaceFirst(RegExp(r'/+$'), '')}/sales/'
+        '${Uri.encodeComponent(_slug)}';
+    SharePlus.instance
+        .share(ShareParams(text: '${_saleName.text.trim()}\n$url'));
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -521,6 +543,12 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
       appBar: DashboardAppBar(
         title: title,
         actions: [
+          if (!widget.isCreate && _slug.isNotEmpty)
+            IconButton(
+              tooltip: 'Share',
+              onPressed: _share,
+              icon: const Icon(Icons.share_outlined),
+            ),
           TextButton(
               onPressed: _saving ? null : _save, child: const Text('Save'))
         ],
