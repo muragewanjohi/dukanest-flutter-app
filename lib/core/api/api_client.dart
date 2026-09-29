@@ -760,6 +760,26 @@ class ApiClient {
     return ApiResponse.fromJson(response.data, (json) => json);
   }
 
+  Future<ApiResponse<dynamic>> getProximityBeacons() async {
+    final response = await _dio.get('/dashboard/proximity/beacons');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> recordProximityProfile(
+    String beaconId, {
+    int? batteryMv,
+    double txPowerDbm = -13.5,
+    int advIntervalMs = 500,
+  }) async {
+    final response = await _dio.post('/dashboard/proximity/commission', data: {
+      'beacon_id': beaconId,
+      'tx_power_dbm': txPowerDbm,
+      'adv_interval_ms': advIntervalMs,
+      if (batteryMv != null) 'battery_mv': batteryMv,
+    });
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
   Future<ApiResponse<dynamic>> getInventory({
     int page = 1,
     int limit = 20,

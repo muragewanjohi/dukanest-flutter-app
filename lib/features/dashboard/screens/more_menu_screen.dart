@@ -108,6 +108,15 @@ class MoreMenuScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           _MoreItem(
+            icon: Icons.bluetooth_searching_outlined,
+            iconColor: const Color(0xFF0F766E),
+            iconBackground: const Color(0xFFCCFBF1),
+            title: 'In-store beacons',
+            subtitle: 'Commission the CP35 profile after DX-SMART.',
+            onTap: () => context.push('/proximity'),
+          ),
+          const SizedBox(height: 12),
+          _MoreItem(
             icon: Icons.campaign_outlined,
             iconColor: const Color(0xFFBA1A1A),
             iconBackground: const Color(0x66FFDAD6),

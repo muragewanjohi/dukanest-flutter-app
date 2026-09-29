@@ -47,6 +47,7 @@ import '../features/content/screens/page_editor_screen.dart';
 import '../features/content/screens/hero_section_editor_screen.dart';
 import '../features/content/screens/banners_section_editor_screen.dart';
 import '../features/content/screens/split_layout_section_editor_screen.dart';
+import '../features/proximity/screens/proximity_beacons_screen.dart';
 import '../features/sales/screens/sales_list_screen.dart';
 import '../features/sales/screens/sales_editor_screen.dart';
 import '../features/customers/screens/customers_list_screen.dart';
@@ -491,6 +492,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/hero-section/edit',
         redirect: (context, state) => '/page-editor/home/sections/hero',
+      ),
+      GoRoute(
+        path: '/proximity',
+        builder: (context, state) => const ProximityBeaconsScreen(),
       ),
       GoRoute(
         path: '/sales',
