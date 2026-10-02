@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ibeacon.dart';
+import 'scan_session.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,14 +39,6 @@ class ScanHome extends StatefulWidget {
   State<ScanHome> createState() => _ScanHomeState();
 }
 
-class _Watch {
-  _Watch(this.sighting) : firstSeen = DateTime.now();
-  final IBeaconSighting sighting;
-  final DateTime firstSeen;
-  int rssi = 0;
-  bool asked = false;
-}
-
 class _ScanHomeState extends State<ScanHome> {
   final _baseUrl = TextEditingController(text: 'http://192.168.1.11:3000');
   final _sdkKey = TextEditingController();
@@ -61,15 +54,21 @@ class _ScanHomeState extends State<ScanHome> {
   Map<String, dynamic>? _card;
   String? _claimCode;
   IBeaconSighting? _lastSighting;
-  final _watches = <String, _Watch>{};
+  final _watches = <String, BeaconWatch>{};
   StreamSubscription<List<ScanResult>>? _scanSub;
+  StreamSubscription<bool>? _scanningSub;
+  Timer? _presenceTimer;
+  bool _keepScanning = false;
 
   @override
   void initState() {
     super.initState();
     _visitId = 'visit-${DateTime.now().millisecondsSinceEpoch}';
-    FlutterBluePlus.isScanning.listen((scanning) {
-      if (mounted && _scanning != scanning) setState(() => _scanning = scanning);
+    _presenceTimer = Timer.periodic(const Duration(seconds: 1), (_) => _dropAbsent());
+    _scanningSub = FlutterBluePlus.isScanning.listen((scanning) {
+      if (!mounted) return;
+      if (_scanning != scanning) setState(() => _scanning = scanning);
+      if (!scanning && _keepScanning) unawaited(_startRadio());
     });
     _loadSettings();
   }
@@ -97,6 +96,9 @@ class _ScanHomeState extends State<ScanHome> {
 
   @override
   void dispose() {
+    _keepScanning = false;
+    _presenceTimer?.cancel();
+    _scanningSub?.cancel();
     _scanSub?.cancel();
     FlutterBluePlus.stopScan();
     _baseUrl.dispose();
@@ -124,8 +126,14 @@ class _ScanHomeState extends State<ScanHome> {
     return true;
   }
 
+  Future<void> _startRadio() async {
+    if (!_keepScanning) return;
+    await FlutterBluePlus.startScan(timeout: const Duration(seconds: 30));
+  }
+
   Future<void> _toggleScan() async {
-    if (_scanning) {
+    if (_keepScanning) {
+      _keepScanning = false;
       await FlutterBluePlus.stopScan();
       setState(() => _scanning = false);
       return;
@@ -141,25 +149,46 @@ class _ScanHomeState extends State<ScanHome> {
     await _saveSettings();
     if (!await _prepareRadio()) return;
     _scanSub ??= FlutterBluePlus.scanResults.listen(_onResults);
-    await FlutterBluePlus.startScan(timeout: const Duration(seconds: 30));
+    _keepScanning = true;
+    await _startRadio();
     setState(() {
       _scanning = true;
       _status = 'Listening for the DukaNest beacon.';
     });
   }
 
+  void _dropAbsent() {
+    if (!mounted || _watches.isEmpty) return;
+    final now = DateTime.now();
+    final removed = <String>[];
+    _watches.removeWhere((key, watch) {
+      if (!watch.isAway(now)) return false;
+      removed.add(key);
+      return true;
+    });
+    if (removed.isEmpty) return;
+    final showing = _lastSighting;
+    final showingKey = showing == null ? null : '${showing.uuid}:${showing.major}:${showing.minor}';
+    if (showingKey != null && removed.contains(showingKey)) {
+      setState(() {
+        _card = null;
+        _claimCode = null;
+        _status = 'The beacon left range.';
+      });
+      return;
+    }
+    setState(() {});
+  }
+
   void _onResults(List<ScanResult> results) {
     final now = DateTime.now();
     for (final result in results) {
       final sighting = parseIBeacon(result.advertisementData.manufacturerData);
-      if (sighting == null || sighting.uuid != dukanestProximityUuid) continue;
+      if (sighting == null || !isDukanestSighting(sighting)) continue;
       final key = '${sighting.uuid}:${sighting.major}:${sighting.minor}';
-      final watch = _watches.putIfAbsent(key, () => _Watch(sighting));
-      watch.rssi = result.rssi;
-      final dwell = now.difference(watch.firstSeen).inMilliseconds;
-      if (!watch.asked && dwell >= 2500) {
-        watch.asked = true;
-        unawaited(_ask(sighting, dwell, 'ble'));
+      final watch = _watches.putIfAbsent(key, () => BeaconWatch(sighting, now));
+      if (watch.notePacket(now, result.rssi)) {
+        unawaited(_ask(sighting, now.difference(watch.firstSeen).inMilliseconds, 'ble'));
       }
     }
     if (mounted) setState(() {});
@@ -189,18 +218,13 @@ class _ScanHomeState extends State<ScanHome> {
     });
     try {
       await _track(sighting, 'detected', onScreen: false, source: source);
-      final uri = Uri.parse('${_baseUrl.text.trim()}/api/v1/proximity/ads/current').replace(
-        queryParameters: {
-          'uuid': sighting.uuid,
-          'major': '${sighting.major}',
-          'minor': '${sighting.minor}',
-          'opaque_customer_id': _opaqueId,
-          'visit_id': _visitId,
-          'consent': 'true',
-          'source': source,
-          'dwell_elapsed_ms': '$dwellMs',
-          'locale': 'en',
-        },
+      final uri = currentAdUri(
+        baseUrl: _baseUrl.text,
+        sighting: sighting,
+        opaqueCustomerId: _opaqueId,
+        visitId: _visitId,
+        dwellElapsedMs: dwellMs,
+        source: source,
       );
       final response = await http.get(uri, headers: {'Authorization': 'Bearer ${_sdkKey.text.trim()}'});
       final json = jsonDecode(response.body);
@@ -208,10 +232,11 @@ class _ScanHomeState extends State<ScanHome> {
         throw Exception(json is Map ? json['error'] ?? 'Request failed' : 'Request failed');
       }
       final map = Map<String, dynamic>.from(json as Map);
-      if (map['action'] != 'eligible' || map['card'] is! Map) {
+      final reason = noCardReason(map);
+      if (reason != null) {
         setState(() {
           _card = null;
-          _status = 'No card: ${map['reason'] ?? 'nothing to show'}';
+          _status = reason;
         });
         return;
       }
@@ -247,18 +272,15 @@ class _ScanHomeState extends State<ScanHome> {
         'Authorization': 'Bearer ${_sdkKey.text.trim()}',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({
-        'event_type': eventType,
-        'uuid': sighting.uuid,
-        'major': sighting.major,
-        'minor': sighting.minor,
-        'opaque_customer_id': _opaqueId,
-        'visit_id': _visitId,
-        'consent': true,
-        'source': source,
-        'impression_on_screen': onScreen,
-        'campaign_id': ?campaignId,
-      }),
+      body: jsonEncode(proximityEventBody(
+        sighting: sighting,
+        eventType: eventType,
+        opaqueCustomerId: _opaqueId,
+        visitId: _visitId,
+        onScreen: onScreen,
+        source: source,
+        campaignId: campaignId,
+      )),
     );
     if (response.statusCode >= 400 && eventType == 'delivered') {
       final json = jsonDecode(response.body);

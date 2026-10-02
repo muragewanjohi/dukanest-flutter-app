@@ -131,9 +131,20 @@ class ApiClient {
   /// (20/20) for this month"), and Dio throws on non-2xx by default; a raw
   /// call would surface that as a swallowed DioException instead of the
   /// actual reason, which is exactly what happened in real device testing.
+  ///
+  /// Long receive timeout: confirming marketing/sale banner generation can
+  /// take well over the default 15s (Nano Banana + Media Library write).
   Future<ApiResponse<dynamic>> postAssistantChat(
       List<Map<String, String>> messages) {
-    return dioPostEnvelope(_dio, '/assistant/chat', data: {'messages': messages});
+    return dioPostEnvelope(
+      _dio,
+      '/assistant/chat',
+      data: {'messages': messages},
+      options: Options(
+        receiveTimeout: const Duration(seconds: 120),
+        sendTimeout: const Duration(seconds: 60),
+      ),
+    );
   }
 
   /// Conversational product intake — bearer-token mirror of web's
@@ -291,6 +302,51 @@ class ApiClient {
         if (refund) 'refund': true,
         if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
       },
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  // --- Real scheduling/booking (S2, docs/SERVICES_PLAN.md) ---
+
+  Future<ApiResponse<dynamic>> getBookings({
+    String? date,
+    String? status,
+    int page = 1,
+    int limit = 100,
+  }) async {
+    final response = await _dio.get(
+      '/dashboard/bookings',
+      queryParameters: {
+        'page': page,
+        'limit': limit,
+        if (date != null) 'date': date,
+        if (status != null) 'status': status,
+      },
+    );
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> createBooking(Map<String, dynamic> input) async {
+    final response = await _dio.post('/dashboard/bookings', data: input);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> patchBooking(
+      String id, Map<String, dynamic> input) async {
+    final response = await _dio.patch('/dashboard/bookings/$id', data: input);
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> cancelBooking(String id) async {
+    final response = await _dio.delete('/dashboard/bookings/$id');
+    return ApiResponse.fromJson(response.data, (json) => json);
+  }
+
+  Future<ApiResponse<dynamic>> getBookingAvailability(
+      String productId, String date) async {
+    final response = await _dio.get(
+      '/dashboard/bookings/availability',
+      queryParameters: {'productId': productId, 'date': date},
     );
     return ApiResponse.fromJson(response.data, (json) => json);
   }
@@ -767,6 +823,9 @@ class ApiClient {
 
   Future<ApiResponse<dynamic>> recordProximityProfile(
     String beaconId, {
+    String? uuid,
+    int? major,
+    int? minor,
     int? batteryMv,
     double txPowerDbm = -13.5,
     int advIntervalMs = 500,
@@ -775,6 +834,9 @@ class ApiClient {
       'beacon_id': beaconId,
       'tx_power_dbm': txPowerDbm,
       'adv_interval_ms': advIntervalMs,
+      if (uuid != null) 'uuid': uuid,
+      if (major != null) 'major': major,
+      if (minor != null) 'minor': minor,
       if (batteryMv != null) 'battery_mv': batteryMv,
     });
     return ApiResponse.fromJson(response.data, (json) => json);

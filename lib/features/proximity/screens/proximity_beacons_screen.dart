@@ -1,27 +1,192 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
+import '../beacon_provision_service.dart';
+
+class _ConfigureBeaconDialog extends StatefulWidget {
+  const _ConfigureBeaconDialog({
+    required this.provision,
+    required this.uuid,
+    required this.major,
+    required this.minor,
+    required this.txPower,
+    required this.intervalMs,
+  });
+
+  final BeaconProvisionService provision;
+  final String uuid;
+  final int major;
+  final int minor;
+  final double txPower;
+  final int intervalMs;
+
+  @override
+  State<_ConfigureBeaconDialog> createState() => _ConfigureBeaconDialogState();
+}
+
+class _ConfigureBeaconDialogState extends State<_ConfigureBeaconDialog> {
+  final _password = TextEditingController(text: 'dx1234');
+  bool _busy = false;
+  String? _status;
+  List<NearbyBeacon> _nearby = const [];
+  NearbyBeacon? _selected;
+
+  @override
+  void dispose() {
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _scan() async {
+    setState(() {
+      _busy = true;
+      _status = 'Looking for nearby beacons…';
+      _nearby = const [];
+      _selected = null;
+    });
+    try {
+      final nearby = await widget.provision.scanNearbyBeacons();
+      if (!mounted) return;
+      setState(() {
+        _nearby = nearby;
+        _selected = nearby.isEmpty ? null : nearby.first;
+        _status = nearby.isEmpty
+            ? 'No Bluetooth devices found. Hold the beacon next to the phone.'
+            : 'Choose the beacon, then apply the DukaNest profile.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _status = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _apply() async {
+    final selected = _selected;
+    if (selected == null) {
+      setState(() => _status = 'Find the beacon first.');
+      return;
+    }
+    final password = _password.text;
+    if (password.length != 6) {
+      setState(() => _status = 'Password must be 6 characters.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _status = 'Writing the DukaNest profile…';
+    });
+    final error = await widget.provision.configure(
+      mac: selected.mac,
+      password: password,
+      uuid: widget.uuid,
+      major: widget.major,
+      minor: widget.minor,
+      txDbm: widget.txPower,
+      intervalMs: widget.intervalMs,
+    );
+    if (!mounted) return;
+    if (error != null) {
+      setState(() {
+        _busy = false;
+        _status = error;
+      });
+      return;
+    }
+    Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Configure beacon'),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Writes UUID, major ${widget.major}, minor ${widget.minor}, '
+                'TX ${widget.txPower} dBm, every ${widget.intervalMs} ms. '
+                'The password is not changed.',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _password,
+                maxLength: 6,
+                decoration: const InputDecoration(
+                  labelText: 'Beacon password',
+                  hintText: 'dx1234',
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: _busy ? null : _scan,
+                child: const Text('Find nearby beacons'),
+              ),
+              if (_status != null) ...[
+                const SizedBox(height: 8),
+                Text(_status!),
+              ],
+              ..._nearby.map(
+                (beacon) => RadioListTile<String>(
+                  contentPadding: EdgeInsets.zero,
+                  value: beacon.mac,
+                  groupValue: _selected?.mac,
+                  onChanged: _busy
+                      ? null
+                      : (_) => setState(() => _selected = beacon),
+                  title: Text(beacon.name),
+                  subtitle: Text('${beacon.mac} · ${beacon.rssi} dBm'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _busy ? null : _apply,
+          child: Text(_busy ? 'Working' : 'Apply profile'),
+        ),
+      ],
+    );
+  }
+}
 
 class ProximityBeaconsScreen extends ConsumerStatefulWidget {
-  const ProximityBeaconsScreen({super.key});
+  const ProximityBeaconsScreen({super.key, this.provision});
+
+  final BeaconProvisionService? provision;
 
   @override
   ConsumerState<ProximityBeaconsScreen> createState() =>
       _ProximityBeaconsScreenState();
 }
 
-class _ProximityBeaconsScreenState
-    extends ConsumerState<ProximityBeaconsScreen> {
+class _ProximityBeaconsScreenState extends ConsumerState<ProximityBeaconsScreen> {
   bool _loading = true;
   String? _error;
-  String? _recordingId;
+  String? _configuringId;
   String? _platformUuid;
-  String? _commissioning;
   Map<String, dynamic>? _profile;
   List<dynamic> _beacons = [];
   List<dynamic> _darkIds = [];
+
+  BeaconProvisionService get _provision =>
+      widget.provision ?? BeaconProvisionService();
+
+  bool get _canConfigure => defaultTargetPlatform == TargetPlatform.android;
 
   @override
   void initState() {
@@ -35,15 +200,13 @@ class _ProximityBeaconsScreenState
       _error = null;
     });
     try {
-      final response =
-          await ref.read(apiClientProvider).getProximityBeacons();
+      final response = await ref.read(apiClientProvider).getProximityBeacons();
       if (!response.success || response.data is! Map) {
         throw Exception(response.error?.message ?? 'Could not load beacons');
       }
       final data = Map<String, dynamic>.from(response.data as Map);
       setState(() {
         _platformUuid = data['platform_uuid']?.toString();
-        _commissioning = data['commissioning']?.toString();
         _profile = data['recommended_profile'] is Map
             ? Map<String, dynamic>.from(data['recommended_profile'] as Map)
             : null;
@@ -59,71 +222,44 @@ class _ProximityBeaconsScreenState
     }
   }
 
-  Future<void> _record(Map<String, dynamic> beacon) async {
-    final battery = TextEditingController();
-    final confirmed = await showDialog<bool>(
+  Future<void> _configure(Map<String, dynamic> beacon) async {
+    final uuid = _platformUuid ?? _profile?['uuid']?.toString() ?? '';
+    final major = (beacon['major'] as num?)?.toInt() ?? 0;
+    final minor = (beacon['minor'] as num?)?.toInt() ?? 0;
+    final tx = _profile?['tx_power_dbm'];
+    final interval = _profile?['adv_interval_ms'];
+    final txPower = tx is num ? tx.toDouble() : -13.5;
+    final intervalMs = interval is num ? interval.toInt() : 500;
+    final wrote = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Record pilot profile'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'UUID, TX ${_profile?['tx_power_dbm'] ?? -13.5} dBm and interval ${_profile?['adv_interval_ms'] ?? 500} ms must already be set in DX-SMART. This only saves that profile on the beacon.',
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: battery,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Battery millivolts',
-                hintText: 'Leave blank to keep the current reading',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Record'),
-          ),
-        ],
+      builder: (context) => _ConfigureBeaconDialog(
+        provision: _provision,
+        uuid: uuid,
+        major: major,
+        minor: minor,
+        txPower: txPower,
+        intervalMs: intervalMs,
       ),
     );
-    final batteryText = battery.text.trim();
-    battery.dispose();
-    if (confirmed != true || !mounted) return;
-
-    final parsedBattery = batteryText.isEmpty ? null : int.tryParse(batteryText);
-    if (batteryText.isNotEmpty && parsedBattery == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Battery must be a whole number of millivolts')),
-      );
-      return;
-    }
+    if (wrote != true || !mounted) return;
 
     final id = beacon['id']?.toString() ?? '';
-    setState(() => _recordingId = id);
+    setState(() => _configuringId = id);
     try {
-      final tx = _profile?['tx_power_dbm'];
-      final interval = _profile?['adv_interval_ms'];
       final response = await ref.read(apiClientProvider).recordProximityProfile(
             id,
-            batteryMv: parsedBattery,
-            txPowerDbm: tx is num ? tx.toDouble() : -13.5,
-            advIntervalMs: interval is num ? interval.toInt() : 500,
+            uuid: uuid,
+            major: major,
+            minor: minor,
+            txPowerDbm: txPower,
+            advIntervalMs: intervalMs,
           );
       if (!response.success) {
         throw Exception(response.error?.message ?? 'Could not record the profile');
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile recorded')),
+        const SnackBar(content: Text('Beacon configured')),
       );
       await _load();
     } catch (error) {
@@ -132,7 +268,7 @@ class _ProximityBeaconsScreenState
         SnackBar(content: Text(error.toString())),
       );
     } finally {
-      if (mounted) setState(() => _recordingId = null);
+      if (mounted) setState(() => _configuringId = null);
     }
   }
 
@@ -150,7 +286,7 @@ class _ProximityBeaconsScreenState
           padding: const EdgeInsets.all(16),
           children: [
             Text(
-              'Staff commissioning only. The shopper scan app never receives this screen or a commission key.',
+              'Staff commissioning only. The shopper scan app cannot change a beacon.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 12),
@@ -160,16 +296,18 @@ class _ProximityBeaconsScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('CP35 pilot profile', style: Theme.of(context).textTheme.titleMedium),
+                    Text('CP35 profile', style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 8),
                     SelectableText('UUID ${_platformUuid ?? _profile?['uuid'] ?? ''}'),
                     Text('TX ${_profile?['tx_power_dbm'] ?? -13.5} dBm'),
                     Text('Advertise every ${_profile?['adv_interval_ms'] ?? 500} ms'),
                     Text('Frame ${_profile?['frames'] ?? 'ibeacon_only'}'),
-                    if (_commissioning != null) ...[
-                      const SizedBox(height: 8),
-                      Text(_commissioning!),
-                    ],
+                    const SizedBox(height: 8),
+                    Text(
+                      _canConfigure
+                          ? 'Hold the beacon next to this phone, then configure it.'
+                          : 'Configure beacons from the Android DukaNest app.',
+                    ),
                     const SizedBox(height: 8),
                     Text('Replace the cell when voltage falls below $lowBattery mV.'),
                   ],
@@ -222,13 +360,14 @@ class _ProximityBeaconsScreenState
                         'last seen ${beacon['last_seen_at'] ?? 'never'}'
                         '${battery == null ? '' : '\nbattery $battery mV'}',
                       ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: _recordingId == id ? null : () => _record(beacon),
-                          child: Text(_recordingId == id ? 'Saving' : 'Record profile'),
+                      if (_canConfigure)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _configuringId == id ? null : () => _configure(beacon),
+                            child: Text(_configuringId == id ? 'Saving' : 'Configure beacon'),
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
