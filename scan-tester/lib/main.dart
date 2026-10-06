@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ibeacon.dart';
+import 'offer_notice.dart';
 import 'scan_session.dart';
 
 void main() {
@@ -245,6 +246,19 @@ class _ScanHomeState extends State<ScanHome> {
         _card = card;
         _status = 'Card is on screen.';
       });
+      final headline = card['headline']?.toString().trim() ?? '';
+      final title = headline.isEmpty ? 'In-store offer' : headline;
+      final rawBody = card['body']?.toString().trim() ?? '';
+      final noticeBody = rawBody.isEmpty || rawBody == title ? 'An offer is ready in this aisle.' : rawBody;
+      try {
+        await offerNotifications.showOffer(
+          title: title,
+          body: noticeBody,
+          imageUrl: cardImageUrl(card['image_url'], _baseUrl.text),
+        );
+      } catch (_) {
+        // The card stays on screen even when the shade alert cannot be posted.
+      }
       await _track(
         sighting,
         'delivered',
@@ -415,13 +429,30 @@ class _ScanHomeState extends State<ScanHome> {
           if (card != null) ...[
             const SizedBox(height: 16),
             Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (cardImageUrl(card['image_url'], _baseUrl.text) case final imageUrl?)
+                    Image.network(
+                      imageUrl,
+                      height: 180,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => const SizedBox(
+                        height: 180,
+                        child: Center(child: Text('Image could not be loaded')),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                     Text(card['headline']?.toString() ?? 'Offer', style: Theme.of(context).textTheme.titleLarge),
-                    if (card['body'] != null) Text(card['body'].toString()),
+                    if (card['body']?.toString().trim().isNotEmpty == true &&
+                        card['body'].toString().trim() != card['headline']?.toString().trim())
+                      Text(card['body'].toString()),
                     const SizedBox(height: 12),
                     FilledButton(
                       onPressed: _busy ? null : () => _act('clicked'),
@@ -433,8 +464,10 @@ class _ScanHomeState extends State<ScanHome> {
                         child: Text(card['coupon_label']?.toString() ?? 'Claim'),
                       ),
                     if (_claimCode != null) SelectableText('Claim code $_claimCode'),
-                  ],
-                ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

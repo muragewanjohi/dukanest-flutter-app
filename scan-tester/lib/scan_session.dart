@@ -94,6 +94,17 @@ Map<String, Object?> proximityEventBody({
   };
 }
 
+/// Absolute image address for a card. Store-relative paths use the scan base URL.
+String? cardImageUrl(Object? raw, String baseUrl) {
+  final value = raw?.toString().trim() ?? '';
+  if (value.isEmpty) return null;
+  final parsed = Uri.tryParse(value);
+  if (parsed != null && parsed.hasScheme && parsed.host.isNotEmpty) return value;
+  final root = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+  if (root.isEmpty) return value;
+  return value.startsWith('/') ? '$root$value' : '$root/$value';
+}
+
 /// A message when the store has nothing to show. Null means the card can be painted.
 String? noCardReason(Map<String, dynamic> body) {
   if (body['action'] == 'eligible' && body['card'] is Map) return null;

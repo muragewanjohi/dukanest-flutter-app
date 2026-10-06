@@ -80,6 +80,15 @@ void main() {
     expect(delivered['campaign_id'], 'campaign-1');
   });
 
+  test('a stored image stays absolute and a relative path uses the store address', () {
+    expect(
+      cardImageUrl('https://cdn.example/coke.png', 'http://127.0.0.1:3000'),
+      'https://cdn.example/coke.png',
+    );
+    expect(cardImageUrl('/media/coke.png', 'http://127.0.0.1:3000/'), 'http://127.0.0.1:3000/media/coke.png');
+    expect(cardImageUrl('  ', 'http://127.0.0.1:3000'), isNull);
+  });
+
   test('an ineligible response does not become a shopper card', () {
     expect(noCardReason({'action': 'none', 'reason': 'frequency_cap'}), 'No card: frequency_cap');
     expect(
