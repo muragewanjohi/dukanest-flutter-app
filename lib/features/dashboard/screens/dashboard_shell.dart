@@ -34,21 +34,16 @@ class DashboardShell extends ConsumerWidget {
           orElse: () => 0,
         );
     final badgeLabel = pendingOrdersCount > 99 ? '99+' : '$pendingOrdersCount';
-    // Branch order is [Home, Orders, AI, Products, More] — see router.dart's
-    // StatefulShellRoute.indexedStack branches list, which this index must
-    // match exactly.
+    // Branch order: Home, Orders, Assistant, Products, More
     final aiSelected = navigationShell.currentIndex == 2;
 
-    // First-run spotlight (Flutter Assistant Phase 4,
-    // IMPLEMENTATION_TRACKER.md): shown while the real, server-persisted
-    // 'assistant' getting-started item is still incomplete (they haven't
-    // sent a message yet) and hasn't been dismissed this session — see
-    // assistant_spotlight_provider.dart for why dismissal is session-only,
-    // not persisted.
     final dismissed = ref.watch(assistantSpotlightDismissedProvider);
-    final gettingStarted = ref.watch(dashboardGettingStartedProvider).asData?.value;
+    final gettingStarted =
+        ref.watch(dashboardGettingStartedProvider).asData?.value;
     final assistantTried = _assistantItemCompleted(gettingStarted);
-    final showSpotlight = !dismissed && assistantTried == false && navigationShell.currentIndex != 2;
+    final showSpotlight = !dismissed &&
+        assistantTried == false &&
+        navigationShell.currentIndex != 2;
 
     return Stack(
       children: [
@@ -88,11 +83,6 @@ class DashboardShell extends ConsumerWidget {
                   ),
                   label: 'Orders',
                 ),
-                // Center slot, deliberately prominent — the core interaction
-                // surface (per the user's explicit request), not just
-                // another tab. A filled brand-color circle instead of a
-                // plain outline icon, same treatment selected or not, so it
-                // always reads as the primary action at a glance.
                 NavigationDestination(
                   icon: _AiNavIcon(selected: aiSelected),
                   selectedIcon: _AiNavIcon(selected: aiSelected),
@@ -118,17 +108,15 @@ class DashboardShell extends ConsumerWidget {
             right: 16,
             bottom: 80 + MediaQuery.of(context).padding.bottom + 12,
             child: _AssistantSpotlight(
-              onDismiss: () => ref.read(assistantSpotlightDismissedProvider.notifier).state = true,
+              onDismiss: () => ref
+                  .read(assistantSpotlightDismissedProvider.notifier)
+                  .state = true,
             ),
           ),
       ],
     );
   }
 
-  /// Reads the 'assistant' checklist item's completion out of
-  /// dashboardGettingStartedProvider's raw payload. Returns null while
-  /// loading/unavailable (spotlight stays hidden rather than flashing on
-  /// briefly before the real state is known).
   static bool? _assistantItemCompleted(Map<String, dynamic>? data) {
     if (data == null) return null;
     final items = data['items'];
@@ -142,8 +130,6 @@ class DashboardShell extends ConsumerWidget {
   }
 }
 
-/// First-run nudge pointing at the Assistant tab. Purely additive UI — no
-/// server calls of its own; dismissal is handled by the caller.
 class _AssistantSpotlight extends StatelessWidget {
   const _AssistantSpotlight({required this.onDismiss});
 
@@ -182,7 +168,8 @@ class _AssistantSpotlight extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         'Ask about your store, get help, or find out what to do next.',
-                        style: TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant),
+                        style: TextStyle(
+                            fontSize: 12, color: AppTheme.onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -198,17 +185,21 @@ class _AssistantSpotlight extends StatelessWidget {
             ),
           ),
         ),
-        Transform.rotate(
-          angle: math.pi / 4,
-          child: Container(
-            width: 10,
-            height: 10,
-            margin: const EdgeInsets.only(top: -5),
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceContainerLowest,
-              boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 2),
-              ],
+        Transform.translate(
+          offset: const Offset(0, -5),
+          child: Transform.rotate(
+            angle: math.pi / 4,
+            child: Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceContainerLowest,
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 2),
+                ],
+              ),
             ),
           ),
         ),
@@ -217,13 +208,6 @@ class _AssistantSpotlight extends StatelessWidget {
   }
 }
 
-/// Prominent center-tab icon for the AI Assistant — a filled circle badge
-/// rather than a plain outline glyph, so it visually pops against the other
-/// four destinations without needing a custom bottom-bar widget (which risks
-/// layout issues neither `flutter analyze` nor this environment, with no
-/// emulator available, can catch). Stays within NavigationDestination's
-/// normal icon bounds — no overflow/transform tricks — to keep this safe
-/// sight-unseen.
 class _AiNavIcon extends StatelessWidget {
   const _AiNavIcon({required this.selected});
 
@@ -237,7 +221,9 @@ class _AiNavIcon extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: selected ? AppTheme.primary : AppTheme.primary.withValues(alpha: 0.14),
+        color: selected
+            ? AppTheme.primary
+            : AppTheme.primary.withValues(alpha: 0.14),
       ),
       child: Icon(
         Icons.auto_awesome_rounded,

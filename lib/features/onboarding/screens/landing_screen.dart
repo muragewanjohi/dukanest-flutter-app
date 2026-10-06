@@ -1,20 +1,34 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
-import '../data/onboarding_trial.dart';
+import '../../../core/auth/token_storage.dart';
+import '../../../core/providers/onboarding_seen_provider.dart';
 
-/// Post-onboarding marketing/landing page.
-///
-/// Entry point for unauthenticated users who have completed the intro
-/// carousel. Shows the brand logo, a decorative revenue graph that sells
-/// the product value proposition, and two CTAs: primary gradient "Sign in"
-/// (routes to the login page where Google SSO lives) and a supersized
-/// "Don't have a store?" card.
-class LandingScreen extends StatelessWidget {
+/// Single welcome screen for new and returning sellers (carousel collapsed).
+class LandingScreen extends ConsumerStatefulWidget {
   const LandingScreen({super.key});
+
+  @override
+  ConsumerState<LandingScreen> createState() => _LandingScreenState();
+}
+
+class _LandingScreenState extends ConsumerState<LandingScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _markWelcomeSeen());
+  }
+
+  Future<void> _markWelcomeSeen() async {
+    final seen = ref.read(onboardingSeenProvider).valueOrNull;
+    if (seen == true) return;
+    await ref.read(tokenStorageProvider).saveOnboardingSeen(true);
+    ref.invalidate(onboardingSeenProvider);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +66,7 @@ class LandingScreen extends StatelessWidget {
                       ),
                       SizedBox(height: compact ? 18 : 28),
                       Text(
-                        'Run your shop, see your growth.',
+                        'Sell on WhatsApp with your own store link',
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                           color: colorScheme.onSurface,
@@ -63,7 +77,7 @@ class LandingScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Manage products, orders and revenue from one place.',
+                        'Add products, share your link, and manage orders in one place.',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                           height: 1.4,
@@ -325,7 +339,7 @@ class _PrimaryStartTrialButton extends StatelessWidget {
           padding: EdgeInsets.symmetric(vertical: compact ? 16 : 18),
         ),
         child: const Text(
-          OnboardingTrial.landingStartTrialLabel,
+          'Start selling',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ),
@@ -351,7 +365,7 @@ class _SecondarySignInButton extends StatelessWidget {
         foregroundColor: AppTheme.primaryDark,
       ),
       child: const Text(
-        'Log into existing store',
+        'Log in',
         style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
       ),
     );

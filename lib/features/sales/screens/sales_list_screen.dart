@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -341,6 +342,8 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                               final status = _pickString(sale, ['status'],
                                   fallback: 'draft');
                               final count = _countProducts(sale);
+                              final banner = _pickString(
+                                  sale, ['banner_image', 'bannerImage', 'image']);
 
                               return Material(
                                 color: Colors.white,
@@ -355,6 +358,38 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                                     padding: const EdgeInsets.all(14),
                                     child: Row(
                                       children: [
+                                        ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          child: SizedBox(
+                                            width: 64,
+                                            height: 64,
+                                            child: banner.isEmpty
+                                                ? ColoredBox(
+                                                    color: theme.colorScheme
+                                                        .surfaceContainerLow,
+                                                    child: Icon(
+                                                      Icons.local_offer_outlined,
+                                                      color: AppTheme.primaryDark
+                                                          .withValues(
+                                                              alpha: 0.55),
+                                                    ),
+                                                  )
+                                                : CachedNetworkImage(
+                                                    imageUrl: banner,
+                                                    fit: BoxFit.cover,
+                                                    errorWidget: (_, __,
+                                                            ___) =>
+                                                        ColoredBox(
+                                                      color: theme.colorScheme
+                                                          .surfaceContainerLow,
+                                                      child: const Icon(Icons
+                                                          .image_not_supported_outlined),
+                                                    ),
+                                                  ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment:

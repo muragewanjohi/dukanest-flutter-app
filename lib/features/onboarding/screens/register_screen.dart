@@ -17,6 +17,7 @@ import '../../../core/auth/google_sign_in_config.dart';
 import '../../../core/auth/auth_state.dart';
 import '../../../core/auth/token_storage.dart';
 import '../../../core/providers/first_run_tutorial_seen_provider.dart';
+import '../../../core/providers/store_identity_provider.dart';
 import '../data/business_type_categories.dart';
 import '../data/business_types.dart';
 import '../data/country_dial_codes.dart';
@@ -67,6 +68,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   String _selectedCountryCode = 'Kenya (+254)';
   bool _isLoading = false;
   bool _showEmailPasswordForm = false;
+  bool _obscurePassword = true;
+  bool _isStoreUrlEditable = false;
+  bool _hasCustomStoreUrl = false;
+  bool _showReferralField = false;
   bool _didAttemptSubmit = false;
 
   /// Step index 0–3: Account → Store URL → Business → Contact & submit.
@@ -107,6 +112,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (initial != null && initial.trim().isNotEmpty) {
       final parsed = parseReferrerSubdomainInput(initial) ?? initial.trim();
       _referrerSubdomainController.text = parsed;
+      _showReferralField = true;
     }
     _termsRecognizer = TapGestureRecognizer()
       ..onTap = () => _openExternalUrl(_termsOfServiceUri);
@@ -309,15 +315,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       );
     }
 
-    final currentSlug = _slugify(cleanedName);
-    _storeUrlController.text = currentSlug;
-    _storeUrlController.selection =
-        TextSelection.collapsed(offset: _storeUrlController.text.length);
-    _scheduleSubdomainCheck(currentSlug);
+    if (!_hasCustomStoreUrl) {
+      final currentSlug = _slugify(cleanedName);
+      _storeUrlController.text = currentSlug;
+      _storeUrlController.selection =
+          TextSelection.collapsed(offset: _storeUrlController.text.length);
+      _scheduleSubdomainCheck(currentSlug);
+    }
     setState(() {});
   }
 
   void _onStoreUrlChanged(String value) {
+    _hasCustomStoreUrl = true;
     final normalized = value
         .toLowerCase()
         .replaceAll(RegExp(r'[^a-z0-9-]'), '')
@@ -589,12 +598,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         );
       }
 
-      // Mark tutorial as not-seen for newly created accounts so authenticated
-      // routing can launch first-run guidance exactly once.
-      await ref.read(tokenStorageProvider).saveFirstRunTutorialSeen(false);
-      ref.invalidate(firstRunTutorialSeenProvider);
-      await ref.read(firstRunTutorialSeenProvider.future);
-
       if (registerResp.data is Map<String, dynamic>) {
         final registerData = registerResp.data as Map<String, dynamic>;
         final tenantRaw = registerData['tenant'];
@@ -614,8 +617,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         tenant['logo_url'])
                     ?.toString(),
               );
+          ref.invalidate(storeIdentityProvider);
         }
       }
+
+      // This account uses the streamlined first-product activation flow.
+      // Persist before authentication changes so router refreshes cannot send
+      // the user through the legacy tutorial.
+      await ref.read(tokenStorageProvider).saveFirstRunTutorialSeen(true);
+      ref.invalidate(firstRunTutorialSeenProvider);
+      await ref.read(firstRunTutorialSeenProvider.future);
 
       await _attemptPostRegistrationSignIn(
         isGooglePath: isGooglePath,
@@ -626,18 +637,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       final auth = ref.read(authProvider);
       if (auth.status == AuthStatus.authenticated ||
           auth.status == AuthStatus.awaitingMfa) {
+        // The old multi-step tutorial remains available from Settings, but a
+        // newly created store now activates through one live product instead.
+        await ref.read(tokenStorageProvider).saveFirstRunTutorialSeen(true);
+        ref.invalidate(firstRunTutorialSeenProvider);
+        await ref.read(firstRunTutorialSeenProvider.future);
+        if (!mounted) return;
         if (!isGooglePath && auth.status == AuthStatus.awaitingMfa) {
           // Keep existing email OTP path, and request SMS OTP as best effort.
           unawaited(
               ref.read(authProvider.notifier).requestSmsMfaCodeSilently());
         }
-        // OC.4 (docs/IMPLEMENTATION_TRACKER.md, "UI — Onboarding AI Chat") —
-        // a freshly-registered tenant never has niche set yet (registration
-        // only writes businessType/selling, not niche — see
-        // src/app/api/tenant/business-context/route.ts's docblock), so
-        // unconditionally routing here is safe; the chat screen itself is
-        // always skippable (OC.5) and never a gate.
-        context.go('/onboarding-chat');
+        context.go('/products/quick-add?firstRun=1');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -655,12 +666,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
       if (isTimeout) {
         try {
+          await ref.read(tokenStorageProvider).saveFirstRunTutorialSeen(true);
+          ref.invalidate(firstRunTutorialSeenProvider);
+          await ref.read(firstRunTutorialSeenProvider.future);
           final signedIn = await _attemptPostRegistrationSignIn(
             isGooglePath: isGooglePath,
             adminEmail: adminEmail,
           );
           if (signedIn && mounted) {
-            context.go('/onboarding-chat');
+            await ref.read(tokenStorageProvider).saveFirstRunTutorialSeen(true);
+            ref.invalidate(firstRunTutorialSeenProvider);
+            await ref.read(firstRunTutorialSeenProvider.future);
+            if (!mounted) return;
+            context.go('/products/quick-add?firstRun=1');
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text(
@@ -1171,8 +1189,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               ),
                             )
                           : ListView.separated(
-                              padding:
-                                  const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                               itemCount: filtered.length,
                               separatorBuilder: (_, __) => Divider(
                                 height: 1,
@@ -1181,13 +1198,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               ),
                               itemBuilder: (context, i) {
                                 final name = filtered[i];
-                                final sel =
-                                    _industryController.text == name;
+                                final sel = _industryController.text == name;
                                 return ListTile(
                                   title: Text(
                                     name,
-                                    style:
-                                        theme.textTheme.titleSmall?.copyWith(
+                                    style: theme.textTheme.titleSmall?.copyWith(
                                       fontWeight: sel
                                           ? FontWeight.w800
                                           : FontWeight.w600,
@@ -1496,8 +1511,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
                       hintText: 'admin@example.com',
-                      suffixIcon:
-                          Icon(Icons.more_horiz, size: 20, color: Colors.grey),
+                      prefixIcon: Icon(Icons.email_outlined),
                     ),
                     validator: (value) {
                       if (!_showEmailPasswordForm) return null;
@@ -1521,11 +1535,23 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
                       hintText: '••••••••',
-                      suffixIcon:
-                          Icon(Icons.more_horiz, size: 20, color: Colors.grey),
+                      prefixIcon: const Icon(Icons.lock_outline_rounded),
+                      suffixIcon: IconButton(
+                        tooltip: _obscurePassword
+                            ? 'Show password'
+                            : 'Hide password',
+                        onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                      ),
                     ),
                     validator: (value) {
                       if (!_showEmailPasswordForm) return null;
@@ -1569,7 +1595,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             controller: _storeNameController,
             decoration: const InputDecoration(
               hintText: 'My Store',
-              suffixIcon: Icon(Icons.more_horiz, size: 20, color: Colors.grey),
+              prefixIcon: Icon(Icons.storefront_outlined),
             ),
             onChanged: _onStoreNameChanged,
             validator: (value) {
@@ -1584,10 +1610,31 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               return null;
             },
           ),
-          _buildFieldLabel('Store URL'),
+          _buildFieldLabel(
+            'Your store link',
+            hint:
+                'Created from your store name. Customers use this link to visit your shop.',
+          ),
           TextFormField(
             controller: _storeUrlController,
-            decoration: const InputDecoration(hintText: 'my-store'),
+            readOnly: !_isStoreUrlEditable || _isLoading,
+            decoration: InputDecoration(
+              hintText: 'my-store',
+              prefixIcon: const Icon(Icons.link_rounded),
+              suffixIcon: TextButton(
+                onPressed: _isLoading
+                    ? null
+                    : () {
+                        setState(() {
+                          _isStoreUrlEditable = !_isStoreUrlEditable;
+                          if (_isStoreUrlEditable) {
+                            _hasCustomStoreUrl = true;
+                          }
+                        });
+                      },
+                child: Text(_isStoreUrlEditable ? 'Done' : 'Change'),
+              ),
+            ),
             onChanged: _onStoreUrlChanged,
             validator: (value) {
               final v = value?.trim() ?? '';
@@ -1614,11 +1661,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 color: colorScheme.onSurfaceVariant,
               ),
               children: [
-                const TextSpan(text: 'dukanest.com/'),
+                const TextSpan(text: 'Your link: '),
                 TextSpan(
-                  text: _storeUrlController.text.isEmpty
-                      ? 'my-store'
-                      : _storeUrlController.text,
+                  text: _storeUrlFromSubdomain(
+                    _storeUrlController.text.isEmpty
+                        ? 'my-store'
+                        : _storeUrlController.text,
+                  ),
                   style: TextStyle(
                     color: colorScheme.primary,
                     fontWeight: FontWeight.bold,
@@ -1633,7 +1682,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             children: [
               Expanded(
                 child: Text(
-                  _subdomainMessage ?? 'Choose a unique subdomain',
+                  _subdomainMessage ??
+                      'We will check that this store link is available.',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: _subdomainStatusColor(theme),
                     fontWeight: _isCheckingSubdomain ? FontWeight.w600 : null,
@@ -1675,9 +1725,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           const OnboardingStepHeader(
             title: 'Tell us about your business',
             description:
-                "We'll use these details to pre-configure your dashboard and store settings.",
+                "We'll use your business type to set up the right selling tools.",
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 24),
           _stitchFieldCapsLabel('Business type', colorScheme),
           Material(
             color: colorScheme.surfaceContainerLow,
@@ -1735,7 +1785,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _stitchFieldCapsLabel('What are you selling?', colorScheme),
+                  _stitchFieldCapsLabel(
+                      'What are you selling? (optional)', colorScheme),
                   TextFormField(
                     controller: _industryController,
                     decoration: _stitchFilledInputDecoration(
@@ -1756,7 +1807,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Specific product names help our AI generate better SEO tags.',
+                    'Not sure yet? You can skip this and add it later.',
                     style: theme.textTheme.labelSmall?.copyWith(
                       fontSize: 11,
                       height: 1.35,
@@ -1770,8 +1821,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _stitchFieldCapsLabel(
-                    'Category (what are you selling)', colorScheme),
+                _stitchFieldCapsLabel('Category (optional)', colorScheme),
                 Material(
                   color: colorScheme.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(12),
@@ -1786,7 +1836,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           Expanded(
                             child: Text(
                               _industryController.text.isEmpty
-                                  ? 'Select your category'
+                                  ? 'Not sure / Skip for now'
                                   : _industryController.text,
                               style: theme.textTheme.bodyLarge?.copyWith(
                                 fontWeight: FontWeight.w500,
@@ -1806,7 +1856,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Not seeing an exact match? Pick the closest one — you can add more categories any time from your dashboard.',
+                  'This is optional. You can organize products later.',
                   style: theme.textTheme.labelSmall?.copyWith(
                     fontSize: 11,
                     height: 1.35,
@@ -1816,9 +1866,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               ],
             );
           }),
-          const SizedBox(height: 48),
+          const SizedBox(height: 28),
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: colorScheme.inversePrimary.withValues(alpha: 0.32),
               borderRadius: BorderRadius.circular(16),
@@ -1830,22 +1880,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.auto_awesome_rounded,
-                      color: Colors.white, size: 24),
+                      color: Colors.white, size: 20),
                 ),
-                const SizedBox(width: 20),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Tailored For You',
-                        style: theme.textTheme.titleMedium?.copyWith(
+                        'We’ll tailor your store',
+                        style: theme.textTheme.bodyLarge?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: colorScheme.primary,
                         ),
@@ -1854,7 +1904,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       if (_selectedBusinessType == null ||
                           _selectedBusinessType!.isEmpty)
                         Text(
-                          'Choose an industry to see how we pre-configure your dashboard and editor.',
+                          'Choose a business type to get suitable product and service options.',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: colorScheme.onSecondaryContainer,
                             height: 1.45,
@@ -1868,14 +1918,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               height: 1.45,
                             ),
                             children: [
-                              const TextSpan(text: 'By selecting '),
+                              const TextSpan(text: 'For '),
                               TextSpan(
                                 text: _selectedBusinessType,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w600),
                               ),
                               TextSpan(
-                                  text: ', ${_tailoredBlurbForBusinessType()}'),
+                                  text:
+                                      ', we’ll ${_tailoredBlurbForBusinessType()}'),
                             ],
                           ),
                         ),
@@ -1901,37 +1952,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const OnboardingStepHeader(
-            title: 'Contact & alerts',
-            description: 'We use your phone for order SMS alerts.',
+            title: 'Where should we send order alerts?',
+            description:
+                'Customers will not see this number unless you choose to show it.',
           ),
           const SizedBox(height: 20),
           _buildFieldLabel(
-            'Referral shop domain (optional)',
-            hint:
-                'If a friend referred you, enter their store subdomain (e.g. janes-boutique). '
-                'This can only be set during signup.',
-          ),
-          TextFormField(
-            controller: _referrerSubdomainController,
-            enabled: !_isLoading,
-            autocorrect: false,
-            decoration: const InputDecoration(
-              hintText: 'janes-boutique',
-            ),
-            validator: (value) {
-              final v = value?.trim() ?? '';
-              if (v.isEmpty) return null;
-              if (parseReferrerSubdomainInput(v) == null) {
-                return 'Use 3–63 lowercase letters, numbers, and hyphens';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 24),
-          _buildFieldLabel(
             'Store phone number',
-            hint:
-                'Receive SMS alerts when customers place orders so you never miss a sale. You can add or change this anytime in settings.',
+            hint: 'We use this number for important order and account alerts.',
           ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1989,6 +2017,64 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 20),
+          InkWell(
+            onTap: _isLoading
+                ? null
+                : () => setState(
+                      () => _showReferralField = !_showReferralField,
+                    ),
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.card_giftcard_outlined,
+                    size: 20,
+                    color: colorScheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Were you referred by another shop?',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _showReferralField
+                        ? Icons.expand_less_rounded
+                        : Icons.expand_more_rounded,
+                    color: colorScheme.primary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_showReferralField) ...[
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _referrerSubdomainController,
+              enabled: !_isLoading,
+              autocorrect: false,
+              decoration: const InputDecoration(
+                labelText: 'Referring shop link',
+                hintText: 'janes-boutique',
+                prefixIcon: Icon(Icons.link_rounded),
+              ),
+              validator: (value) {
+                final v = value?.trim() ?? '';
+                if (v.isEmpty) return null;
+                if (parseReferrerSubdomainInput(v) == null) {
+                  return 'Enter a valid shop name or link';
+                }
+                return null;
+              },
+            ),
+          ],
           const SizedBox(height: 28),
           Center(
             child: RichText(

@@ -16,6 +16,7 @@ import '../features/orders/screens/orders_list_screen.dart';
 import '../features/orders/screens/order_detail_screen.dart';
 import '../features/products/screens/products_list_screen.dart';
 import '../features/products/screens/product_editor_screen.dart';
+import '../features/products/screens/quick_product_create_screen.dart';
 import '../features/products/screens/categories_management_screen.dart';
 import '../features/products/screens/category_editor_screen.dart';
 import '../features/products/screens/attributes_management_screen.dart';
@@ -47,13 +48,14 @@ import '../features/content/screens/page_editor_screen.dart';
 import '../features/content/screens/hero_section_editor_screen.dart';
 import '../features/content/screens/banners_section_editor_screen.dart';
 import '../features/content/screens/split_layout_section_editor_screen.dart';
-import '../features/proximity/screens/proximity_beacons_screen.dart';
 import '../features/sales/screens/sales_list_screen.dart';
+import '../features/proximity/screens/proximity_beacons_screen.dart';
 import '../features/sales/screens/sales_editor_screen.dart';
 import '../features/customers/screens/customers_list_screen.dart';
 import '../features/customers/screens/customer_detail_screen.dart';
 import '../features/customers/screens/customer_edit_screen.dart';
 import '../features/inventory/screens/inventory_screen.dart';
+import '../features/bookings/screens/bookings_screen.dart';
 import '../features/pos/providers/pos_providers.dart';
 import '../features/pos/screens/pos_register_screen.dart';
 import '../features/pos/screens/pos_cart_screen.dart';
@@ -118,7 +120,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isMfaPhase = state.matchedLocation == '/mfa';
       final isFirstRunTutorial = state.matchedLocation == '/first-run-tutorial';
       final atSplash = state.matchedLocation == '/splash';
-      final onboardingSeen = onboardingSeenState.valueOrNull;
       final onboardingKnown = onboardingSeenState.hasValue;
       final firstRunTutorialSeen = firstRunTutorialSeenState.valueOrNull;
       final firstRunTutorialKnown = firstRunTutorialSeenState.hasValue;
@@ -143,9 +144,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           case AuthStatus.awaitingMfa:
             return '/mfa';
           case AuthStatus.unauthenticated:
-            return onboardingSeen == true ? '/landing' : '/onboarding';
+            return '/landing';
           default:
-            return onboardingSeen == true ? '/landing' : '/onboarding';
+            return '/landing';
         }
       }
 
@@ -158,15 +159,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         if (!onboardingKnown) {
           return '/splash';
         }
-        if (onboardingSeen != true) {
-          if (isOnboarding) {
-            return null;
-          }
-          return '/onboarding';
+        // Phase 2: one welcome screen — carousel redirects to landing.
+        if (isOnboarding) {
+          return '/landing';
         }
         if (isLanding ||
             isLoggingIn ||
-            isOnboarding ||
             state.matchedLocation == '/register' ||
             state.matchedLocation == '/reset-password') {
           return null;
@@ -175,12 +173,21 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (authState.status == AuthStatus.awaitingMfa && !isMfaPhase) {
-        return '/mfa';
+        final continueToQuickAdd = state.matchedLocation == '/register' ||
+            (state.matchedLocation == '/products/quick-add' &&
+                state.uri.queryParameters['firstRun'] == '1');
+        return continueToQuickAdd ? '/mfa?next=quick-add' : '/mfa';
       }
 
       if (authState.status == AuthStatus.authenticated) {
         if (!firstRunTutorialKnown) {
           return atSplash ? null : '/splash';
+        }
+        if (isMfaPhase && state.uri.queryParameters['next'] == 'quick-add') {
+          return '/products/quick-add?firstRun=1';
+        }
+        if (state.matchedLocation == '/register') {
+          return '/products/quick-add?firstRun=1';
         }
         if (firstRunTutorialSeen != true) {
           return (isFirstRunTutorial ||
@@ -189,7 +196,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               ? null
               : '/first-run-tutorial';
         }
-        final isRegister = state.matchedLocation == '/register';
         final isResetPassword = state.matchedLocation == '/reset-password';
         if (isFirstRunTutorial && tutorialReplay) {
           return null;
@@ -199,7 +205,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             isMfaPhase ||
             isOnboarding ||
             isFirstRunTutorial ||
-            isRegister ||
             isResetPassword) {
           return '/dashboard';
         }
@@ -265,14 +270,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const OnboardingChatScreen(),
       ),
       GoRoute(
-        // Phase 3 of the Flutter assistant plan (IMPLEMENTATION_TRACKER.md)
-        // — demoted from a StatefulShellBranch (bottom-nav tab) to a plain
-        // pushed route, reachable from the More menu instead, so the AI
-        // Assistant could take the center tab slot. Path and children kept
-        // exactly as before so every existing context.go('/analytics') /
-        // context.push('/analytics/...') call site (analytics_screen.dart,
-        // expenses_screen.dart, dashboard_screen.dart, more_menu_screen.dart)
-        // keeps working unchanged.
+        // Demoted from bottom-nav; reachable from More.
         path: '/analytics',
         builder: (context, state) => const AnalyticsScreen(),
         routes: [
@@ -357,6 +355,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/inventory',
         builder: (context, state) => const InventoryScreen(),
+      ),
+      GoRoute(
+        // Real scheduling/booking (S2, docs/SERVICES_PLAN.md) — plain
+        // top-level route, same pattern as /analytics and /inventory
+        // (reachable from the More menu, no free bottom-nav slot).
+        path: '/bookings',
+        builder: (context, state) => const BookingsScreen(),
       ),
       GoRoute(
         path: '/pos',
@@ -466,24 +471,21 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'sections/hero',
             builder: (context, state) {
-              final slug =
-                  Uri.decodeComponent(state.pathParameters['slug']!);
+              final slug = Uri.decodeComponent(state.pathParameters['slug']!);
               return HeroSectionEditorScreen(pageSlug: slug);
             },
           ),
           GoRoute(
             path: 'sections/banners',
             builder: (context, state) {
-              final slug =
-                  Uri.decodeComponent(state.pathParameters['slug']!);
+              final slug = Uri.decodeComponent(state.pathParameters['slug']!);
               return BannersSectionEditorScreen(pageSlug: slug);
             },
           ),
           GoRoute(
             path: 'sections/split-layout',
             builder: (context, state) {
-              final slug =
-                  Uri.decodeComponent(state.pathParameters['slug']!);
+              final slug = Uri.decodeComponent(state.pathParameters['slug']!);
               return SplitLayoutSectionEditorScreen(pageSlug: slug);
             },
           ),
@@ -586,11 +588,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           StatefulShellBranch(
-            // Center slot — AI Assistant, deliberately prominent (see
-            // dashboard_shell.dart's NavigationDestination styling for this
-            // branch). Took Analytics's old center-adjacent position;
-            // Analytics moved to the More menu (see the plain /analytics
-            // GoRoute above) so it kept its exact path.
+            // Center tab — Assistant (prominent). Product create lives on
+            // Home next-action + Products FAB (/products/quick-add).
             routes: [
               GoRoute(
                 path: '/assistant',
@@ -608,6 +607,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'new',
                     parentNavigatorKey: _rootNavigatorKey,
                     builder: (context, state) => const ProductEditorScreen(),
+                  ),
+                  GoRoute(
+                    path: 'quick-add',
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) => QuickProductCreateScreen(
+                      firstRun: state.uri.queryParameters['firstRun'] == '1',
+                    ),
                   ),
                   GoRoute(
                     path: 'edit/:sku',

@@ -347,6 +347,11 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
             raw, ['tax', 'taxAmount', 'tax_amount', 'totalTax', 'total_tax']) ??
         _pickNum(totals, ['tax', 'taxAmount']) ??
         0;
+    // Basic deposit support (docs/SERVICES_PLAN.md, S-Dep.7) — null for
+    // every normal order, a real outstanding amount only when a deposit
+    // was configured and not yet fully settled.
+    final balanceAmount =
+        _pickNum(raw, ['balanceAmount', 'balance_amount']);
     final total = _pickNum(raw, [
           'total',
           'grandTotal',
@@ -456,6 +461,7 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
       shipping: _formatMoney(shippingAmount, currency: currency),
       tax: _formatMoney(tax, currency: currency),
       total: _formatMoney(total, currency: currency),
+      balanceAmount: balanceAmount,
       customerName: customerName,
       customerEmail: customerEmail,
       customerPhone: customerPhone,
@@ -783,6 +789,128 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     return p;
   }
 
+  /// Basic deposit support (docs/SERVICES_PLAN.md, S-Dep.7) — sends an STK
+  /// push for exactly the outstanding balance, never the full order total.
+  Future<void> _openCollectBalanceDialog(
+      String apiId, _OrderDetailData data) async {
+    final balance = data.balanceAmount;
+    if (apiId.isEmpty || balance == null || balance <= 0 || !mounted) return;
+    final phoneCtrl =
+        TextEditingController(text: _tumiziPhonePrefill(data.customerPhone));
+    var busy = false;
+    try {
+      final sent = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          return StatefulBuilder(
+            builder: (dialogContext, setDialogState) {
+              Future<void> sendStk() async {
+                final rawPhone =
+                    phoneCtrl.text.trim().replaceAll(RegExp(r'\s+'), '');
+                if (rawPhone.isEmpty) return;
+                setDialogState(() => busy = true);
+                try {
+                  final api = ref.read(apiClientProvider);
+                  final response = await api.initiateTumiziOrderPayment(
+                    apiId,
+                    phoneNumber: rawPhone,
+                    amount: balance,
+                  );
+                  if (!dialogContext.mounted) return;
+                  if (!response.success) {
+                    setDialogState(() => busy = false);
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      SnackBar(
+                          content: Text(
+                              response.error?.message ?? 'STK push failed')),
+                    );
+                    return;
+                  }
+                  Navigator.of(dialogContext).pop(true);
+                } catch (e) {
+                  if (dialogContext.mounted) setDialogState(() => busy = false);
+                  showApiErrorSnackBar(dialogContext, e);
+                }
+              }
+
+              final canSend = phoneCtrl.text.trim().isNotEmpty && !busy;
+              return AlertDialog(
+                title: Text(
+                  'Collect Remaining Balance',
+                  style:
+                      GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                ),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Send an M-Pesa STK prompt for ${OrderDetailScreen._formatMoney(balance)} '
+                        'to collect the remaining balance on this order.',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: Theme.of(dialogContext)
+                              .colorScheme
+                              .onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: phoneCtrl,
+                        keyboardType: TextInputType.phone,
+                        autofocus: true,
+                        enabled: !busy,
+                        decoration: const InputDecoration(
+                          labelText: 'Phone number',
+                          hintText: 'e.g. 2547XXXXXXXX',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: busy
+                        ? null
+                        : () => Navigator.of(dialogContext).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: canSend ? sendStk : null,
+                    style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.primaryDark),
+                    child: busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : Text(
+                            'Send STK',
+                            style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w700),
+                          ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+      if (sent == true && mounted) {
+        ref.invalidate(orderDetailProvider(widget.orderKey));
+        _toast(context, 'STK push sent for the remaining balance');
+      }
+    } finally {
+      phoneCtrl.dispose();
+    }
+  }
+
   Widget _tumiziPaymentActions(
     ThemeData theme,
     _OrderDetailData data, {
@@ -870,6 +998,61 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           ],
         ),
       ],
+    );
+  }
+
+  /// Basic deposit support (docs/SERVICES_PLAN.md, S-Dep.7).
+  Widget _collectBalanceCard(BuildContext context, _OrderDetailData data) {
+    final balance = data.balanceAmount;
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.15)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Deposit paid — balance outstanding',
+            style: GoogleFonts.plusJakartaSans(
+              color: AppTheme.primaryDark,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'The customer paid a deposit. Collect the remaining '
+            '${balance != null ? OrderDetailScreen._formatMoney(balance) : 'balance'} when they\'re ready.',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              height: 1.4,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: () => _openCollectBalanceDialog(data.apiId, data),
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryDark),
+            icon: const Icon(Icons.payments_outlined, size: 20),
+            label: Text(
+              'Collect Balance'
+              '${balance != null ? ' (${OrderDetailScreen._formatMoney(balance)})' : ''}',
+              style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w700, fontSize: 14),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1359,6 +1542,10 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
             'pending';
     final showTumiziPaymentActions =
         data.isTumiziOrder && paymentPending;
+    // Basic deposit support (docs/SERVICES_PLAN.md, S-Dep.7).
+    final showCollectBalance = data.isTumiziOrder &&
+        data.paymentStatus == 'deposit_paid' &&
+        (data.balanceAmount ?? 0) > 0;
     return Scaffold(
       backgroundColor: AppTheme.surface,
       appBar: DashboardAppBar(
@@ -1394,15 +1581,36 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
+                if (showCollectBalance) ...[
+                  _collectBalanceCard(context, data),
+                  const SizedBox(height: 16),
+                ],
                 _itemsCard(context, data),
                 const SizedBox(height: 16),
-                _timelineCard(context, data),
-                const SizedBox(height: 16),
-                _quickActionsCard(context, data),
-                const SizedBox(height: 16),
-                _customerCard(context, data),
-                const SizedBox(height: 16),
-                _shippingCard(context, data),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: const Text('Order timeline'),
+                  children: [_timelineCard(context, data)],
+                ),
+                const SizedBox(height: 8),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: const Text('Customer & shipping'),
+                  children: [
+                    _customerCard(context, data),
+                    const SizedBox(height: 12),
+                    _shippingCard(context, data),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: _statusUpdating
+                      ? null
+                      : () => _openAdvancedStatusSheet(context, data),
+                  child: const Text('Advanced status options'),
+                ),
+                // Keep _quickActionsCard available for advanced flows via sheet.
+                // Primary fulfillment CTA lives in bottomNavigationBar.
               ],
             ),
           ),
@@ -1694,6 +1902,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     );
   }
 
+  // ignore: unused_element — fulfillment CTA is sticky in bottom bar
   Widget _quickActionsCard(BuildContext context, _OrderDetailData data) {
     final theme = Theme.of(context);
     final nextAction = OrderDetailScreen.nextStatusAction(data.status);
@@ -2236,6 +2445,7 @@ class _OrderDetailData {
     required this.shipping,
     required this.tax,
     required this.total,
+    this.balanceAmount,
     required this.customerName,
     required this.customerEmail,
     required this.customerPhone,
@@ -2257,6 +2467,8 @@ class _OrderDetailData {
   final String shipping;
   final String tax;
   final String total;
+  // Basic deposit support (docs/SERVICES_PLAN.md, S-Dep.7).
+  final num? balanceAmount;
   final String customerName;
   final String customerEmail;
   final String customerPhone;

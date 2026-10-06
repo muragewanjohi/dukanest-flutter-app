@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/dio_envelope.dart';
 import '../../dashboard/providers/dashboard_getting_started_provider.dart';
+import '../../products/providers/products_list_refresh_signal_provider.dart';
+import '../../products/screens/products_list_screen.dart';
 
 /// One message in the assistant conversation, for display. `citedArticles`
 /// and `nextSteps` mirror the equivalent fields the web assistant panel
@@ -29,7 +31,16 @@ class AssistantMessage {
 /// A collected-so-far product from the product_intake conversation — mirrors
 /// web's CollectedProduct (assistant-panel.tsx).
 class _CollectedProduct {
-  const _CollectedProduct({this.name, this.price, this.stockQuantity, this.category, this.sku, this.requiresShipping});
+  const _CollectedProduct({
+    this.name,
+    this.price,
+    this.stockQuantity,
+    this.category,
+    this.sku,
+    this.requiresShipping,
+    this.depositType,
+    this.depositValue,
+  });
 
   final String? name;
   final num? price;
@@ -38,6 +49,9 @@ class _CollectedProduct {
   final String? sku;
   // Basic services support (docs/SERVICES_PLAN.md)
   final bool? requiresShipping;
+  // Basic deposit support (docs/SERVICES_PLAN.md, S-Dep.9)
+  final String? depositType;
+  final num? depositValue;
 
   static _CollectedProduct fromJson(Map<String, dynamic> json) {
     return _CollectedProduct(
@@ -47,8 +61,29 @@ class _CollectedProduct {
       category: json['category'] as String?,
       sku: json['sku'] as String?,
       requiresShipping: json['requiresShipping'] as bool?,
+      depositType: json['depositType'] as String?,
+      depositValue: json['depositValue'] as num?,
     );
   }
+}
+
+/// Re-validated the same way web's assistant-panel.tsx sanitizes the same
+/// model output — never trusted raw against the real
+/// 'none'|'fixed'|'percentage' enum (@/lib/products/validation.ts).
+({String depositType, num? depositValue}) _sanitizeCollectedDeposit(
+  String? depositType,
+  num? depositValue,
+) {
+  if (depositType == 'fixed' && depositValue != null && depositValue > 0) {
+    return (depositType: 'fixed', depositValue: depositValue);
+  }
+  if (depositType == 'percentage' &&
+      depositValue != null &&
+      depositValue > 0 &&
+      depositValue <= 100) {
+    return (depositType: 'percentage', depositValue: depositValue);
+  }
+  return (depositType: 'none', depositValue: null);
 }
 
 /// A collected-so-far delivery zone from the delivery_zone_intake
@@ -139,7 +174,7 @@ const _suggestedPrompts = <String>[
   'How do I add a product?',
   'How many orders do I have?',
   'Write a social post about my new arrivals',
-  'Create a sale for my store',
+  'Create a sale called Weekend Deals',
   'Write a blog post about caring for my products',
 ];
 
@@ -458,16 +493,19 @@ class AssistantChatNotifier extends StateNotifier<AssistantChatState> {
 
     try {
       final requiresShipping = collected.requiresShipping != false;
+      final deposit =
+          _sanitizeCollectedDeposit(collected.depositType, collected.depositValue);
       final response = await _api.createProduct({
         'name': collected.name,
         'price': collected.price,
-        // A non-shipped item (service) has no stock tracked at all — null,
-        // not 0 (0 would read as "out of stock" at checkout, see
-        // docs/SERVICES_PLAN.md).
-        'stock_quantity': requiresShipping ? (collected.stockQuantity ?? 0) : null,
+        // Persist quantity as stock whenever the assistant collected one,
+        // including services — matches quick-add / merchant expectation.
+        'stock_quantity': collected.stockQuantity ?? (requiresShipping ? 0 : null),
         if (collected.sku != null && collected.sku!.trim().isNotEmpty) 'sku': collected.sku,
         'category_id': categoryId,
         'requires_shipping': requiresShipping,
+        'deposit_type': deposit.depositType,
+        'deposit_value': deposit.depositValue,
       });
 
       if (!response.success) {
@@ -485,15 +523,26 @@ class AssistantChatNotifier extends StateNotifier<AssistantChatState> {
         data = data['data'];
       }
       final product = data is Map<String, dynamic> ? data['product'] as Map<String, dynamic>? : null;
-      final sku = product?['sku'] as String?;
+      final productId = (product?['id'] ?? '').toString().trim();
+      final sku = (product?['sku'] ?? '').toString().trim();
+      // Prefer UUID — detail API and ProductEditorScreen resolve by id.
+      // SKU links used to break after in_app_link lowercased the path.
+      final editKey = productId.isNotEmpty ? productId : sku;
+
+      ProductsListScreen.clearListCache();
+      bumpProductsListRefreshFromRef(_ref);
 
       _pushMessage(AssistantMessage(
         role: 'assistant',
         text: 'Done — "${collected.name}" has been added to your products.'
-            '${sku != null ? ' Want to add a photo?' : ''}',
-        nextSteps: sku != null
+            '${editKey.isNotEmpty ? ' Want to add a photo?' : ''}',
+        nextSteps: editKey.isNotEmpty
             ? [
-                {'id': 'photo', 'cta': 'Add a photo', 'href': '/products/edit/$sku'},
+                {
+                  'id': 'photo',
+                  'cta': 'Add a photo',
+                  'href': '/products/edit/$editKey',
+                },
               ]
             : const [],
       ));

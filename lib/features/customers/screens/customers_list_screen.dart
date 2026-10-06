@@ -177,10 +177,10 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
         .toUpperCase();
   }
 
-  void _goBack(BuildContext context) {
-    if (context.canPop()) {
-      context.pop();
-    } else {
+  Future<void> _goBack(BuildContext context) async {
+    final popped = await Navigator.of(context).maybePop();
+    if (!context.mounted) return;
+    if (!popped) {
       context.go('/more');
     }
   }
@@ -294,7 +294,12 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
         onRefresh: _loadCustomers,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          padding: EdgeInsets.fromLTRB(
+            16,
+            8 + MediaQuery.paddingOf(context).top,
+            16,
+            24,
+          ),
           children: [
             DashboardPageHeader(
               title: 'Customers',
@@ -305,7 +310,9 @@ class _CustomersListScreenState extends ConsumerState<CustomersListScreen> {
                   foregroundColor: theme.colorScheme.onSurfaceVariant,
                 ),
                 icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-                onPressed: () => _goBack(context),
+                onPressed: () {
+                  unawaited(_goBack(context));
+                },
               ),
               actions: [
                 IconButton(

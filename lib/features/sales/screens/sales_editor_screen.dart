@@ -1,16 +1,19 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/dio_envelope.dart';
 import '../../../core/providers/store_identity_provider.dart';
+import '../../../core/util/store_media_url.dart';
 import '../../../core/widgets/api_error_view.dart';
 import '../../../core/widgets/dashboard_app_bar.dart';
 import '../../../core/widgets/form_error_highlight.dart';
@@ -60,10 +63,26 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
   // existing sale overwrites this with its real saved status in _load().
   String _status = 'active';
   String _slug = '';
+  String _bannerImageUrl = '';
+  bool _uploadingBanner = false;
   bool _loading = true;
   bool _saving = false;
   String? _error;
   List<_SaleProduct> _products = [];
+
+  final _picker = ImagePicker();
+
+  /// Local calendar day → UTC ISO so the server doesn't treat Kenya local
+  /// wall-clock as UTC (which hid "active" sales from the storefront).
+  static String _startOfLocalDayUtcIso(DateTime d) {
+    final local = DateTime(d.year, d.month, d.day);
+    return local.toUtc().toIso8601String();
+  }
+
+  static String _endOfLocalDayUtcIso(DateTime d) {
+    final local = DateTime(d.year, d.month, d.day, 23, 59, 59);
+    return local.toUtc().toIso8601String();
+  }
 
   static String _pickString(Map<String, dynamic> map, List<String> keys,
       {String fallback = ''}) {
@@ -144,8 +163,9 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
             _pickString(item, ['id', '_id', 'sale_item_id', 'saleItemId']),
         name: name,
         original: original,
-        salePriceCtrl:
-            TextEditingController(text: salePrice.toStringAsFixed(2)),
+        salePriceCtrl: TextEditingController(
+          text: salePrice > 0 ? salePrice.toStringAsFixed(2) : '',
+        ),
         imageUrl: _pickString(item, ['image', 'image_url', 'imageUrl'],
             fallback: _pickString(
                 nested, ['image', 'imageUrl', 'thumbnail', 'thumbnailUrl'])),
@@ -214,11 +234,13 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
       _note.text = _pickString(sale, ['description', 'note', 'notes']);
       _status = _pickString(sale, ['status'], fallback: 'draft').toLowerCase();
       _slug = _pickString(sale, ['slug']);
-      _start =
-          DateTime.tryParse(_pickString(sale, ['start_date', 'startDate'])) ??
-              DateTime.now();
-      _end = DateTime.tryParse(_pickString(sale, ['end_date', 'endDate'])) ??
-          _start.add(const Duration(days: 7));
+      _bannerImageUrl = _pickString(sale, ['banner_image', 'bannerImage']);
+      final parsedStart =
+          DateTime.tryParse(_pickString(sale, ['start_date', 'startDate']));
+      final parsedEnd =
+          DateTime.tryParse(_pickString(sale, ['end_date', 'endDate']));
+      _start = (parsedStart ?? DateTime.now()).toLocal();
+      _end = (parsedEnd ?? _start.add(const Duration(days: 7))).toLocal();
       _syncDates();
 
       final items = await _fetchSaleProductRows(widget.saleId!);
@@ -246,10 +268,12 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
     if (picked == null || !mounted) return;
     setState(() {
       if (start) {
-        _start = picked;
-        if (_end.isBefore(_start)) _end = _start;
+        _start = DateTime(picked.year, picked.month, picked.day);
+        if (_end.isBefore(_start)) {
+          _end = DateTime(_start.year, _start.month, _start.day, 23, 59, 59);
+        }
       } else {
-        _end = picked;
+        _end = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
       }
       _syncDates();
     });
@@ -287,8 +311,7 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
             saleItemId: '',
             name: name,
             original: price,
-            salePriceCtrl:
-                TextEditingController(text: price.toStringAsFixed(2)),
+            salePriceCtrl: TextEditingController(),
             imageUrl: image,
           ),
         );
@@ -298,11 +321,12 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
 
     setState(() => _saving = true);
     try {
+      // Don't send the regular price as the sale price — merchant must set a
+      // discount before save. Backend accepts null salePrice.
       final res = await ref.read(apiClientProvider).addSaleProduct(
         widget.saleId!,
         {
           'productId': id,
-          'salePrice': price,
         },
       );
       if (!res.success) {
@@ -354,10 +378,48 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
     return {
       'name': _saleName.text.trim(),
       'description': _note.text.trim(),
-      'start_date': _start.toIso8601String(),
-      'end_date': _end.toIso8601String(),
+      'start_date': _startOfLocalDayUtcIso(_start),
+      'end_date': _endOfLocalDayUtcIso(_end),
       'status': _status,
+      'banner_image': _bannerImageUrl.trim().isEmpty ? null : _bannerImageUrl.trim(),
     };
+  }
+
+  Future<void> _pickBannerImage() async {
+    if (_uploadingBanner || _saving) return;
+    try {
+      final file = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 2000,
+        imageQuality: 85,
+      );
+      if (file == null || !mounted) return;
+      setState(() => _uploadingBanner = true);
+      final api = ref.read(apiClientProvider);
+      final form = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          file.path,
+          filename: file.path.replaceAll(r'\', '/').split('/').last,
+        ),
+      });
+      final r = await api.uploadMedia(form);
+      if (!r.success || r.data == null) {
+        throw StateError(r.error?.message ?? 'Banner upload failed');
+      }
+      final url = extractMediaUploadUrl(r.data);
+      if (url == null || url.isEmpty) {
+        throw StateError('Upload succeeded but no image URL was returned');
+      }
+      if (!mounted) return;
+      setState(() => _bannerImageUrl = url);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _uploadingBanner = false);
+    }
   }
 
   static String? _saleIdFromCreateResponse(dynamic data) {
@@ -391,13 +453,24 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
       return;
     }
     for (var i = 0; i < _products.length; i++) {
-      final raw = _products[i].salePriceCtrl.text.trim();
+      final product = _products[i];
+      final raw = product.salePriceCtrl.text.trim();
       final price = double.tryParse(raw);
       if (raw.isEmpty || price == null || price <= 0) {
         reportFieldError(
           fieldId: 'product_$i',
           message:
-              'Sale price for "${_products[i].name}" must be greater than 0.',
+              'Sale price for "${product.name}" must be greater than 0.',
+        );
+        return;
+      }
+      if (price >= product.original) {
+        final same = price == product.original;
+        reportFieldError(
+          fieldId: 'product_$i',
+          message: same
+              ? 'Sale price for "${product.name}" must be lower than the original price — they are currently the same.'
+              : 'Sale price for "${product.name}" must be lower than the original price — sale price is currently higher.',
         );
         return;
       }
@@ -449,12 +522,12 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
       ref.read(salesListRefreshTokenProvider.notifier).state++;
       ref.invalidate(dashboardRewardChecklistProvider);
       if (mounted) {
-        final msg = _status == 'active' && _products.length >= 2
+        final msg = _status == 'active' && _products.isNotEmpty
             ? 'Sale saved. Pull to refresh on Home if reward steps do not update yet.'
             : _status != 'active'
                 ? 'Sale saved as ${_status.toUpperCase()}. '
                     'Onboarding reward counts only Active sales.'
-                : 'Sale saved. Add at least 2 products to this sale for the reward step.';
+                : 'Sale saved. Add at least 1 product to this sale for the reward step.';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
         context.pop();
       }
@@ -569,6 +642,16 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
             ),
           ),
           const SizedBox(height: 10),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              'Schedule, banner & details (optional)',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w700,
+                color: AppTheme.primaryDark,
+              ),
+            ),
+            children: [
           KeyedSubtree(
             key: keyFor('start'),
             child: TextField(
@@ -598,7 +681,7 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
               },
               decoration: _saleFieldDeco(
                 theme,
-                'End date',
+                'End date (optional)',
                 isInvalid: isFieldInvalid('end'),
               ),
             ),
@@ -608,8 +691,6 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
             initialValue: _status,
             decoration: const InputDecoration(
               labelText: 'Status',
-              helperText:
-                  'Onboarding reward steps require status Active, with 2+ products on one sale.',
             ),
             items: const [
               DropdownMenuItem(value: 'draft', child: Text('Draft')),
@@ -617,13 +698,94 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
               DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
               DropdownMenuItem(value: 'archived', child: Text('Archived')),
             ],
-            onChanged: (v) => setState(() => _status = v ?? 'draft'),
+            onChanged: (v) => setState(() => _status = v ?? 'active'),
           ),
           const SizedBox(height: 10),
           TextField(
               controller: _note,
               maxLines: 3,
               decoration: const InputDecoration(labelText: 'Description')),
+          const SizedBox(height: 16),
+          Text('Sale banner',
+              style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w700, color: AppTheme.primaryDark)),
+          const SizedBox(height: 8),
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: (_saving || _uploadingBanner) ? null : _pickBannerImage,
+              borderRadius: BorderRadius.circular(12),
+              child: Ink(
+                height: 140,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.primary.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: _uploadingBanner
+                      ? const Center(child: CircularProgressIndicator())
+                      : _bannerImageUrl.isNotEmpty
+                          ? Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                CachedNetworkImage(
+                                  imageUrl: _bannerImageUrl,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, __, ___) => ColoredBox(
+                                    color: theme.colorScheme.surfaceContainerLow,
+                                    child: const Icon(
+                                        Icons.image_not_supported_outlined),
+                                  ),
+                                ),
+                                Positioned(
+                                  right: 8,
+                                  bottom: 8,
+                                  child: FilledButton.tonalIcon(
+                                    onPressed: _pickBannerImage,
+                                    icon: const Icon(Icons.edit, size: 16),
+                                    label: const Text('Change'),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_photo_alternate_outlined,
+                                    color: AppTheme.primaryDark, size: 32),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Tap to add banner image',
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                ),
+              ),
+            ),
+          ),
+          if (_bannerImageUrl.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _saving
+                    ? null
+                    : () => setState(() => _bannerImageUrl = ''),
+                child: const Text('Remove banner'),
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+            ],
+          ),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -642,7 +804,7 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
           ),
           const SizedBox(height: 10),
           if (_products.isEmpty)
-            Text('No products found in this sale.',
+            Text('Add at least one product with a lower sale price.',
                 style: GoogleFonts.inter(
                     color: theme.colorScheme.onSurfaceVariant))
           else
@@ -700,26 +862,20 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
                                   color: theme.colorScheme.onSurfaceVariant)),
                           const SizedBox(height: 6),
                           SizedBox(
-                            width: 160,
+                            width: 168,
                             child: TextField(
                               controller: p.salePriceCtrl,
                               keyboardType:
                                   const TextInputType.numberWithOptions(
                                       decimal: true),
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.secondary,
+                              ),
                               onChanged: (_) => clearFieldError(fieldId),
-                              decoration: InputDecoration(
-                                isDense: true,
-                                labelText: 'Sale price',
-                                prefixText: 'KES ',
-                                labelStyle: invalid
-                                    ? TextStyle(color: errorColor)
-                                    : null,
-                                enabledBorder: invalid
-                                    ? UnderlineInputBorder(
-                                        borderSide: BorderSide(
-                                            color: errorColor, width: 1.5),
-                                      )
-                                    : null,
+                              decoration: _salePriceFieldDeco(
+                                theme,
+                                isInvalid: invalid,
                               ),
                             ),
                           ),
@@ -817,6 +973,56 @@ class _SalesEditorScreenState extends ConsumerState<SalesEditorScreen>
               borderSide: BorderSide(color: errorColor, width: 1.5),
             )
           : null,
+    );
+  }
+
+  /// Outlined editable field — white fill + visible border so it doesn't read
+  /// as a disabled/greyed-out control against the product row.
+  InputDecoration _salePriceFieldDeco(
+    ThemeData theme, {
+    required bool isInvalid,
+  }) {
+    final errorColor = theme.colorScheme.error;
+    final idle = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(
+        color: isInvalid ? errorColor : AppTheme.primary.withValues(alpha: 0.35),
+        width: isInvalid ? 1.5 : 1.25,
+      ),
+    );
+    final focused = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(
+        color: isInvalid ? errorColor : AppTheme.primary,
+        width: 1.5,
+      ),
+    );
+    return InputDecoration(
+      isDense: true,
+      labelText: 'Sale price',
+      hintText: 'Lower than original',
+      prefixText: 'KES ',
+      prefixStyle: GoogleFonts.inter(
+        fontWeight: FontWeight.w600,
+        color: isInvalid ? errorColor : AppTheme.primaryDark,
+      ),
+      labelStyle: TextStyle(
+        color: isInvalid ? errorColor : AppTheme.onSurfaceVariant,
+        fontWeight: FontWeight.w500,
+      ),
+      hintStyle: GoogleFonts.inter(
+        fontSize: 12,
+        color: AppTheme.neutral,
+        fontWeight: FontWeight.w400,
+      ),
+      filled: true,
+      fillColor: isInvalid
+          ? errorColor.withValues(alpha: 0.06)
+          : AppTheme.surfaceContainerLowest,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      border: idle,
+      enabledBorder: idle,
+      focusedBorder: focused,
     );
   }
 }

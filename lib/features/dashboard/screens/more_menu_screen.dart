@@ -5,14 +5,25 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../config/theme.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
+import '../../settings/providers/dashboard_settings_provider.dart';
+import '../../onboarding/data/business_type_categories.dart';
 
-/// More tab layout based on Stitch "More Menu" screen.
+/// More tab — grouped for WhatsApp/Jiji sellers (Sell / Manage / Store / Account).
 class MoreMenuScreen extends ConsumerWidget {
   const MoreMenuScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final settings = ref.watch(dashboardSettingsProvider).valueOrNull;
+    final store = settingsSection(settings, 'store');
+    final businessType =
+        settingsPick(store, ['businessType', 'business_type']);
+    final showBookings = isServiceOnlyBusinessType(businessType) ||
+        businessType.toLowerCase().contains('service') ||
+        businessType.toLowerCase().contains('salon') ||
+        businessType.toLowerCase().contains('spa') ||
+        businessType.toLowerCase().contains('clinic');
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
@@ -22,8 +33,7 @@ class MoreMenuScreen extends ConsumerWidget {
         children: [
           DashboardPageHeader(
             title: 'More',
-            subtitle:
-                'Manage your business operations and account settings from a single command center.',
+            subtitle: 'Sell, manage, and set up your store.',
             actions: [
               IconButton(
                 icon: Icon(Icons.notifications_none_rounded,
@@ -32,164 +42,202 @@ class MoreMenuScreen extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 26),
-          _MoreItem(
-            // The AI Assistant itself moved to the prominent center bottom-nav
-            // tab (dashboard_shell.dart) — Analytics moved here to make room
-            // for it. Path unchanged from when it was a tab, so nothing else
-            // that links to /analytics needed to change.
-            icon: Icons.bar_chart_outlined,
-            iconColor: const Color(0xFF7C2D92),
-            iconBackground: const Color(0xFFF3E8FF),
-            title: 'Analytics',
-            subtitle: 'Revenue, orders, and performance reports for your store.',
-            onTap: () => context.push('/analytics'),
-            bordered: true,
-          ),
-          const SizedBox(height: 12),
-          _MoreItem(
-            icon: Icons.settings_outlined,
-            iconColor: theme.colorScheme.outline,
-            iconBackground: const Color(0xFFF1F5F9),
-            title: 'Store Settings',
-            subtitle: 'Configure domain, payments, and team permissions.',
-            onTap: () => context.push('/settings'),
-            bordered: true,
-          ),
-          const SizedBox(height: 12),
-          _MoreItem(
-            icon: Icons.account_balance_wallet_outlined,
-            iconColor: const Color(0xFF0F766E),
-            iconBackground: const Color(0xFFCCFBF1),
-            title: 'Tumizi wallet',
-            subtitle:
-                'Automatic M-Pesa verification, separate business money, and withdraw wallet funds to M-Pesa.',
-            onTap: () => context.push('/tumizi-dashboard'),
-          ),
-          const SizedBox(height: 12),
-          _MoreItem(
-            icon: Icons.article_outlined,
-            iconColor: AppTheme.primary,
-            iconBackground: const Color(0x1A0025CC),
-            title: 'Content Management',
-            subtitle:
-                'Edit pages, blogs, and visual assets for your storefront.',
-            onTap: () => context.push('/content-management'),
-          ),
-          const SizedBox(height: 12),
-          _MoreItem(
-            icon: Icons.group_outlined,
-            iconColor: theme.colorScheme.secondary,
-            iconBackground: const Color(0x4DDBD1FF),
-            title: 'Customers',
-            subtitle:
-                'View profiles, purchase history, and segment your audience.',
-            onTap: () => context.push('/customers'),
-          ),
-          const SizedBox(height: 12),
-          _MoreItem(
-            icon: Icons.point_of_sale_outlined,
-            iconColor: const Color(0xFF0025CC),
-            iconBackground: const Color(0xFFDFE0FF),
-            title: 'Point of Sale',
-            subtitle:
-                'Ring up walk-in sales at the counter and print a receipt.',
-            onTap: () => context.push('/pos'),
-          ),
-          const SizedBox(height: 12),
-          _MoreItem(
-            icon: Icons.inventory_2_outlined,
-            iconColor: const Color(0xFF0A2ACF),
-            iconBackground: const Color(0xFFDFE0FF),
-            title: 'Inventory',
-            subtitle:
-                'Track stock levels, warehouse locations, and restock alerts.',
-            onTap: () => context.push('/inventory'),
-          ),
-          const SizedBox(height: 12),
-          _MoreItem(
-            icon: Icons.bluetooth_searching_outlined,
-            iconColor: const Color(0xFF0F766E),
-            iconBackground: const Color(0xFFCCFBF1),
-            title: 'In-store beacons',
-            subtitle: 'Commission the CP35 profile after DX-SMART.',
-            onTap: () => context.push('/proximity'),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
+          _sectionLabel(theme, 'Sell'),
           _MoreItem(
             icon: Icons.campaign_outlined,
             iconColor: const Color(0xFFBA1A1A),
             iconBackground: const Color(0x66FFDAD6),
             title: 'Sales & Promotions',
-            subtitle:
-                'Create discount codes, flash sales, and campaign banners.',
+            subtitle: 'Discounts, flash sales, and banners.',
             onTap: () => context.push('/sales'),
+            bordered: true,
           ),
-          const SizedBox(height: 12),
+          if (showBookings) ...[
+            const SizedBox(height: 10),
+            _MoreItem(
+              icon: Icons.calendar_month_outlined,
+              iconColor: const Color(0xFF0F766E),
+              iconBackground: const Color(0xFFCCFBF1),
+              title: 'Bookings',
+              subtitle: 'Appointments for bookable services.',
+              onTap: () => context.push('/bookings'),
+              bordered: true,
+            ),
+          ],
+          const SizedBox(height: 22),
+          _sectionLabel(theme, 'Manage'),
+          _MoreItem(
+            icon: Icons.group_outlined,
+            iconColor: theme.colorScheme.secondary,
+            iconBackground: const Color(0x4DDBD1FF),
+            title: 'Customers',
+            subtitle: 'Profiles and purchase history.',
+            onTap: () => context.push('/customers'),
+            bordered: true,
+          ),
+          const SizedBox(height: 10),
+          _MoreItem(
+            icon: Icons.inventory_2_outlined,
+            iconColor: const Color(0xFF0A2ACF),
+            iconBackground: const Color(0xFFDFE0FF),
+            title: 'Inventory',
+            subtitle: 'Stock levels and restock alerts.',
+            onTap: () => context.push('/inventory'),
+            bordered: true,
+          ),
+          const SizedBox(height: 10),
+          _MoreItem(
+            icon: Icons.bluetooth_searching_outlined,
+            iconColor: const Color(0xFF0F766E),
+            iconBackground: const Color(0xFFCCFBF1),
+            title: 'In-store beacons',
+            subtitle: 'Write the in-store beacon profile from this phone.',
+            onTap: () => context.push('/proximity'),
+            bordered: true,
+          ),
+          const SizedBox(height: 10),
+          _MoreItem(
+            icon: Icons.bar_chart_outlined,
+            iconColor: const Color(0xFF7C2D92),
+            iconBackground: const Color(0xFFF3E8FF),
+            title: 'Analytics',
+            subtitle: 'Revenue and order reports.',
+            onTap: () => context.push('/analytics'),
+            bordered: true,
+          ),
+          const SizedBox(height: 22),
+          _sectionLabel(theme, 'Store'),
+          _MoreItem(
+            icon: Icons.settings_outlined,
+            iconColor: theme.colorScheme.outline,
+            iconBackground: const Color(0xFFF1F5F9),
+            title: 'Store Settings',
+            subtitle: 'Payments, delivery, and team.',
+            onTap: () => context.push('/settings'),
+            bordered: true,
+          ),
+          const SizedBox(height: 10),
+          _MoreItem(
+            icon: Icons.account_balance_wallet_outlined,
+            iconColor: const Color(0xFF0F766E),
+            iconBackground: const Color(0xFFCCFBF1),
+            title: 'Tumizi wallet',
+            subtitle: 'M-Pesa verification and withdrawals.',
+            onTap: () => context.push('/tumizi-dashboard'),
+            bordered: true,
+          ),
+          const SizedBox(height: 10),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              'Advanced store tools',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            children: [
+              _MoreItem(
+                icon: Icons.point_of_sale_outlined,
+                iconColor: const Color(0xFF0025CC),
+                iconBackground: const Color(0xFFDFE0FF),
+                title: 'Point of Sale',
+                subtitle: 'Walk-in sales and receipts.',
+                onTap: () => context.push('/pos'),
+              ),
+              const SizedBox(height: 10),
+              _MoreItem(
+                icon: Icons.article_outlined,
+                iconColor: AppTheme.primary,
+                iconBackground: const Color(0x1A0025CC),
+                title: 'Content Management',
+                subtitle: 'Pages, blogs, and storefront assets.',
+                onTap: () => context.push('/content-management'),
+              ),
+              const SizedBox(height: 10),
+              _MoreItem(
+                icon: Icons.palette_outlined,
+                iconColor: const Color(0xFF7C3AED),
+                iconBackground: const Color(0xFFEDE9FE),
+                title: 'Themes',
+                subtitle: 'Storefront look and colors.',
+                onTap: () => context.push('/themes'),
+              ),
+              const SizedBox(height: 10),
+              _MoreItem(
+                icon: Icons.dynamic_form_outlined,
+                iconColor: const Color(0xFF0369A1),
+                iconBackground: const Color(0xFFE0F2FE),
+                title: 'Forms',
+                subtitle: 'Contact forms and submissions.',
+                onTap: () => context.push('/forms'),
+              ),
+              const SizedBox(height: 10),
+              _MoreItem(
+                icon: Icons.photo_library_outlined,
+                iconColor: const Color(0xFF059669),
+                iconBackground: const Color(0xFFD1FAE5),
+                title: 'Media library',
+                subtitle: 'Uploaded images and alt text.',
+                onTap: () => context.push('/media-library'),
+              ),
+              const SizedBox(height: 10),
+              _MoreItem(
+                icon: Icons.receipt_long_outlined,
+                iconColor: const Color(0xFF8A4B00),
+                iconBackground: const Color(0xFFFFF4E5),
+                title: 'Expenses',
+                subtitle: 'Operating costs for P&L.',
+                onTap: () => context.push('/analytics/expenses'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _sectionLabel(theme, 'Account'),
           _MoreItem(
             icon: Icons.card_membership_outlined,
             iconColor: const Color(0xFF1D4ED8),
             iconBackground: const Color(0xFFDBEAFE),
             title: 'Subscription & billing',
-            subtitle: 'Manage your plan, usage limits, and payment history.',
+            subtitle: 'Plan, limits, and payment history.',
             onTap: () => context.push('/subscription'),
+            bordered: true,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           _MoreItem(
             icon: Icons.card_giftcard_outlined,
             iconColor: const Color(0xFF0F766E),
             iconBackground: const Color(0xFFCCFBF1),
             title: 'Referral program',
-            subtitle: 'Share your link and earn free subscription months.',
+            subtitle: 'Earn free subscription months.',
             onTap: () => context.push('/referrals'),
+            bordered: true,
           ),
-          const SizedBox(height: 12),
-          _MoreItem(
-            icon: Icons.palette_outlined,
-            iconColor: const Color(0xFF7C3AED),
-            iconBackground: const Color(0xFFEDE9FE),
-            title: 'Themes',
-            subtitle: 'Install storefront themes and customize colors.',
-            onTap: () => context.push('/themes'),
-          ),
-          const SizedBox(height: 12),
-          _MoreItem(
-            icon: Icons.dynamic_form_outlined,
-            iconColor: const Color(0xFF0369A1),
-            iconBackground: const Color(0xFFE0F2FE),
-            title: 'Forms',
-            subtitle: 'Build contact forms and review submissions.',
-            onTap: () => context.push('/forms'),
-          ),
-          const SizedBox(height: 12),
-          _MoreItem(
-            icon: Icons.photo_library_outlined,
-            iconColor: const Color(0xFF059669),
-            iconBackground: const Color(0xFFD1FAE5),
-            title: 'Media library',
-            subtitle: 'Browse uploaded images and manage alt text.',
-            onTap: () => context.push('/media-library'),
-          ),
-          const SizedBox(height: 12),
-          _MoreItem(
-            icon: Icons.receipt_long_outlined,
-            iconColor: const Color(0xFF8A4B00),
-            iconBackground: const Color(0xFFFFF4E5),
-            title: 'Expenses',
-            subtitle: 'Log operating costs for profit and loss reporting.',
-            onTap: () => context.push('/analytics/expenses'),
-          ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 10),
           _MoreItem(
             icon: Icons.school_outlined,
             iconColor: const Color(0xFFD97706),
             iconBackground: const Color(0xFFFFF4E5),
             title: 'View Tutorial Again',
-            subtitle: 'Replay the getting-started walkthrough anytime.',
+            subtitle: 'Replay the getting-started walkthrough.',
             onTap: () => context.push('/first-run-tutorial?replay=1'),
           ),
           const SizedBox(height: 16),
         ],
+      ),
+    );
+  }
+
+  Widget _sectionLabel(ThemeData theme, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(
+        label.toUpperCase(),
+        style: theme.textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.8,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
       ),
     );
   }
@@ -218,36 +266,33 @@ class _MoreItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Material(
-      color: bordered
-          ? theme.colorScheme.surfaceContainerLowest
-          : theme.colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(14),
+      color: AppTheme.surfaceContainerLowest,
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             border: bordered
                 ? Border.all(
-                    color: theme.colorScheme.outlineVariant
-                        .withValues(alpha: 0.35),
+                    color: AppTheme.outlineVariant.withValues(alpha: 0.35),
                   )
                 : null,
           ),
           child: Row(
             children: [
               Container(
-                width: 56,
-                height: 56,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: iconBackground,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: iconColor, size: 28),
+                child: Icon(icon, color: iconColor, size: 22),
               ),
-              const SizedBox(width: 18),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -255,17 +300,15 @@ class _MoreItem extends StatelessWidget {
                     Text(
                       title,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
                         color: theme.colorScheme.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        height: 1.35,
+                      style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
@@ -274,7 +317,7 @@ class _MoreItem extends StatelessWidget {
               ),
               Icon(
                 Icons.chevron_right_rounded,
-                color: theme.colorScheme.outlineVariant,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ],
           ),

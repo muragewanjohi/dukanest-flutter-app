@@ -124,6 +124,12 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   // choice if the tenant's business type loads slowly.
   bool _requiresShippingTouchedByUser = false;
 
+  // Real scheduling/booking (S2, docs/SERVICES_PLAN.md) — mirrors web's
+  // product-form-client.tsx exactly.
+  bool _isBookable = false;
+  late final TextEditingController _bookingDurationMinutes;
+  late final TextEditingController _bookingCapacity;
+
   late String _category;
   bool _visible = true;
 
@@ -281,11 +287,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   String? _primaryImageFromMap(Map<String, dynamic> p) {
     String normalize(dynamic raw) {
       if (raw is! String) return '';
-      final s = raw.trim();
-      if (s.isEmpty) return '';
-      if (s.startsWith('http://') || s.startsWith('https://')) return s;
-      if (s.startsWith('//')) return 'https:$s';
-      return '';
+      return normalizeStoreMediaUrl(raw);
     }
 
     final direct = p['image'] ??
@@ -415,7 +417,10 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
               final m = Map<String, dynamic>.from(raw);
               final sku = (m['sku'] ?? m['code'] ?? '').toString();
               final id = (m['id'] ?? '').toString();
-              if (sku == trimmed && id.isNotEmpty) return id;
+              if (id.isNotEmpty &&
+                  sku.toLowerCase() == trimmed.toLowerCase()) {
+                return id;
+              }
             }
           }
         }
@@ -454,6 +459,13 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     // Basic services support (docs/SERVICES_PLAN.md)
     final requiresShippingRaw = p['requiresShipping'] ?? p['requires_shipping'];
     _requiresShipping = requiresShippingRaw != false;
+    // Real scheduling/booking (S2, docs/SERVICES_PLAN.md)
+    final isBookableRaw = p['isBookable'] ?? p['is_bookable'];
+    _isBookable = isBookableRaw == true;
+    final bookingDurationRaw = p['bookingDurationMinutes'] ?? p['booking_duration_minutes'];
+    _bookingDurationMinutes.text = bookingDurationRaw == null ? '' : bookingDurationRaw.toString();
+    final bookingCapacityRaw = p['bookingCapacity'] ?? p['booking_capacity'];
+    _bookingCapacity.text = bookingCapacityRaw == null ? '1' : bookingCapacityRaw.toString();
     _sku.text = _asString(p['sku'] ?? p['code'], fallback: _sku.text);
     if (_sku.text.trim().isNotEmpty) {
       _skuExpanded = true;
@@ -481,9 +493,11 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
 
     _remoteImageUrls.clear();
     void pushUrl(String? u) {
-      if (u == null || u.trim().isEmpty) return;
+      final normalized = normalizeStoreMediaUrl(u);
+      if (normalized.isEmpty) return;
       if (_remoteImageUrls.length >= 5) return;
-      _remoteImageUrls.add(u.trim());
+      if (_remoteImageUrls.contains(normalized)) return;
+      _remoteImageUrls.add(normalized);
     }
 
     final imgs = p['images'] ?? p['media'] ?? p['gallery'];
@@ -504,10 +518,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
         }
       }
     }
-    if (_remoteImageUrls.isEmpty) {
-      final primary = _primaryImageFromMap(p);
-      pushUrl(primary);
-    }
+    // Always merge primary image — some creates only persist `image`.
+    pushUrl(_primaryImageFromMap(p));
 
     _applyVariantsFromProduct(p);
 
@@ -1713,8 +1725,26 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     }
 
     final stockRaw = _stock.text.trim();
-    if (_requiresShipping && stockRaw.isNotEmpty && int.tryParse(stockRaw) == null) {
+    if (stockRaw.isNotEmpty && int.tryParse(stockRaw) == null) {
       return (fieldId: 'stock', message: 'Stock must be a whole number.');
+    }
+
+    // Real scheduling/booking (S2, docs/SERVICES_PLAN.md)
+    if (_isBookable) {
+      final duration = int.tryParse(_bookingDurationMinutes.text.trim());
+      if (duration == null || duration <= 0) {
+        return (
+          fieldId: 'booking_duration_minutes',
+          message: 'Enter how many minutes a booking takes.'
+        );
+      }
+      final capacity = int.tryParse(_bookingCapacity.text.trim());
+      if (capacity == null || capacity <= 0) {
+        return (
+          fieldId: 'booking_capacity',
+          message: 'Enter how many bookings this service can handle at once.'
+        );
+      }
     }
 
     final regular = _toDouble(_regularPrice.text);
@@ -1851,17 +1881,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
   }
 
   String? _extractUploadedMediaUrl(dynamic raw) {
-    if (raw == null) return null;
-    if (raw is String && raw.trim().isNotEmpty) return raw.trim();
-    if (raw is! Map) return null;
-    final m = Map<String, dynamic>.from(raw);
-    final inner =
-        m['data'] is Map ? Map<String, dynamic>.from(m['data'] as Map) : m;
-    for (final k in ['url', 'publicUrl', 'public_url', 'src', 'path']) {
-      final v = inner[k];
-      if (v is String && v.trim().isNotEmpty) return v.trim();
-    }
-    return null;
+    final url = extractMediaUploadUrl(raw);
+    return url.isEmpty ? null : url;
   }
 
   // AI Phase 5 — advisory only. Never writes to any field itself; the
@@ -2183,16 +2204,9 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
       'is_active': _visible,
       'status': _visible ? 'active' : 'draft',
     };
-    // Per API contract: product stock is managed at product level only when
-    // there are no variants. When variants exist, backend derives totals.
-    // A non-shipped item (service) has no stock tracked at all — null, not
-    // 0 (0 would read as "out of stock" at checkout, see docs/SERVICES_PLAN.md).
-    if (!_requiresShipping) {
-      payload['stock'] = null;
-      payload['stockQuantity'] = null;
-      payload['stock_quantity'] = null;
-      payload['quantity'] = null;
-    } else if (!hasVariants) {
+    // Stock is always what the merchant typed. Services used to force null
+    // ("unlimited"), which made onboarding quantity look like "No stock".
+    if (!hasVariants) {
       payload['stock'] = stockVal;
       payload['stockQuantity'] = stockVal;
       payload['stock_quantity'] = stockVal;
@@ -2223,6 +2237,19 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     // Basic services support (docs/SERVICES_PLAN.md)
     payload['requiresShipping'] = _requiresShipping;
     payload['requires_shipping'] = _requiresShipping;
+    // Real scheduling/booking (S2, docs/SERVICES_PLAN.md)
+    payload['isBookable'] = _isBookable;
+    payload['is_bookable'] = _isBookable;
+    final bookingDuration = _isBookable && _bookingDurationMinutes.text.trim().isNotEmpty
+        ? int.tryParse(_bookingDurationMinutes.text.trim())
+        : null;
+    payload['bookingDurationMinutes'] = bookingDuration;
+    payload['booking_duration_minutes'] = bookingDuration;
+    final bookingCapacity = _isBookable && _bookingCapacity.text.trim().isNotEmpty
+        ? int.tryParse(_bookingCapacity.text.trim()) ?? 1
+        : 1;
+    payload['bookingCapacity'] = bookingCapacity;
+    payload['booking_capacity'] = bookingCapacity;
     if (categoryId != null && categoryId.isNotEmpty) {
       payload['categoryId'] = categoryId;
       payload['category_id'] = categoryId;
@@ -2230,6 +2257,7 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     if (imageUrls.isNotEmpty) {
       payload['images'] = imageUrls;
       payload['imageUrls'] = imageUrls;
+      payload['gallery'] = imageUrls;
       payload['image'] = imageUrls.first;
       payload['imageUrl'] = imageUrls.first;
       payload['featuredImage'] = imageUrls.first;
@@ -2447,6 +2475,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     _salePrice = TextEditingController();
     _costPrice = TextEditingController();
     _depositValue = TextEditingController();
+    _bookingDurationMinutes = TextEditingController();
+    _bookingCapacity = TextEditingController(text: '1');
     _sku = TextEditingController(text: widget.initialSku ?? '');
     _skuExpanded = (widget.initialSku ?? '').trim().isNotEmpty;
     _stock = TextEditingController();
@@ -2545,6 +2575,8 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
     _salePrice.dispose();
     _costPrice.dispose();
     _depositValue.dispose();
+    _bookingDurationMinutes.dispose();
+    _bookingCapacity.dispose();
     _sku.dispose();
     _stock.dispose();
     _scrollController.dispose();
@@ -3242,32 +3274,34 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                                 ],
                               ),
                             ),
-                            if (_requiresShipping) ...[
-                              const SizedBox(height: 12),
-                              KeyedSubtree(
-                                key: _keyFor('stock'),
-                                child: _LabeledField(
-                                  label: 'Stock',
-                                  child: TextField(
-                                    controller: _stock,
-                                    keyboardType: TextInputType.number,
-                                    enabled: !hasVariants,
-                                    onChanged: (_) => _clearErrorFor('stock'),
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.w600),
-                                    decoration: _inventoryFieldDeco(
-                                      theme,
-                                      hint: hasVariants
-                                          ? 'Managed by variants'
-                                          : '0',
-                                      isInvalid: _isInvalid('stock'),
-                                      locked: hasVariants,
-                                    ),
+                            const SizedBox(height: 12),
+                            KeyedSubtree(
+                              key: _keyFor('stock'),
+                              child: _LabeledField(
+                                label: _requiresShipping
+                                    ? 'Stock'
+                                    : 'Stock / capacity',
+                                child: TextField(
+                                  controller: _stock,
+                                  keyboardType: TextInputType.number,
+                                  enabled: !hasVariants,
+                                  onChanged: (_) => _clearErrorFor('stock'),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.w600),
+                                  decoration: _inventoryFieldDeco(
+                                    theme,
+                                    hint: hasVariants
+                                        ? 'Managed by variants'
+                                        : (_requiresShipping
+                                            ? '0'
+                                            : 'How many can you fulfill?'),
+                                    isInvalid: _isInvalid('stock'),
+                                    locked: hasVariants,
                                   ),
                                 ),
                               ),
-                            ],
-                            if (_requiresShipping && hasVariants) ...[
+                            ),
+                            if (hasVariants) ...[
                               const SizedBox(height: 8),
                               Row(
                                 children: [
@@ -3442,6 +3476,93 @@ class _ProductEditorScreenState extends ConsumerState<ProductEditorScreen> {
                       const SizedBox(height: 6),
                       Text(
                         'Customers pay only this at checkout; the rest becomes a balance due later. Useful for services like a booking.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    // Real scheduling/booking (S2, docs/SERVICES_PLAN.md)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'This is a bookable service',
+                                  style: theme.textTheme.bodyMedium
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _isBookable
+                                      ? 'Customers pick a real available time slot at checkout.'
+                                      : "Doesn't require a booked time slot.",
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            value: _isBookable,
+                            onChanged: (v) => setState(() => _isBookable = v),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_isBookable) ...[
+                      const SizedBox(height: 12),
+                      KeyedSubtree(
+                        key: _keyFor('booking_duration_minutes'),
+                        child: _LabeledField(
+                          label: 'Duration (minutes)',
+                          child: TextField(
+                            controller: _bookingDurationMinutes,
+                            keyboardType: TextInputType.number,
+                            onChanged: (_) => _clearErrorFor('booking_duration_minutes'),
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                            decoration: _inventoryFieldDeco(
+                              theme,
+                              hint: 'e.g. 30',
+                              isInvalid: _isInvalid('booking_duration_minutes'),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      KeyedSubtree(
+                        key: _keyFor('booking_capacity'),
+                        child: _LabeledField(
+                          label: 'Capacity',
+                          child: TextField(
+                            controller: _bookingCapacity,
+                            keyboardType: TextInputType.number,
+                            onChanged: (_) => _clearErrorFor('booking_capacity'),
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                            decoration: _inventoryFieldDeco(
+                              theme,
+                              hint: '1',
+                              isInvalid: _isInvalid('booking_capacity'),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'How many of these bookings you can handle at the exact same time slot.',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                           height: 1.35,

@@ -7,6 +7,7 @@ import '../dashboard/providers/dashboard_getting_started_provider.dart';
 import '../dashboard/providers/dashboard_overview_provider.dart';
 import 'models/remove_demo_products_result.dart';
 import 'providers/products_list_refresh_signal_provider.dart';
+import 'screens/products_list_screen.dart';
 
 Future<bool> confirmRemoveDemoProducts(BuildContext context) async {
   final ok = await showDialog<bool>(
@@ -40,6 +41,7 @@ Future<RemoveDemoProductsResult?> runDemoProductCleanup(WidgetRef ref) async {
   final result = RemoveDemoProductsResult.tryParse(response.data);
   ref.invalidate(dashboardGettingStartedProvider);
   ref.invalidate(dashboardOverviewProvider);
+  ProductsListScreen.clearListCache();
   bumpProductsListRefresh(ref);
   return result;
 }

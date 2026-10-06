@@ -695,7 +695,7 @@ Separate from **Getting Started**. Complete **100%** of these steps within the p
 | `hero_image` | Homepage **hero** image/banner_image is merchant media (`media/{tenantId}/…`) or changed from install snapshot (not default Unsplash) |
 | `hero_description` | Homepage hero **`description`** non-empty and changed from install snapshot |
 | `sale_active` | ≥ **1** sale with `status = 'active'` |
-| `sale_products_two` | ≥ **2** products on **one** active sale (`product_sales`) |
+| `sale_products_one` | ≥ **1** product on **one** active sale (`product_sales`) |
 | `banner_updated` | Homepage **`banners`** section: at least one slot customized (image/title/subtitle vs install snapshot) |
 | `split_layout_image` | Homepage **`split_layout.left_side.image`** customized (same anti-default rules as hero) |
 

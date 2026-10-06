@@ -13,6 +13,7 @@ import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/dio_envelope.dart';
 import '../../../core/auth/token_storage.dart';
+import '../../../core/util/store_media_url.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
 import '../../../core/widgets/illustrated_empty_state.dart';
 import '../../../core/widgets/shimmer_list_loader.dart';
@@ -55,6 +56,12 @@ enum _ProductsSortOption {
 class ProductsListScreen extends ConsumerStatefulWidget {
   const ProductsListScreen({super.key});
 
+  /// Clears the in-memory list cache so the next open/reload fetches fresh
+  /// rows (e.g. after the assistant creates a product).
+  static void clearListCache() {
+    _ProductsListScreenState._productsCache.clear();
+  }
+
   @override
   ConsumerState<ProductsListScreen> createState() => _ProductsListScreenState();
 }
@@ -93,7 +100,9 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
   int _totalPages = 1;
   int _totalItems = 0;
   DateTime? _lastSyncedAt;
+  // ignore: unused_field — kept for optional tip restore
   bool _hasSeenRefreshHint = false;
+  // ignore: unused_field — structure section is always expanded in Filters
   bool _storeStructureExpanded = false;
   bool _hideDemoProducts = false;
   _ProductsSortOption _sortOption = _ProductsSortOption.newest;
@@ -153,13 +162,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
   String _pickImageUrl(Map<String, dynamic> p) {
     String normalize(dynamic raw) {
       if (raw is! String) return '';
-      final s = raw.trim();
-      if (s.isEmpty) return '';
-      if (s.startsWith('http://') || s.startsWith('https://')) return s;
-      if (s.startsWith('//')) return 'https:$s';
-      final base = AppConfig.publicApiBaseUrl.replaceFirst(RegExp(r'/$'), '');
-      if (s.startsWith('/')) return '$base$s';
-      return '$base/$s';
+      return normalizeStoreMediaUrl(raw);
     }
 
     String fromMap(Map<String, dynamic> m) {
@@ -843,8 +846,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                                 if (rootContext.mounted) {
                                   ScaffoldMessenger.of(rootContext)
                                       .showSnackBar(
-                                    SnackBar(
-                                        content: Text(apiErrorMessage(e))),
+                                    SnackBar(content: Text(apiErrorMessage(e))),
                                   );
                                 }
                               }
@@ -884,7 +886,10 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
     final categories = categoriesAsync.valueOrNull ?? const <CategoryEntry>[];
     final attributes =
         attributesAsync.valueOrNull ?? const <ProductAttribute>[];
-    final fabBottom = MediaQuery.of(context).padding.bottom + 8;
+    // Nested under DashboardShell's NavigationBar (~80). Safe-area alone leaves
+    // the FAB behind the bottom nav on the Products tab.
+    final fabBottom =
+        80 + MediaQuery.of(context).padding.bottom + 8;
     final totalProducts = _totalItems > 0 ? _totalItems : _allProducts.length;
     final activeProducts = _allProducts.where((p) => p.active).length;
     final totalStock =
@@ -927,7 +932,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
             child: InkWell(
               customBorder: const CircleBorder(),
               onTap: () async {
-                await context.push('/products/new');
+                await context.push('/products/quick-add');
                 if (!mounted) return;
                 _invalidateProductsCache();
                 await _loadProducts(
@@ -986,31 +991,6 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                   ],
                 ),
                 const SizedBox(height: 14),
-                _ProductsSummaryCards(
-                  totalProducts: totalProducts,
-                  totalStock: totalStock,
-                  outOfStockCount: outOfStockCount,
-                  lowStockCount: lowStockCount,
-                  stockAlertCount: stockAlertCount,
-                ),
-                const SizedBox(height: 14),
-                _StoreStructureSection(
-                  expanded: _storeStructureExpanded,
-                  onToggle: () => setState(
-                      () => _storeStructureExpanded = !_storeStructureExpanded),
-                ),
-                const SizedBox(height: 14),
-                _CategoryAndSortRow(
-                  categories: categoryNames,
-                  selectedCategoryNames: _selectedCategoryNames,
-                  selectedSortOption: _sortOption,
-                  visibleProductCount: products.length,
-                  hideDemoProducts: _hideDemoProducts,
-                  onSelectCategory: _selectCategoryChip,
-                  onSelectSort: _selectSortOption,
-                  onToggleHideDemoProducts: _toggleHideDemoProducts,
-                ),
-                const SizedBox(height: 14),
                 if (!wide)
                   _FiltersRow(
                     theme: theme,
@@ -1035,51 +1015,49 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                       attributes: attributes,
                     ),
                   ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 10),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: Text(
+                    'Filters & store structure',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  children: [
+                    _ProductsSummaryCards(
+                      totalProducts: totalProducts,
+                      totalStock: totalStock,
+                      outOfStockCount: outOfStockCount,
+                      lowStockCount: lowStockCount,
+                      stockAlertCount: stockAlertCount,
+                    ),
+                    const SizedBox(height: 14),
+                    _StoreStructureSection(
+                      expanded: true,
+                      onToggle: () {},
+                    ),
+                    const SizedBox(height: 14),
+                    _CategoryAndSortRow(
+                      categories: categoryNames,
+                      selectedCategoryNames: _selectedCategoryNames,
+                      selectedSortOption: _sortOption,
+                      visibleProductCount: products.length,
+                      hideDemoProducts: _hideDemoProducts,
+                      onSelectCategory: _selectCategoryChip,
+                      onSelectSort: _selectSortOption,
+                      onToggleHideDemoProducts: _toggleHideDemoProducts,
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 Text(
                   '${_lastUpdatedLabel()} • Pull down to refresh',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                if (!_hasSeenRefreshHint) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.swipe_down_alt_rounded,
-                          size: 18,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Tip: swipe down anywhere on this page to refresh products.',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () async {
-                            setState(() => _hasSeenRefreshHint = true);
-                            await ref
-                                .read(tokenStorageProvider)
-                                .saveProductsListRefreshHintSeen(true);
-                          },
-                          child: const Text('Got it'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
                 const SizedBox(height: 18),
                 if (_isLoading)
                   const Padding(
@@ -1101,13 +1079,14 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                     ),
                   )
                 else if (products.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 24),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 24),
                     child: IllustratedEmptyState(
                       icon: Icons.inventory_2_outlined,
-                      title: 'No products found',
-                      subtitle:
-                          'Adjust your search filters or add a new product.',
+                      title: 'No products yet',
+                      subtitle: 'Add your first product to start selling.',
+                      actionLabel: 'Add product',
+                      onAction: () => context.push('/products/quick-add'),
                     ),
                   )
                 else ...[
@@ -1675,7 +1654,9 @@ class _ProductsSummaryCards extends StatelessWidget {
       return '$outOfStockCount out • $lowStockCount low';
     }
     if (outOfStockCount > 0) {
-      return outOfStockCount == 1 ? 'Out of stock' : '$outOfStockCount out of stock';
+      return outOfStockCount == 1
+          ? 'Out of stock'
+          : '$outOfStockCount out of stock';
     }
     return lowStockCount == 1 ? 'Low stock' : '$lowStockCount low stock';
   }
@@ -1751,9 +1732,7 @@ class _ProductsSummaryCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: alert
-              ? (critical
-                  ? const Color(0xFFF87171)
-                  : const Color(0xFFFBBF24))
+              ? (critical ? const Color(0xFFF87171) : const Color(0xFFFBBF24))
               : AppTheme.outlineVariant.withValues(alpha: 0.35),
         ),
       ),
@@ -2226,7 +2205,8 @@ class _CatalogProductCard extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: hasStockAlert && !inactive
-              ? BorderSide(color: alertColor.withValues(alpha: 0.45), width: 1.5)
+              ? BorderSide(
+                  color: alertColor.withValues(alpha: 0.45), width: 1.5)
               : BorderSide.none,
         ),
         elevation: 0,
@@ -2260,7 +2240,8 @@ class _CatalogProductCard extends StatelessWidget {
                             if (hasStockAlert && !inactive) ...[
                               const SizedBox(height: 8),
                               _StockAlertChip(
-                                label: product.stockOut ? 'No stock' : 'Low stock',
+                                label:
+                                    product.stockOut ? 'No stock' : 'Low stock',
                                 critical: critical,
                               ),
                             ],
@@ -2327,8 +2308,9 @@ class _CatalogProductCard extends StatelessWidget {
                                 if (hasStockAlert && !inactive) ...[
                                   const SizedBox(height: 8),
                                   _StockAlertChip(
-                                    label:
-                                        product.stockOut ? 'No stock' : 'Low stock',
+                                    label: product.stockOut
+                                        ? 'No stock'
+                                        : 'Low stock',
                                     critical: critical,
                                   ),
                                 ],
@@ -2410,7 +2392,7 @@ class _CatalogProductCard extends StatelessWidget {
     if (product.imageUrl.trim().isEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: placeholder(loading: true),
+        child: placeholder(),
       );
     }
 
@@ -2537,8 +2519,7 @@ class _StockAlertsBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final critical = outOfStockCount > 0;
     final bg = critical ? const Color(0xFFFEF2F2) : const Color(0xFFFFFBEB);
-    final border =
-        critical ? const Color(0xFFF87171) : const Color(0xFFFBBF24);
+    final border = critical ? const Color(0xFFF87171) : const Color(0xFFFBBF24);
     final iconColor =
         critical ? const Color(0xFFDC2626) : const Color(0xFFD97706);
     final textColor =

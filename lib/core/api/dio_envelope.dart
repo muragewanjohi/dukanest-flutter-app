@@ -14,12 +14,14 @@ Future<ApiResponse<dynamic>> dioPostEnvelope(
   String path, {
   Object? data,
   Map<String, dynamic>? queryParameters,
+  Options? options,
 }) async {
   try {
     final response = await dio.post(
       path,
       data: data,
       queryParameters: queryParameters,
+      options: options,
     );
     final map = asObjectMap(response.data);
     if (map == null) {
@@ -108,6 +110,12 @@ String dioUserMessage(DioException e, {String? fallback}) {
   }
   if (code != null) {
     return '${fallback ?? 'Request failed'} (HTTP $code).';
+  }
+  if (e.type == DioExceptionType.receiveTimeout ||
+      e.type == DioExceptionType.sendTimeout ||
+      e.type == DioExceptionType.connectionTimeout) {
+    return fallback ??
+        'That took too long — image and AI requests can take up to a minute. Please try again.';
   }
   return fallback ?? (e.message ?? 'Network error. Check your connection.');
 }

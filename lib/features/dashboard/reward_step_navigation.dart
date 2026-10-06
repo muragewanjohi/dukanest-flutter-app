@@ -55,7 +55,8 @@ String? _routeFromStepId(String stepId) {
     case 'home_page':
       return '/page-editor/home';
     case 'sale_active':
-    case 'sale_products_two':
+    case 'sale_products_one':
+    case 'sale_products_two': // legacy checklist id
     case 'sale':
     case 'sales':
       return '/sales';

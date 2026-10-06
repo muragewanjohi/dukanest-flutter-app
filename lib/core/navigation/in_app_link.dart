@@ -61,6 +61,7 @@ const Map<String, String> _exactPathRoutes = {
   'products/new': '/products/new',
   'categories/new': '/categories/new',
   'attributes/new': '/attributes/new',
+  'sales/new': '/sales/new',
 };
 
 /// Help-article slug keyword → app route. Only for slugs that clearly point at
@@ -96,34 +97,43 @@ String? resolveInAppRoute(String rawHref) {
   // `/dashboard?openAssistant=1` and friends.
   if (uri.queryParameters['openAssistant'] == '1') return '/assistant';
 
-  var path = uri.path.toLowerCase();
-  path = path.replaceAll(RegExp(r'/+$'), ''); // trim trailing slash
-  path = path.replaceFirst(RegExp(r'^/+'), ''); // trim leading slash
-  if (path.isEmpty) return null; // storefront / dashboard root → external/no-op
+  // Preserve original segment casing for IDs/SKUs — only lowercase when
+  // matching route tables. (Lowercasing `/products/edit/<SKU>` used to break
+  // product lookup after AI "Add a photo".)
+  final segments =
+      uri.pathSegments.where((s) => s.isNotEmpty).toList(growable: false);
+  if (segments.isEmpty) return null;
+
+  final lower = segments.map((s) => s.toLowerCase()).toList(growable: false);
 
   // Help articles: only map when the slug names a config screen.
-  final helpMatch = RegExp(r'^(?:dashboard/)?help/(.+)$').firstMatch(path);
-  if (helpMatch != null) {
-    final slug = helpMatch.group(1)!;
+  final helpIdx = lower.indexOf('help');
+  if (helpIdx == 0 || (helpIdx == 1 && lower[0] == 'dashboard')) {
+    final slug = lower.sublist(helpIdx + 1).join('/');
+    if (slug.isEmpty) return null;
     for (final entry in _helpKeywordRoutes.entries) {
       if (slug.contains(entry.key)) return entry.value;
     }
     return null; // read it on the web
   }
 
-  final hadDashboardPrefix = path.startsWith('dashboard/') || path == 'dashboard';
-  final appPath = path.replaceFirst(RegExp(r'^dashboard/?'), '');
-  if (appPath.isEmpty) return null;
+  var start = 0;
+  final hadDashboardPrefix = lower[0] == 'dashboard';
+  if (hadDashboardPrefix) start = 1;
+  if (start >= lower.length) return null;
 
-  if (_exactPathRoutes.containsKey(appPath)) return _exactPathRoutes[appPath]!;
+  final appLower = lower.sublist(start).join('/');
+  if (_exactPathRoutes.containsKey(appLower)) return _exactPathRoutes[appLower]!;
 
-  final firstSegment = appPath.split('/').first;
+  final firstSegment = lower[start];
   final areaRoute = _areaRoutes[firstSegment];
   if (areaRoute == null) return null;
 
   // A bare app path (no `/dashboard` prefix) that already targets a known area
-  // is passed through verbatim so deep links like `/products/edit/<sku>` keep
-  // their sub-route. A `/dashboard/*` web path is translated to the area root
-  // (web sub-paths rarely line up with the app's routes).
-  return hadDashboardPrefix ? areaRoute : '/$appPath';
+  // is passed through with original casing so deep links like
+  // `/products/edit/<uuid-or-sku>` keep a usable lookup key. A `/dashboard/*`
+  // web path is translated to the area root (web sub-paths rarely line up
+  // with the app's routes).
+  if (hadDashboardPrefix) return areaRoute;
+  return '/${segments.sublist(start).join('/')}';
 }

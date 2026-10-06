@@ -179,13 +179,7 @@ List<_OnboardingStepUi> _orderOnboardingSteps(List<_OnboardingStepUi> steps) {
       middle.add(s);
     }
   }
-  return [
-    ...categories,
-    ...products,
-    ...middle,
-    ...previews,
-    ...shares
-  ];
+  return [...categories, ...products, ...middle, ...previews, ...shares];
 }
 
 void _postGettingStartedPreview(WidgetRef ref) {
@@ -599,7 +593,7 @@ class DashboardScreen extends ConsumerWidget {
           k == 'order_alerts_sms') {
         onAction = () => context.push('/settings');
       } else if (k == 'product' || k == 'first_product' || k == 'catalog') {
-        onAction = () => context.push('/products/new');
+        onAction = () => context.push('/products/quick-add');
       } else if (k == 'category' ||
           k == 'categories' ||
           k == 'first_category' ||
@@ -645,8 +639,7 @@ class DashboardScreen extends ConsumerWidget {
       } else if (k == 'shipping' || k == 'delivery') {
         onAction = () => context.push('/shipping-delivery');
       } else if (k == 'logo' || k == 'store_logo') {
-        onAction = () =>
-            context.push('/store-identity?tutorial=1&focus=logo');
+        onAction = () => context.push('/store-identity?tutorial=1&focus=logo');
       } else if (k == 'design' ||
           k == 'theme' ||
           k == 'branding' ||
@@ -668,7 +661,7 @@ class DashboardScreen extends ConsumerWidget {
         if (t.contains('sms') || (t.contains('phone') && t.contains('alert'))) {
           onAction = () => context.push('/settings');
         } else if (t.contains('product') && t.contains('first')) {
-          onAction = () => context.push('/products/new');
+          onAction = () => context.push('/products/quick-add');
         } else if (t.contains('categor')) {
           onAction = () => context.push('/categories/new');
         } else if (t.contains('attribute')) {
@@ -706,8 +699,8 @@ class DashboardScreen extends ConsumerWidget {
         } else if (t.contains('shipping') || t.contains('delivery')) {
           onAction = () => context.push('/shipping-delivery');
         } else if (t.contains('logo')) {
-          onAction = () =>
-              context.push('/store-identity?tutorial=1&focus=logo');
+          onAction =
+              () => context.push('/store-identity?tutorial=1&focus=logo');
         } else if (t.contains('demo') &&
             (t.contains('product') || t.contains('sample'))) {
           onAction = () => handleDemoProductCleanup(context: context, ref: ref);
@@ -822,14 +815,15 @@ class DashboardScreen extends ConsumerWidget {
     final revenueBadge = useWeekly ? '7 DAYS' : 'THIS MONTH';
     final revenueCaption = useWeekly ? 'Total this week' : 'Paid this month';
 
-    final pendingOrdersValue = _toInt(
+    final pendingOrdersCount = _toInt(
       ordersMetrics['pending'] ??
           metrics['pendingOrders'] ??
           metrics['pending_orders'] ??
           metrics['activeOrders'],
       fallback: 0,
-    ).toString();
-    final productsLiveValue = _toInt(
+    );
+    final pendingOrdersValue = pendingOrdersCount.toString();
+    final productsLiveCount = _toInt(
       productsMetrics['live'] ??
           productsMetrics['active'] ??
           productsMetrics['published'] ??
@@ -837,7 +831,8 @@ class DashboardScreen extends ConsumerWidget {
           metrics['productsLive'] ??
           metrics['totalProducts'],
       fallback: 0,
-    ).toString();
+    );
+    final productsLiveValue = productsLiveCount.toString();
     final storeViewsValue = _toInt(
       metrics['storeViews'] ??
           metrics['store_views'] ??
@@ -847,14 +842,15 @@ class DashboardScreen extends ConsumerWidget {
           tenantMap?['storeViews'],
       fallback: 0,
     ).toString();
-    final completedOrdersValue = _toInt(
+    final completedOrdersCount = _toInt(
       ordersMetrics['completed'] ??
           ordersMetrics['total'] ??
           metrics['completedOrders'] ??
           metrics['completed_orders'] ??
           metrics['ordersLast30Days'],
       fallback: 0,
-    ).toString();
+    );
+    final completedOrdersValue = completedOrdersCount.toString();
     final lowStockItems =
         _extractLowStockItems(data, productsMetrics: productsMetrics);
     final lowStockCount = _toInt(
@@ -877,7 +873,8 @@ class DashboardScreen extends ConsumerWidget {
         ref.watch(dashboardLocalStepCompletionsProvider);
     final mergedSteps =
         _mergeLocalStepCompletion(parsedSteps, localStepCompletions);
-    final gettingStartedSteps = _excludeAttributesFromGettingStarted(mergedSteps);
+    final gettingStartedSteps =
+        _excludeAttributesFromGettingStarted(mergedSteps);
     final onboardingSteps = _attachOnboardingActions(
       context,
       ref,
@@ -978,74 +975,228 @@ class DashboardScreen extends ConsumerWidget {
               ),
             ],
             const SizedBox(height: 14),
-            const RewardChecklistCard(),
-            const SizedBox(height: 16),
-            _quickActionRow(context),
-            const SizedBox(height: 18),
-            _metricsGrid(
-              theme,
-              revenueValue: revenueValue,
-              revenueCaption: revenueCaption,
-              pendingOrdersValue: pendingOrdersValue,
-              productsLiveValue: productsLiveValue,
-              storeViewsValue: storeViewsValue,
-            ),
-            const SizedBox(height: 14),
-            _weeklyRevenueCard(
+            _primaryNextActionCard(
               context,
-              theme,
-              revenueValue: revenueValue,
-              title: 'Revenue trend',
-              badge: revenueBadge,
-              subtitle: revenueSecondaryLine,
-              caption: revenueCaption,
-              barFractions: barFractions,
-              highlightedIndex: chartHighlightIndex,
+              productsLive: productsLiveCount,
+              pendingOrders: pendingOrdersCount,
+              storeUrl: storeUrl,
+              storeName: displayStoreName,
+              ref: ref,
             ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _compactSummaryCard(
-                    theme,
-                    label: 'ORDERS COMPLETED',
-                    value: completedOrdersValue,
-                    caption: 'Last 30 days',
-                    icon: Icons.check_circle_outline,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _compactSummaryCard(
-                    theme,
-                    label: 'STOCK ALERTS',
-                    value: lowStockCount.toString(),
-                    caption: lowStockItems.isEmpty
-                        ? 'All in stock'
-                        : 'Review inventory',
-                    icon: Icons.inventory_2_outlined,
-                    accentColor: lowStockItems.isEmpty
-                        ? const Color(0xFF16A34A)
-                        : theme.colorScheme.error,
-                    onTap: () => context.go('/products'),
-                  ),
-                ),
-              ],
-            ),
-            if (lowStockItems.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              _stockAlertsCard(context, theme, items: lowStockItems),
-            ],
             if (!allOnboardingComplete) ...[
               const SizedBox(height: 14),
-              _GettingStartedCarousel(
+              _CollapsedSetupCard(
                 completed: onboardingDone,
                 total: onboardingTotal,
                 steps: onboardingSteps,
               ),
             ],
+            const SizedBox(height: 12),
+            const RewardChecklistCard(),
+            if (pendingOrdersCount > 0 || productsLiveCount > 0) ...[
+              const SizedBox(height: 16),
+              _metricsGrid(
+                theme,
+                revenueValue: revenueValue,
+                revenueCaption: revenueCaption,
+                pendingOrdersValue: pendingOrdersValue,
+                productsLiveValue: productsLiveValue,
+                storeViewsValue: storeViewsValue,
+              ),
+            ],
+            if (_hasMeaningfulRevenue(revenuePrimaryAmount, barFractions)) ...[
+              const SizedBox(height: 14),
+              _weeklyRevenueCard(
+                context,
+                theme,
+                revenueValue: revenueValue,
+                title: 'Revenue trend',
+                badge: revenueBadge,
+                subtitle: revenueSecondaryLine,
+                caption: revenueCaption,
+                barFractions: barFractions,
+                highlightedIndex: chartHighlightIndex,
+              ),
+            ],
+            if (completedOrdersCount > 0 || lowStockCount > 0) ...[
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: _compactSummaryCard(
+                      theme,
+                      label: 'ORDERS COMPLETED',
+                      value: completedOrdersValue,
+                      caption: 'Last 30 days',
+                      icon: Icons.check_circle_outline,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _compactSummaryCard(
+                      theme,
+                      label: 'STOCK ALERTS',
+                      value: lowStockCount.toString(),
+                      caption: lowStockItems.isEmpty
+                          ? 'All in stock'
+                          : 'Review inventory',
+                      icon: Icons.inventory_2_outlined,
+                      accentColor: lowStockItems.isEmpty
+                          ? const Color(0xFF16A34A)
+                          : theme.colorScheme.error,
+                      onTap: () => context.go('/products'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (lowStockItems.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              _stockAlertsCard(context, theme, items: lowStockItems),
+            ],
             const SizedBox(height: 24),
           ],
+        ),
+      ),
+    );
+  }
+
+  bool _hasMeaningfulRevenue(dynamic amount, List<double> fractions) {
+    final value = amount is num ? amount.toDouble() : 0.0;
+    if (value > 0) return true;
+    return fractions.any((f) => f > 0);
+  }
+
+  Widget _primaryNextActionCard(
+    BuildContext context, {
+    required int productsLive,
+    required int pendingOrders,
+    required String? storeUrl,
+    required String? storeName,
+    required WidgetRef ref,
+  }) {
+    final theme = Theme.of(context);
+    final hasProducts = productsLive > 0;
+    final hasOrders = pendingOrders > 0;
+    final url = storeUrl?.trim();
+
+    late final String title;
+    late final String subtitle;
+    late final String cta;
+    late final VoidCallback onTap;
+    late final IconData icon;
+    VoidCallback? onSecondaryTap;
+    String? secondaryCta;
+
+    if (!hasProducts) {
+      title = 'Add your first product';
+      subtitle = 'Customers can only buy what you list. Start with one item.';
+      cta = 'Add product';
+      icon = Icons.add_rounded;
+      onTap = () => context.push('/products/quick-add');
+    } else if (!hasOrders) {
+      title = 'Share your store';
+      subtitle = 'Your products are live. Send the link on WhatsApp.';
+      cta = 'Share store';
+      icon = Icons.share_rounded;
+      secondaryCta = 'Add product';
+      onSecondaryTap = () => context.push('/products/quick-add');
+      onTap = () {
+        if (url == null || url.isEmpty) {
+          context.push('/products/quick-add');
+          return;
+        }
+        final name = (storeName != null && storeName.trim().isNotEmpty)
+            ? storeName.trim()
+            : 'my store';
+        SharePlus.instance
+            .share(
+          ShareParams(
+            text:
+                'Shop with $name on DukaNest.\nBrowse products and order here: $url',
+          ),
+        )
+            .then((_) {
+          ref
+              .read(dashboardLocalStepCompletionsProvider.notifier)
+              .markComplete(DashboardOnboardingStepKeys.shareStore);
+          _postGettingStartedShare(ref);
+        });
+      };
+    } else {
+      title = 'You have pending orders';
+      subtitle = 'Open Orders to fulfill the next sale.';
+      cta = 'View orders';
+      icon = Icons.shopping_bag_outlined;
+      onTap = () => context.go('/orders');
+      secondaryCta = 'Add product';
+      onSecondaryTap = () => context.push('/products/quick-add');
+    }
+
+    return Material(
+      color: AppTheme.surfaceContainerLowest,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: AppTheme.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  FilledButton(
+                    onPressed: onTap,
+                    child: Text(cta),
+                  ),
+                  if (secondaryCta != null && onSecondaryTap != null) ...[
+                    const SizedBox(height: 4),
+                    TextButton(
+                      onPressed: onSecondaryTap,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(secondaryCta),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1175,67 +1326,6 @@ class DashboardScreen extends ConsumerWidget {
             icon: const Icon(Icons.share_rounded, size: 18),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _quickActionRow(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      clipBehavior: Clip.none,
-      child: Row(
-        children: [
-          _quickActionChip(
-            context,
-            icon: Icons.add_rounded,
-            label: 'Add product',
-            onTap: () => context.push('/products/new'),
-          ),
-          _quickActionChip(
-            context,
-            icon: Icons.shopping_bag_outlined,
-            label: 'Orders',
-            onTap: () => context.go('/orders'),
-          ),
-          _quickActionChip(
-            context,
-            icon: Icons.bar_chart_rounded,
-            label: 'Analytics',
-            onTap: () => context.go('/analytics'),
-          ),
-          _quickActionChip(
-            context,
-            icon: Icons.inventory_2_outlined,
-            label: 'Inventory',
-            onTap: () => context.go('/products'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _quickActionChip(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ActionChip(
-        avatar: Icon(icon, size: 16, color: AppTheme.primaryDark),
-        label: Text(label),
-        labelStyle: theme.textTheme.labelMedium?.copyWith(
-          color: AppTheme.primaryDark,
-          fontWeight: FontWeight.w700,
-        ),
-        backgroundColor: AppTheme.surfaceContainerLowest,
-        side:
-            BorderSide(color: AppTheme.outlineVariant.withValues(alpha: 0.45)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        onPressed: onTap,
       ),
     );
   }
@@ -1903,6 +1993,57 @@ class _TrialPeriodBanner extends StatelessWidget {
   }
 }
 
+/// Compact expandable setup checklist — replaces the always-open carousel.
+class _CollapsedSetupCard extends StatelessWidget {
+  const _CollapsedSetupCard({
+    required this.completed,
+    required this.total,
+    required this.steps,
+  });
+
+  final int completed;
+  final int total;
+  final List<_OnboardingStepUi> steps;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final remaining = (total - completed).clamp(0, total);
+    return Material(
+      color: AppTheme.surfaceContainerLowest,
+      borderRadius: BorderRadius.circular(16),
+      child: Theme(
+        data: theme.copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+          title: Text(
+            'Finish setting up',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          subtitle: Text(
+            remaining == 0
+                ? 'All set'
+                : '$remaining step${remaining == 1 ? '' : 's'} left',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          children: [
+            _GettingStartedCarousel(
+              completed: completed,
+              total: total,
+              steps: steps,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Horizontal pager: one onboarding step at a time (parity with web checklist).
 class _GettingStartedCarousel extends StatefulWidget {
   const _GettingStartedCarousel({
@@ -2160,9 +2301,8 @@ class _GettingStartedCarouselState extends State<_GettingStartedCarousel> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     IconButton.filledTonal(
-                      onPressed: _index > 0
-                          ? () => _goToStep(_index - 1)
-                          : null,
+                      onPressed:
+                          _index > 0 ? () => _goToStep(_index - 1) : null,
                       icon: const Icon(Icons.chevron_left),
                     ),
                     Padding(
@@ -2202,7 +2342,8 @@ class _GettingStartedCarouselState extends State<_GettingStartedCarousel> {
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                   decoration: BoxDecoration(
                     color: AppTheme.surfaceContainerLow,
                     borderRadius: BorderRadius.circular(12),
@@ -2256,7 +2397,8 @@ class _GettingStartedCarouselState extends State<_GettingStartedCarousel> {
                                         ? _doneGreen
                                         : inProgress
                                             ? AppTheme.primary
-                                            : theme.colorScheme.onSurfaceVariant,
+                                            : theme
+                                                .colorScheme.onSurfaceVariant,
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
@@ -2264,8 +2406,8 @@ class _GettingStartedCarouselState extends State<_GettingStartedCarousel> {
                                       step.title,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.labelMedium
-                                          ?.copyWith(
+                                      style:
+                                          theme.textTheme.labelMedium?.copyWith(
                                         fontWeight: selected
                                             ? FontWeight.w700
                                             : FontWeight.w600,
@@ -2292,7 +2434,8 @@ class _GettingStartedCarouselState extends State<_GettingStartedCarousel> {
                                           ? _doneGreen
                                           : inProgress
                                               ? AppTheme.primary
-                                              : theme.colorScheme.onSurfaceVariant,
+                                              : theme
+                                                  .colorScheme.onSurfaceVariant,
                                     ),
                                   ),
                                 ],

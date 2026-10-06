@@ -7,10 +7,12 @@ import 'package:go_router/go_router.dart';
 import '../../../config/theme.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/dio_envelope.dart';
+import '../../../core/providers/store_identity_provider.dart';
 import '../../../core/widgets/dashboard_page_header.dart';
 import '../../../core/widgets/illustrated_empty_state.dart';
 import '../../../core/widgets/shimmer_list_loader.dart';
 import '../providers/pending_orders_count_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 /// Order Fulfillment — Stitch layout (metrics, chips, order cards, processing goal).
 class OrdersListScreen extends ConsumerStatefulWidget {
@@ -482,18 +484,20 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                    child:
-                        _MetricCardActiveToday(value: '$_metricActiveToday')),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: _MetricCardPendingShipment(
-                        value: '$_metricPendingShipment')),
-              ],
-            ),
-            const SizedBox(height: 14),
+            if (_totalItems > 0 || _allOrders.isNotEmpty) ...[
+              Row(
+                children: [
+                  Expanded(
+                      child:
+                          _MetricCardActiveToday(value: '$_metricActiveToday')),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: _MetricCardPendingShipment(
+                          value: '$_metricPendingShipment')),
+                ],
+              ),
+              const SizedBox(height: 14),
+            ],
             SizedBox(
               height: 40,
               child: ListView.separated(
@@ -575,10 +579,28 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
                 ),
               )
             else if (orders.isEmpty)
-              const IllustratedEmptyState(
+              IllustratedEmptyState(
                 icon: Icons.inbox_outlined,
-                title: 'No orders found',
-                subtitle: 'No orders found for the selected filter.',
+                title: 'No orders yet',
+                subtitle:
+                    'Share your store link so customers can place their first order.',
+                actionLabel: 'Share store',
+                onAction: () {
+                  final storeUrl = ref
+                      .read(storeIdentityProvider)
+                      .valueOrNull
+                      ?.storeUrl
+                      ?.trim();
+                  if (storeUrl == null || storeUrl.isEmpty) {
+                    context.go('/dashboard');
+                    return;
+                  }
+                  SharePlus.instance.share(
+                    ShareParams(
+                      text: 'Shop on my store: $storeUrl',
+                    ),
+                  );
+                },
               )
             else
               ...orders.map((order) {
@@ -609,11 +631,13 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen> {
                 canNext: _currentPage < _totalPages,
               ),
             ],
-            const SizedBox(height: 8),
-            _ProcessingGoalCard(
-              processed: _goalProcessed,
-              total: _goalTotal,
-            ),
+            if (_totalItems > 0) ...[
+              const SizedBox(height: 8),
+              _ProcessingGoalCard(
+                processed: _goalProcessed,
+                total: _goalTotal,
+              ),
+            ],
           ],
         ),
       ),

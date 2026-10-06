@@ -26,9 +26,17 @@ void main() {
       expect(resolveInAppRoute('/products/new'), '/products/new');
     });
 
-    test('preserves a bare deep-link sub-route', () {
-      expect(resolveInAppRoute('/products/edit/SKU-123'.toLowerCase()),
-          '/products/edit/sku-123');
+    test('preserves a bare deep-link sub-route casing', () {
+      expect(
+        resolveInAppRoute(
+          '/products/edit/a1b2c3d4-e5f6-4789-a012-3456789abcde',
+        ),
+        '/products/edit/a1b2c3d4-e5f6-4789-a012-3456789abcde',
+      );
+      expect(
+        resolveInAppRoute('/products/edit/ABC-BONDKR-X9Y1'),
+        '/products/edit/ABC-BONDKR-X9Y1',
+      );
       expect(resolveInAppRoute('/analytics/expenses'), '/analytics/expenses');
     });
 
