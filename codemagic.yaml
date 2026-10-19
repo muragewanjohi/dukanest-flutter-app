@@ -18,9 +18,6 @@ workflows:
     environment:
       groups:
         - app_store
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.dukanest.proximityScanTester
       vars:
         BUNDLE_ID: com.dukanest.proximityScanTester
       flutter: stable
