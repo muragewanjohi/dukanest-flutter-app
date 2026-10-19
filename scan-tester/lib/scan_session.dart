@@ -94,6 +94,42 @@ Map<String, Object?> proximityEventBody({
   };
 }
 
+/// Local demos name the supermarket because a phone address is an IP, not a subdomain.
+const demoStoreSubdomain = 'supermarket';
+
+bool isLocalDemoHost(String host) {
+  return host == 'localhost' ||
+      host == '127.0.0.1' ||
+      host.endsWith('.localhost') ||
+      RegExp(r'^\d{1,3}(?:\.\d{1,3}){3}$').hasMatch(host);
+}
+
+/// Showcase deck for a supermarket demo. No beacon, scan key, or typed shelf.
+Uri showcaseAdsUri(String baseUrl) {
+  final root = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+  final uri = Uri.parse('$root/api/v1/proximity/ads/showcase');
+  if (!isLocalDemoHost(uri.host)) return uri;
+  return uri.replace(queryParameters: {'store': demoStoreSubdomain});
+}
+
+/// The ad set on the shelf of the beacon the phone is hearing.
+Uri beaconAdUri({
+  required String baseUrl,
+  required String uuid,
+  required int major,
+  required int minor,
+}) {
+  final root = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+  final uri = Uri.parse('$root/api/v1/proximity/ads/beacon');
+  return uri.replace(
+    queryParameters: {
+      'uuid': uuid,
+      'major': '$major',
+      'minor': '$minor',
+    },
+  );
+}
+
 /// Absolute image address for a card. Store-relative paths use the scan base URL.
 String? cardImageUrl(Object? raw, String baseUrl) {
   final value = raw?.toString().trim() ?? '';

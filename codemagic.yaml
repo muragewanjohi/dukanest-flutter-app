@@ -1,0 +1,71 @@
+# DukaNest Scan for iOS. Codemagic signs with the linked App Store Connect key
+# and uploads the build to TestFlight.
+#
+# Before the first build:
+# 1. In App Store Connect, create an app with bundle ID com.dukanest.proximityScanTester.
+# 2. Name the App Store Connect API key in Codemagic "DukaNest"
+#    (Team integrations → Developer Portal), or change the name below.
+# 3. Add a Codemagic variable group named app_store with APP_STORE_APPLE_ID
+#    set to the numeric Apple ID under App Store Connect → App Information.
+workflows:
+  dukanest-scan-ios:
+    name: DukaNest Scan iOS
+    working_directory: scan-tester
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: DukaNest
+    environment:
+      groups:
+        - app_store
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.dukanest.proximityScanTester
+      vars:
+        BUNDLE_ID: com.dukanest.proximityScanTester
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: "*"
+          include: true
+      cancel_previous_builds: true
+    when:
+      changeset:
+        includes:
+          - scan-tester/**
+    scripts:
+      - name: Set up keychain
+        script: keychain initialize
+      - name: Fetch signing files
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+      - name: Set up code signing
+        script: xcode-project use-profiles
+      - name: Get Flutter packages
+        script: flutter pub get
+      - name: Run tests
+        script: flutter test
+      - name: Build iOS app
+        script: |
+          if [ -z "$APP_STORE_APPLE_ID" ]; then
+            echo "Add APP_STORE_APPLE_ID to the Codemagic app_store variable group."
+            exit 1
+          fi
+          BUILD_NUMBER=$(($(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID") + 1))
+          flutter build ipa --release \
+            --build-name=1.0.0 \
+            --build-number="$BUILD_NUMBER" \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - scan-tester/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

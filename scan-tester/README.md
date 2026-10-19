@@ -1,17 +1,15 @@
-# proximity_scan_tester
+# DukaNest Scan
 
-A new Flutter project.
+Phone app that hears a store beacon and shows the offer set on that shelf.
 
-## Getting Started
+Android listens with a Bluetooth scan. iOS uses Core Location ranging for the same beacon, because Apple does not give iBeacon advertisements to a Bluetooth scan. The app only hears the beacon while it is open.
 
-This project is a starting point for a Flutter application.
+Bundle ID: `com.dukanest.proximityScanTester`
 
-A few resources to get you started if this is your first Flutter project:
+## iOS release
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+`codemagic.yaml` at the repository root builds this app and sends it to TestFlight.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+1. Create the app in App Store Connect with bundle ID `com.dukanest.proximityScanTester`.
+2. Name the Codemagic App Store Connect API key `DukaNest`, or change that name in `codemagic.yaml`.
+3. Add a Codemagic variable group named `app_store` with `APP_STORE_APPLE_ID` set to the numeric Apple ID from App Store Connect → App Information.

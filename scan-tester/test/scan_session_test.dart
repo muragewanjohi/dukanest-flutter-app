@@ -80,6 +80,31 @@ void main() {
     expect(delivered['campaign_id'], 'campaign-1');
   });
 
+  test('a local demo asks the supermarket for its shelf ads', () {
+    final uri = showcaseAdsUri('http://192.168.1.11:3000/');
+    expect(uri.path, '/api/v1/proximity/ads/showcase');
+    expect(uri.queryParameters['store'], 'supermarket');
+  });
+
+  test('a heard beacon asks dukanest for the ad set on its shelf', () {
+    final uri = beaconAdUri(
+      baseUrl: 'https://www.dukanest.com',
+      uuid: dukanestProximityUuid,
+      major: 1,
+      minor: 2,
+    );
+    expect(uri.host, 'www.dukanest.com');
+    expect(uri.path, '/api/v1/proximity/ads/beacon');
+    expect(uri.queryParameters['major'], '1');
+    expect(uri.queryParameters['minor'], '2');
+    expect(uri.queryParameters.containsKey('store'), isFalse);
+  });
+
+  test('a supermarket host does not add a store override', () {
+    final uri = showcaseAdsUri('https://supermarket.dukanest.com');
+    expect(uri.queryParameters.containsKey('store'), isFalse);
+  });
+
   test('a stored image stays absolute and a relative path uses the store address', () {
     expect(
       cardImageUrl('https://cdn.example/coke.png', 'http://127.0.0.1:3000'),
