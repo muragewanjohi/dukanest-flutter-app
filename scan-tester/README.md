@@ -11,5 +11,5 @@ Bundle ID: `com.dukanest.proximityScanTester`
 `codemagic.yaml` at the repository root builds this app and sends it to TestFlight.
 
 1. Create the app in App Store Connect with bundle ID `com.dukanest.proximityScanTester`.
-2. Name the Codemagic App Store Connect API key `DukaNest`, or change that name in `codemagic.yaml`.
+2. The Codemagic App Store Connect API key is `STOREFLOW MICROSYSTEMS LIMITED`.
 3. Add a Codemagic variable group named `app_store` with `APP_STORE_APPLE_ID` set to the numeric Apple ID from App Store Connect → App Information.

@@ -3,8 +3,8 @@
 #
 # Before the first build:
 # 1. In App Store Connect, create an app with bundle ID com.dukanest.proximityScanTester.
-# 2. Name the App Store Connect API key in Codemagic "DukaNest"
-#    (Team integrations → Developer Portal), or change the name below.
+# 2. The App Store Connect API key name below must match Codemagic
+#    Team integrations → Developer Portal.
 # 3. Add a Codemagic variable group named app_store with APP_STORE_APPLE_ID
 #    set to the numeric Apple ID under App Store Connect → App Information.
 workflows:
@@ -14,7 +14,7 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     integrations:
-      app_store_connect: DukaNest
+      app_store_connect: "STOREFLOW MICROSYSTEMS LIMITED"
     environment:
       groups:
         - app_store
