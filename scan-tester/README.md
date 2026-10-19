@@ -12,4 +12,4 @@ Bundle ID: `com.dukanest.proximityScanTester`
 
 1. Create the app in App Store Connect with bundle ID `com.dukanest.proximityScanTester`.
 2. The Codemagic App Store Connect API key is `STOREFLOW MICROSYSTEMS LIMITED`.
-3. Add a Codemagic variable group named `app_store` with `APP_STORE_APPLE_ID` set to the numeric Apple ID from App Store Connect → App Information.
+3. Add a Codemagic variable group named `app_store` with `APP_STORE_APPLE_ID` and a secret `CERTIFICATE_PRIVATE_KEY`.

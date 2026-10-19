@@ -5,8 +5,9 @@
 # 1. In App Store Connect, create an app with bundle ID com.dukanest.proximityScanTester.
 # 2. The App Store Connect API key name below must match Codemagic
 #    Team integrations → Developer Portal.
-# 3. Add a Codemagic variable group named app_store with APP_STORE_APPLE_ID
-#    set to the numeric Apple ID under App Store Connect → App Information.
+# 3. Add a Codemagic variable group named app_store with:
+#    APP_STORE_APPLE_ID — numeric Apple ID from App Information
+#    CERTIFICATE_PRIVATE_KEY — the RSA private key, marked secret
 workflows:
   dukanest-scan-ios:
     name: DukaNest Scan iOS
@@ -41,7 +42,9 @@ workflows:
         script: |
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
+            --certificate-key="@env:CERTIFICATE_PRIVATE_KEY" \
             --create
+          keychain add-certificates
       - name: Set up code signing
         script: xcode-project use-profiles
       - name: Get Flutter packages
