@@ -68,8 +68,18 @@ workflows:
             --build-name=1.0.0 \
             --build-number="$BUILD_NUMBER" \
             --export-options-plist=/Users/builder/export_options.plist
+          IPA_PATH=$(find "$CM_BUILD_DIR" -name "*.ipa" -print -quit)
+          if [ -z "$IPA_PATH" ]; then
+            echo "No IPA was produced. TestFlight upload would be skipped."
+            find "$CM_BUILD_DIR" -type d -name ipa || true
+            exit 1
+          fi
+          echo "IPA ready at $IPA_PATH"
     artifacts:
+      # Paths are from the repo root. IPA is under scan-tester because of working_directory.
       - scan-tester/build/ios/ipa/*.ipa
+      - build/ios/ipa/*.ipa
+      - $CM_BUILD_DIR/scan-tester/build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
     publishing:
       app_store_connect:
