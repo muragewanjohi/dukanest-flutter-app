@@ -18,6 +18,10 @@
 	<string>DukaNest Scan</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>DukaNest Scan uses Bluetooth to hear the store beacon and show the offer on that shelf.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>DukaNest Scan uses Bluetooth to hear the store beacon and show the offer on that shelf.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>DukaNest Scan uses your location while the app is open to hear the store beacon and show the offer on that shelf.</string>
 	<key>CFBundlePackageType</key>

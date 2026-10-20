@@ -2,7 +2,7 @@
 
 Phone app that hears a store beacon and shows the offer set on that shelf.
 
-Android listens with a Bluetooth scan. iOS uses Core Location ranging for the same beacon, because Apple does not give iBeacon advertisements to a Bluetooth scan. The app only hears the beacon while it is open.
+Android listens with a Bluetooth scan. iOS uses Core Location ranging for the same beacon, because Apple does not give iBeacon advertisements to a Bluetooth scan. The app only hears the beacon while it is open. The iOS project uses Swift Package Manager, not CocoaPods.
 
 Bundle ID: `com.dukanest.proximityScanTester`
 
